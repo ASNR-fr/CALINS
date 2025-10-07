@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["calins", "calins.src", "calins.src.html_outputfile", "calins.src.isotopes_reactions"]
+exclude = ["images", "tests"]
+
+[tool.setuptools.package-data]
+"calins.src.isotopes_reactions" = ["*.json"]
+"calins.src.html_outputfile" = ["*.model"]
+
+[project]
+name = "calins"
+version = "1.0.0b0"
+authors = [
+  { name="Barthelemi Petillon", email="barth.petillon@gmail.com" },
+]
+description = "Package used to compute ND uncertainties propagation, sensitivities analyses and assimilation with GLLSM"
+readme = "README_FR.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3.9",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+]
+dynamic = ["dependencies"]
+license = "MIT"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[project.urls]
+github="https://gitlab.extra.irsn.fr/snc/CALINS"
