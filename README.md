@@ -1,10 +1,7 @@
-<PART NEEDED FOR PDF EXPORT OF THE README>
-<script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-<script type="text/x-mathjax-config">
-  MathJax.Hub.Config({ tex2jax: {inlineMath: [['$', '$']]}, messageStyle: "none" });
-</script>
+![](./images/Logo.PNG)
+### **CAL**culations and **I**nvestigations on **N**uclear data uncertainties and **S**ensitivities
 
-CALINS: CALculations and Investigations on Nuclear data uncertainties and Sensitivities
+by French Authority for Nuclear Safety and Radiation Protection - ASNR
 
 - [**INSTALLATION**](#installation)
 - [**THEORY**](#theory)
