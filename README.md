@@ -229,8 +229,8 @@ Calculate nuclear data uncertainty using the sandwich formula:
 import calins as cl
 
 # Load covariance matrix (example: SCALE format)
-scale_file_path = 'path/to/scale_44g.txt'
-cov_df = cl.format_scale_txt_to_dataframe(input_path=scale_file_path)
+scale_file_path = 'path/to/scale_44g'
+cov_df = cl.format_scale_binary_to_dataframe(input_path=scale_file_path)
 
 # Load sensitivity data
 sensi_file_path = 'path/to/sensitivity.sdf'
@@ -261,7 +261,7 @@ case1 = cl.Case('path/to/case1.sdf')
 case2 = cl.Case('path/to/case2.sdf')
 
 # Load covariance data
-cov_df = cl.format_scale_txt_to_dataframe('path/to/covariance.txt')
+cov_df = cl.format_scale_binary_to_dataframe('path/to/covariance')
 
 # Calculate E similarity index (0 to 1)
 E_index = cl.calcul_E(case1, case2)
@@ -272,7 +272,7 @@ Ck_index = cl.calcul_Ck(case1, case2, cov_df)
 print(f"C_k similarity index: {Ck_index}")
 
 # Calculate SS overlap index (Shared Sensitivity)
-SS_index = cl.calcul_SS_overlap(case1, case2, reference=case1)
+SS_index = cl.calcul_SS(study_case=case1, bench_case=case2, reference=case1)
 print(f"SS overlap index: {SS_index}")
 ```
 
@@ -294,7 +294,7 @@ benchmarks = [
 ]
 
 # Load covariance data
-cov_df = cl.format_scale_txt_to_dataframe('path/to/covariance.txt')
+cov_df = cl.format_scale_binary_to_dataframe('path/to/covariance')
 
 # Perform assimilation
 assimilation = cl.Assimilation(
