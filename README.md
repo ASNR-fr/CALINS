@@ -89,7 +89,7 @@ import calins as cl
 case = cl.Case(sdf_path='path/to/sensitivity.sdf')
 
 # 2. Load covariance data
-cov_df = cl.format_scale_txt_to_dataframe('path/to/covariance.txt')
+cov_df = cl.format_scale_binary_to_dataframe('path/to/covariance')
 
 # 3. Calculate uncertainty
 uncertainty = cl.calcul_uncertainty(
