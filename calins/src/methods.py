@@ -648,6 +648,8 @@ def format_sensi_to_dataframe(
 
     group_nb = int(lines_sensi[1].split()[0])
 
+    mcnp_reac_exceptions = ['-2']
+
     if lines_sensi[3].split()[1] == "+/-":
         formatting = "TSUNAMI-B"
         headers_length = 4
@@ -695,7 +697,7 @@ def format_sensi_to_dataframe(
 
             if (
                 (formatting == "TSUNAMI-B" and lines_sensi[i + 1].split()[0] == "0") or (formatting == "TSUNAMI-A" and line.split()[-2] == "0")
-            ) and line.split()[3] in reac_trad:
+            ) and line.split()[3] in list(reac_trad.keys())+mcnp_reac_exceptions:
 
                 # Let's read the block of sensitivities values in one go and then pass all the lines until the next block (with the help of pass_line)
                 sensi = [float(x) for x in "".join(lines_sensi[i + headers_line_nb : i + headers_line_nb + ceil(group_nb / 5)]).split()]
@@ -787,7 +789,7 @@ def format_sensi_to_dataframe(
                             f"The sensitivities for the isotope {line.split()[0]} / {iso} and the reaction {line.split()[1]} / {reac} are all zeros."
                         )
 
-            elif line.split()[3] in reac_trad:
+            elif line.split()[3] in list(reac_trad.keys())+mcnp_reac_exceptions:
                 reac = int(line.split()[3])
                 iso = int(line.split()[2])
                 if mcnp:
