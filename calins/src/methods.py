@@ -544,7 +544,7 @@ def condense_sdf(input_sdf_path: str, output_ebins: list, output_sdf_path: str):
             len(lines_sensi[i].split()) == headers_length
             and i > (4 + ceil((group_nb + 1) / 5))
             and i < len(lines_sensi) - block_length
-            and lines_sensi[i].split()[3].isdigit()
+            and lines_sensi[i].split()[3].replace('-', '').isdigit()
         ):
             return False
 
@@ -665,7 +665,7 @@ def format_sensi_to_dataframe(
             len(lines_sensi[i].split()) == headers_length
             and i > (4 + ceil((group_nb + 1) / 5))
             and i < len(lines_sensi) - block_length
-            and lines_sensi[i].split()[3].isdigit()
+            and lines_sensi[i].split()[3].replace('-', '').isdigit()
         ):
             return False
 
