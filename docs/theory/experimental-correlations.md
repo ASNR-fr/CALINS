@@ -1,0 +1,8 @@
+# Reflections on Experimental Correlations
+
+Given the methodology presented above, setting experimental correlations to zero has several consequences. It has been observed that an assimilation including multiple instances of the exact same benchmark case yields a lower posterior uncertainty and a different bias than an assimilation including that benchmark only once. This effect arises from the assumption that these multiple experiments are uncorrelated. In reality, the fact that the same experiment was conducted several times and that all realizations are assimilated should not impact the uncertainty calculation for the study case, since no new information is truly added apart from the repetition itself—a fact that should not affect the study case, except if one deliberately intends to give more weight to an experiment repeated more often than another.
+
+This raises the issue of similarity between assimilated benchmarks when the GLLS method is applied. If several experiments intrinsically share very similar sensitivities and responses (both experimental and calculated)—for instance, experiments from the same series—then neglecting correlations biases the assimilation process. This appears to result in an overestimation of posterior uncertainty and an inaccurate evaluation of the associated bias.
+
+Studies on the impact of experimental correlations have already been carried out, notably [^3].
+[^3]: T. Nicol, C. Carmouze. Impact of experimental correlation on transposition method carry out with critical integral experiments. ICNC 2019 - 11th International conference on Nuclear Criticality Safety, Sep 2019, Paris, France. ffcea-02614125

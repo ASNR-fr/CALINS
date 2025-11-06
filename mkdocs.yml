@@ -1,0 +1,77 @@
+site_name: CALINS Documentation
+site_url: https://asnr-fr.github.io/CALINS
+repo_url: https://github.com/ASNR-fr/CALINS
+repo_name: ASNR-fr/CALINS
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Usage Examples:
+    - Creating a Case Object: usage-examples/creating-case-object.md
+    - Calculating Uncertainty: usage-examples/calculating-uncertainty.md
+    - Computing Similarity Indices: usage-examples/computing-similarity-indices.md
+    - Performing Data Assimilation: usage-examples/performing-data-assimilation.md
+    - Sensitivity Analysis and Case Screening: usage-examples/sensitivity-analysis-case-screening.md
+  - Points of Attention: points-of-attention.md
+  - Theory:
+    - Introduction: theory/introduction.md
+    - Sensitivity Vector: theory/sensitivity-vector.md
+    - Covariance Matrix: theory/covariance-matrix.md
+    - Alignment Rule for Matrix Calculations: theory/alignment-rule.md
+    - Uncertainty Calculation on the Response: theory/uncertainty-calculation.md
+    - Assimilation of Experimental Data and Bias Calculation via GLLSM: theory/assimilation-gllsm.md
+    - Reflections on Experimental Correlations: theory/experimental-correlations.md
+  - Developer Manual:
+    - methods.py: developer-manual/methods.md
+    - classes.py: developer-manual/classes.md
+    - plots.py: developer-manual/plots.md
+    - errors.py: developer-manual/errors.md
+    - logs.py: developer-manual/logs.md
+  - Contributing: contributing.md
+  - Troubleshooting: troubleshooting.md
+  - Citation: citation.md
+  - References: references.md
+  - License: license.md
+
+theme:
+  name: material
+  logo: images/Logo.PNG
+  favicon: images/Logo.PNG
+  palette:
+    scheme: default
+    primary: blue grey
+    accent: light blue
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+    - toc.integrate
+    - navigation.instant
+
+plugins:
+  - search
+
+markdown_extensions:
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+extra_css:
+  - stylesheets/extra.css

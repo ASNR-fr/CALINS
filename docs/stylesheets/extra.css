@@ -1,0 +1,183 @@
+/* Custom elegant grey-blue-ash theme for CALINS documentation */
+
+:root {
+  --md-primary-fg-color: #546e7a;        /* Blue grey */
+  --md-primary-fg-color--light: #78909c; /* Lighter blue grey */
+  --md-primary-fg-color--dark: #455a64;  /* Darker blue grey */
+  --md-accent-fg-color: #81c784;         /* Soft green accent */
+  --md-accent-fg-color--transparent: rgba(129, 199, 132, 0.1);
+  --md-ash-color: #90a4ae;               /* Ash tone */
+  --md-steel-color: #607d8b;             /* Steel blue */
+  --md-mist-color: #cfd8dc;              /* Light ash mist */
+}
+
+/* Header styling */
+.md-header {
+  background: linear-gradient(135deg, #546e7a 0%, #607d8b 100%);
+  box-shadow: 0 2px 4px rgba(84, 110, 122, 0.25);
+}
+
+.md-header__title {
+  color: white;
+  font-weight: 600;
+}
+
+/* Logo styling - Much bigger logo */
+.md-header__button.md-logo {
+  width: auto;
+  height: 60px; /* Increase header height for bigger logo */
+  padding: 8px;
+}
+
+.md-header__button.md-logo img {
+  background-color: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  padding: 4px;
+  height: 50px; /* Much bigger logo height */
+  width: auto; /* Maintain aspect ratio */
+  max-width: 200px; /* Prevent it from being too wide */
+  box-shadow: 0 2px 8px rgba(84, 110, 122, 0.15);
+}
+
+/* Adjust header height to accommodate bigger logo */
+.md-header {
+  height: 4rem; /* Increase from default 2.4rem */
+}
+
+/* Adjust header title positioning for bigger logo */
+.md-header__title {
+  margin-left: 0.8rem;
+  font-size: 1.2rem;
+  line-height: 4rem; /* Match header height */
+}
+
+/* Navigation tabs */
+.md-tabs {
+  background: linear-gradient(135deg, #455a64 0%, #546e7a 100%);
+}
+
+.md-tabs__link {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  transition: color 0.2s ease;
+}
+
+.md-tabs__link:hover {
+  color: white;
+  opacity: 1;
+}
+
+.md-tabs__link--active {
+  color: white;
+  font-weight: 600;
+}
+
+/* Sidebar styling */
+.md-nav--primary .md-nav__title {
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #cfd8dc;
+  color: #455a64;
+}
+
+/* Links and accents */
+.md-typeset a {
+  color: #546e7a;
+}
+
+.md-typeset a:hover {
+  color: #455a64;
+}
+
+/* Code blocks */
+.md-typeset .highlight {
+  background-color: #f8f9fa;
+  border-left: 4px solid #90a4ae;
+  border-radius: 4px;
+}
+
+/* Admonitions */
+.md-typeset .admonition {
+  border-left: 4px solid #78909c;
+  background-color: rgba(207, 216, 220, 0.1);
+}
+
+.md-typeset .admonition-title {
+  background-color: rgba(120, 144, 156, 0.15);
+  color: #455a64;
+}
+
+/* Tables */
+.md-typeset table:not([class]) th {
+  background-color: rgba(144, 164, 174, 0.15);
+  color: #455a64;
+  border-bottom: 2px solid #90a4ae;
+}
+
+.md-typeset table:not([class]) td {
+  border-bottom: 1px solid #cfd8dc;
+}
+
+/* Search highlighting */
+.md-search-result__article--document .md-search-result__title {
+  color: #546e7a;
+}
+
+.md-search__input {
+  background-color: rgba(207, 216, 220, 0.1);
+  border: 1px solid #cfd8dc;
+}
+
+.md-search__input:focus {
+  border-color: #78909c;
+}
+
+/* Footer */
+.md-footer {
+  background-color: #37474f;
+  color: #cfd8dc;
+}
+
+.md-footer-meta {
+  background-color: #263238;
+}
+
+
+
+/* Additional elegant touches */
+.md-nav__item .md-nav__link--active {
+  color: #546e7a;
+  font-weight: 500;
+}
+
+.md-nav__item .md-nav__link:hover {
+  color: #455a64;
+}
+
+/* Content area subtle styling */
+.md-content {
+  background: linear-gradient(180deg, rgba(248, 249, 250, 0.5) 0%, rgba(255, 255, 255, 0.8) 100%);
+}
+
+/* Elegant button styling */
+.md-typeset .md-button {
+  background-color: #546e7a;
+  border-color: #546e7a;
+  color: white;
+}
+
+.md-typeset .md-button:hover {
+  background-color: #455a64;
+  border-color: #455a64;
+}
+
+/* Subtle shadows and depth */
+.md-typeset .md-typeset__table {
+  box-shadow: 0 2px 8px rgba(84, 110, 122, 0.1);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* Mathematical expressions styling */
+.MathJax {
+  color: #37474f !important;
+}

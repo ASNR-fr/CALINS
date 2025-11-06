@@ -9,6 +9,8 @@
 
 > A Python package for computing nuclear data uncertainty propagation, sensitivity analyses, and data assimilation using the Generalized Linear Least Squares Method (GLLSM).
 
+**📚 [Read the Documentation](https://asnr-fr.github.io/CALINS/)** | **🚀 [Quick Start Guide](https://asnr-fr.github.io/CALINS/installation/)** | **💡 [Usage Examples](https://asnr-fr.github.io/CALINS/usage-examples/creating-case-object/)**
+
 **Developed by**: French Authority for Nuclear Safety and Radiation Protection (ASNR)
 
 ---
