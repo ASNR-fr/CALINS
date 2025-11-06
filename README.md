@@ -1,4 +1,4 @@
-![](./images/Logo.PNG)
+![](./docs/images/Logo.PNG)
 
 # CALINS
 
@@ -313,7 +313,7 @@ cl.display_most_sensitive_cases(dict_sensitive = sensitive_cases, max_number_of_
 
 Use `plot_sensitivity_heatmap()` to create visual heatmaps showing how many cases show the same sensitivity patterns across multiple energy regions:
 
-![](./images/Sensi_heatmap.PNG)
+![](./docs/images/Sensi_heatmap.PNG)
 
 ```python
 import calins as cl
@@ -390,15 +390,15 @@ All formulas are valid for data expressed in relative values.
 The sensitivity vector, for a given model, is composed of sub-vectors corresponding to sensitivities of resp<sup>calc</sup> to multigroup cross sections for a given isotope-reaction pair.  
 The isotope-reaction pairs form the “isotope-reaction list,” whose order must be consistent for all matrix operations.
 
-![](./images/Image_maker/Diapositive1.PNG)
+![](./docs/images/Image_maker/Diapositive1.PNG)
 The isotope-reaction pairs linked to the sub-vectors forms a list called the "isotope-reaction list". This list and its order are important to respect the alignment rule between vectors and matrices.
 
 ## **Covariance matrix**
 The covariance matrix (Cov) is constructed from multi-group uncertainties on cross sections and their correlations (Corr). It is symmetric by construction.  
-![](./images/Image_maker/Diapositive2.PNG)
-![](./images/Image_maker/Diapositive3.PNG)
+![](./docs/images/Image_maker/Diapositive2.PNG)
+![](./docs/images/Image_maker/Diapositive3.PNG)
 The covariance matrix can also be interpreted as a composition of covariances sub-matrices, for each pair of isotope-reaction couples, aligned horizontally and vertically: (i<sub>h</sub>, r<sub>h</sub>)-(i<sub>v</sub>, r<sub>v</sub>).
-![](./images/Image_maker/Diapositive4.PNG)
+![](./docs/images/Image_maker/Diapositive4.PNG)
 
 ## **Alignment rule for matrix calculations**
 Matrix multiplications are only valid if terms align: isotope-reaction pairs and energy groups must correspond.  
@@ -433,7 +433,7 @@ The validity domain of this method is defined by several hypotheses:
 The impact of benchmarks on posterior uncertainty σ<sub>resp</sub><sup>ND post</sup> depends on similarity to the study case (fissile material, moderator, spectrum).
 It is possible to pre-sort experiments to assimilate based on these physical criteria. For example, ICSBEP classifications already help pre-select benchmark cases similar to you study case.
 
-Similarity indicators (E, Ck, SS, etc.) can also be computed between sensitivity vectors. They help pre-sort benchmarks, which, once assimilated, will best impact the posterior uncertainty of the study case.
+Similarity indicators (E, Ck, G, SS, etc.) can also be computed between sensitivity vectors. They help pre-sort benchmarks, which, once assimilated, will best impact the posterior uncertainty of the study case.
 
 These indicators should be calculated for each benchmark to add to the assimilation list.
 
@@ -448,7 +448,7 @@ $$ C_k = \sqrt{({{S_1} \space · \space Cov \space · \space {S_2}^t})^2 \over (
 **Overlap index G (value between 0 and 1):**
 This index calculates the overlap rate of each sensitivity corresponding to an energy group, isotope, and reaction. The rate is calculated by taking a case as reference, and another to compare to.
 
-$$  SS = 1 - {\sum_{g}^{}\sum_{i, r}^{} \left\{\begin{matrix}
+$$  G = 1 - {\sum_{g}^{}\sum_{i, r}^{} \left\{\begin{matrix}
 if \space \space {S_{ref}^{g, i, r}}\times {S_{comp}^{g, i, r}} > 0 \space and \space \left|{S_{ref}^{g, i, r}}\right|\geq \left|{S_{comp}^{g, i, r}}\right| : {S_{ref}^{g, i, r}} - {S_{comp}^{g, i, r}} \\
 else \space : {S_{ref}^{g, i, r}}
 \end{matrix}\right. \over 
@@ -474,11 +474,11 @@ ${S_{ref}}$: reference sensitivity vector  ${S_{comp}}$: comparison sensitiv
 ### **Assimilation formulas**
 **Description of data used for GLLSM**:
 - a "C-E benchmarks vector" $\Delta k_{C-E \space bench}$ containing the relative response differences ((C-E)/C) of selected benchmarks;
-![](./images/Image_maker/Diapositive5.PNG)
+![](./docs/images/Image_maker/Diapositive5.PNG)
 - uncertainties σ<sub>resp</sub><sup>exp</sup>, to build the "experimental uncertainty matrix" $C_{bench}$. This matrix can include experimental correlations...
-![](./images/Image_maker/Diapositive6.PNG)
+![](./docs/images/Image_maker/Diapositive6.PNG)
 - the "benchmark sensitivity matrix" $S_{bench} = ..|S_{bench}^j | S_{bench}^{j+1} | ..$ built from the sensitivity vectors $S_{bench}^j$ (j: benchmark index)
-![](./images/Image_maker/Diapositive7.PNG)
+![](./docs/images/Image_maker/Diapositive7.PNG)
 
 ⚠️Note that the $Cov$ matrix depends on the benchmarks used. It is defined by the union of isotope-reaction pairs present in the benchmarks and the case under study.
 
@@ -600,8 +600,8 @@ These functions use the *make_...* functions to build sensitivity vectors and th
 One function exists per similarity index. Implemented indices are:
 - E
 - C<sub>k</sub>
-- SS overlap index (CEA formula)
-- SS overlap index (Mariya BROVCHENKO formula)
+- G (CEA formula)
+- Shared Sensitivities overlap index (Mariya BROVCHENKO formula)
 
 These functions take as input at least two sensitivity vectors and a covariance matrix for C<sub>k</sub> calculations. Sensitivity data can either be a SDF-file path, or *Case* object (presented below), but not preconstructed *numpy* vectors.
 
