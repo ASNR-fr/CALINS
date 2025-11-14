@@ -1202,11 +1202,11 @@ def calcul_E(case_1, case_2, return_iso_reac_list=False, iso_reac_list=None, rea
 
 
 @log_exec()
-def calcul_SS(
+def calcul_SSR(
     study_case, bench_case, return_iso_reac_list=False, iso_reac_list=None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None
 ):
     """
-    Calculate the SS similarity coefficient between two cases.
+    Calculate the Share Sensitivity Ratio between two cases.
 
     Parameters
     ----------
@@ -1250,7 +1250,7 @@ def calcul_SS(
     [study_vec, bench_vec], iso_reac_list = make_sensi_vectors(
         cases_list=[study_case, bench_case],
         operation="union",
-        iso_reac_list=iso_reac_list,
+        iso_reac_list=study_case.iso_reac_list,
         reac_list=reac_list,
         iso_list=iso_list,
         exclude_iso=exclude_iso,

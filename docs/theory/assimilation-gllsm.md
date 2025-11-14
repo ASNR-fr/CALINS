@@ -22,7 +22,7 @@ The validity domain of this method is defined by several hypotheses:
 The impact of benchmarks on posterior uncertainty σ<sub>resp</sub><sup>ND post</sup> depends on similarity to the study case (fissile material, moderator, spectrum).
 It is possible to pre-sort experiments to assimilate based on these physical criteria. For example, ICSBEP classifications already help pre-select benchmark cases similar to you study case.
 
-Similarity indicators (E, Ck, G, SS, etc.) can also be computed between sensitivity vectors. They help pre-sort benchmarks, which, once assimilated, will best impact the posterior uncertainty of the study case.
+Similarity indicators (E, Ck, G, SSR, etc.) can also be computed between sensitivity vectors. They help pre-sort benchmarks, which, once assimilated, will best impact the posterior uncertainty of the study case.
 
 These indicators should be calculated for each benchmark to add to the assimilation list.
 
@@ -47,10 +47,10 @@ S_{ref}^{g, i, r} & \text{else}
 
 ${S_{ref}}$: reference sensitivity vector  ${S_{comp}}$: comparison sensitivity vector
 
-**Shared Sensitivity Overlap Index SS (formula by Mariya BROVCHENKO):**
+**Shared Sensitivity Ratio SSR (formula by Mariya BROVCHENKO)**
 This index calculates the overlap rate of each sensitivity corresponding to an energy group, isotope, and reaction. The rate is calculated by taking a case as reference, and another to compare to.
 
-$$ SS =  {\sum_{g}^{}\sum_{i, r}^{} \left\{\begin{cases}
+$$ SSR =  {\sum_{g}^{}\sum_{i, r \space in \space ref}^{} \left\{\begin{cases}
 \min(|S_{ref}^{g, i, r}|, |S_{comp}^{g, i, r}|) & \text{if } S_{ref}^{g, i, r} \times S_{comp}^{g, i, r} > 0 \\
 \text{else} & 0 
 \end{cases}\right. \over 

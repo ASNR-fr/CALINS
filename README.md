@@ -5,7 +5,7 @@
 ### **CAL**culations and **I**nvestigations on **N**uclear data uncertainties and **S**ensitivities
 
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD--3--Clause-blue.svg)](LICENSE)
 
 > A Python package for computing nuclear data uncertainty propagation, sensitivity analyses, and data assimilation using the Generalized Linear Least Squares Method (GLLSM).
 
@@ -77,7 +77,7 @@ The package is particularly useful for criticality safety analyses where underst
 
 - ✅ **Uncertainty Calculation**: Propagate nuclear data uncertainties using the sandwich formula
 - ✅ **Sensitivity Analysis**: Process and visualize sensitivity profiles from SDF files
-- ✅ **Similarity Indices**: Calculate E, C<sub>k</sub>, G, and SS overlap indices between cases
+- ✅ **Similarity Indices**: Calculate E, C<sub>k</sub>, G, and SSR indices between cases
 - ✅ **GLLSM Assimilation**: Assimilate experimental benchmark data to reduce uncertainties
 - ✅ **Multiple Covariance Formats**: Support for SCALE (AMPX, binary), COMAC, and GENDF formats
 - ✅ **Interactive Visualizations**: Generate HTML reports with Plotly graphs
@@ -222,9 +222,9 @@ print(f"E similarity index: {E_index}")
 Ck_index = cl.calcul_Ck(case1, case2, cov_df)
 print(f"C_k similarity index: {Ck_index}")
 
-# Calculate SS overlap index (Shared Sensitivity)
-SS_index = cl.calcul_SS(study_case=case1, bench_case=case2, reference=case1)
-print(f"SS overlap index: {SS_index}")
+# Calculate SSR index (Shared Sensitivity Ratio)
+SSR_index = cl.calcul_SSR(study_case=case1, bench_case=case2, reference=case1)
+print(f"SSR index: {SSR_index}")
 ```
 
 ## Performing Data Assimilation
@@ -435,7 +435,7 @@ The validity domain of this method is defined by several hypotheses:
 The impact of benchmarks on posterior uncertainty σ<sub>resp</sub><sup>ND post</sup> depends on similarity to the study case (fissile material, moderator, spectrum).
 It is possible to pre-sort experiments to assimilate based on these physical criteria. For example, ICSBEP classifications already help pre-select benchmark cases similar to you study case.
 
-Similarity indicators (E, Ck, G, SS, etc.) can also be computed between sensitivity vectors. They help pre-sort benchmarks, which, once assimilated, will best impact the posterior uncertainty of the study case.
+Similarity indicators (E, Ck, G, SSR, etc.) can also be computed between sensitivity vectors. They help pre-sort benchmarks, which, once assimilated, will best impact the posterior uncertainty of the study case.
 
 These indicators should be calculated for each benchmark to add to the assimilation list.
 
@@ -458,9 +458,9 @@ else \space : {S_{ref}^{g, i, r}}
 
 ${S_{ref}}$: reference sensitivity vector  ${S_{comp}}$: comparison sensitivity vector
 
-**Shared Sensitivity Overlap Index SS (formula by Mariya BROVCHENKO):**
+**Shared Sensitivity Ratio SSR (formula by Mariya BROVCHENKO):**
 This index calculates the overlap rate of each sensitivity corresponding to an energy group, isotope, and reaction. The rate is calculated by taking a case as reference, and another to compare to.
-$$ SS =  {\sum_{g}^{}\sum_{i, r}^{} \left\{\begin{matrix}
+$$ SS =  {\sum_{g}^{}\sum_{i, r \space in\space ref}^{} \left\{\begin{matrix}
 if \space \space {S_{ref}^{g, i, r}}\times {S_{comp}^{g, i, r}} > 0 \space : min(\left|{S_{ref}^{g, i, r}}\right|, \left|{S_{comp}^{g, i, r}}\right|) \\
 else \space : 0
 \end{matrix}\right. \over 
@@ -868,7 +868,7 @@ If you use CALINS in your research or work, please cite it appropriately:
 
 # License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the BSD-3-Clause License - see the LICENSE file for details.
 
 ---
 

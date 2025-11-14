@@ -26,7 +26,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dynamic = ["dependencies"]
-license = "MIT"
+license = "BSD-3-Clause"
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}

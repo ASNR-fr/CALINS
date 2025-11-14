@@ -21,6 +21,6 @@ Ck_index = cl.calcul_Ck(case1, case2, cov_df)
 print(f"C_k similarity index: {Ck_index}")
 
 # Calculate SS overlap index (Shared Sensitivity)
-SS_index = cl.calcul_SS(study_case=case1, bench_case=case2, reference=case1)
-print(f"SS overlap index: {SS_index}")
+SSR_index = cl.calcul_SSR(study_case=case1, bench_case=case2, reference=case1)
+print(f"SS overlap index: {SSR_index}")
 ```
