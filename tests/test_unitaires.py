@@ -110,17 +110,16 @@ class TestDataFormattingFunctions(unittest.TestCase):
 
         print("Test successfull for calculation type E")
 
-    def test_SS(self):
+    def test_SSR(self):
 
-        SS = cl.calcul_SS(study_case=sensi_correct_path_1, bench_case=sensi_correct_path_2)
-        self.assertAlmostEqual(SS, 0.5714, places=4)
+        SSR = cl.calcul_SSR(study_case=sensi_correct_path_1, bench_case=sensi_correct_path_2)
+        self.assertAlmostEqual(SSR, 0.5714, places=4)
 
-        SS = cl.calcul_SS(study_case=sensi_case_1, bench_case=sensi_case_2)
-        self.assertAlmostEqual(SS, 0.5714, places=4)
+        SSR = cl.calcul_SSR(study_case=sensi_case_1, bench_case=sensi_case_2)
+        self.assertAlmostEqual(SSR, 0.5714, places=4)
 
-        SS = cl.calcul_SS(study_case=sensi_correct_path_1, bench_case=sensi_case_2)
-        self.assertAlmostEqual(SS, 0.5714, places=4)
-
+        SSR = cl.calcul_SSR(study_case=sensi_correct_path_1, bench_case=sensi_case_2)
+        self.assertAlmostEqual(SSR, 0.5714, places=4)
         print("Test successfull for calculation type SS")
 
     def test_G(self):
