@@ -169,7 +169,7 @@ def format_scale_corr_to_dataframe(input_path: str, output_path: str = None):
 
 
 @log_exec()
-def format_scale_binary_to_dataframe(input_path: str, group_nb: int, output_xlsx_path: str = None, output_txt_path: str = None):
+def format_scale_binary_to_dataframe(input_path: str, output_xlsx_path: str = None, output_txt_path: str = None, big_endian=False):
     """
     Function to parse the SCALE covariance matrix binary file and extract the covariance values into a DataFrame, that can be passes to other functions.
 
@@ -177,12 +177,13 @@ def format_scale_binary_to_dataframe(input_path: str, group_nb: int, output_xlsx
     ----------
     input_path : str
         [Required] Path to the input covariance matrix text file.
-    group_nb : int
-        [Required] Number of energy groups in the covariance matrix.
+
     output_xlsx_path : str, optional
         Path to store the DataFrame as an Excel file. The default is None.
     output_txt_path : str, optional
         Path to store the covariance matrix as a text file. The default is None.
+    big_endian : bool, optional
+        Indicates if the binary file has integers and floats in big-endian format. Can be usefull for old COVERX files. The default is False.
 
     Returns
     -------
@@ -190,13 +191,8 @@ def format_scale_binary_to_dataframe(input_path: str, group_nb: int, output_xlsx
         DataFrame containing the covariance values. This DataFrame can be passed to other functions.
     """
 
-    if group_nb not in [44, 56]:
-        raise errors.UserInputError(
-            f"The group number {group_nb} of the SCALE matrix should be 44 or 56. It determines the byte order for int and float numbers. Use 44 for big endian and 56 for normal, if your matrix has a different group number."
-        )
-
     big_endian = ""
-    if group_nb == 44:
+    if big_endian :
         big_endian = ">"
 
     single_word = 6  # Byte-size for words
@@ -212,14 +208,13 @@ def format_scale_binary_to_dataframe(input_path: str, group_nb: int, output_xlsx
         hname = input_file.read(single_word).decode("ascii")
         huse = input_file.read(2 * single_word).decode("ascii")
         ivers = struct.unpack(f"{big_endian}i", input_file.read(single_number))[0]
-
         input_file.read(2 * single_number)
 
         # Read the file control
         (ngroup, nngrup, nggrup, ntype, nmmp, nmtrix, nholl) = struct.unpack(f"{big_endian}7i", input_file.read(7 * single_number))
 
         input_file.read(2 * single_number)
-
+        
         # Read the file description
         desc = input_file.read(nholl * single_word).decode("ascii")
 
@@ -229,7 +224,7 @@ def format_scale_binary_to_dataframe(input_path: str, group_nb: int, output_xlsx
         ebc = []
         for i in range((nngrup + 1)):
 
-            ebc.append(struct.unpack(f"{big_endian}f", input_file.read(4))[0])
+            ebc.append(struct.unpack(f"{big_endian}f", input_file.read(single_number))[0])
 
         ebc = ["{:.7E}".format(j) for j in ebc]
 
@@ -246,7 +241,6 @@ def format_scale_binary_to_dataframe(input_path: str, group_nb: int, output_xlsx
             if matid == 1802:
                 matid = 8001002
 
-            # if i != 0:
             iso_reac["matid"].append(matid)
             iso_reac["mtid"].append(mtid)
             iso_reac["mwgt"].append(mwgt)
@@ -268,12 +262,10 @@ def format_scale_binary_to_dataframe(input_path: str, group_nb: int, output_xlsx
 
         # iso_reac = pd.DataFrame(iso_reac)
 
-        input_file.read(single_number)
-
         # Read the matrix control
         for i, _ in enumerate(range(nmtrix)):
 
-            input_file.read(single_number)
+            input_file.read(2*single_number)
 
             mat1, mt1, mat2, mt2, nblock = struct.unpack(f"{big_endian}5i", input_file.read(5 * single_number))
 
@@ -285,6 +277,8 @@ def format_scale_binary_to_dataframe(input_path: str, group_nb: int, output_xlsx
                 mat2 = 8001001
             if mat2 == 1802:
                 mat2 = 8001002
+
+            input_file.read(2*single_number)
 
             jband, ijj, lgpr = [], [], []
             for j in range(ngroup):
@@ -306,7 +300,7 @@ def format_scale_binary_to_dataframe(input_path: str, group_nb: int, output_xlsx
                     cov[j][i] = struct.unpack(f"{big_endian}f", input_file.read(single_number))[0]
                     i += 1
 
-            input_file.read(single_number)
+            #input_file.read(single_number)
 
             if np.sum(cov) == 0.0:
                 continue
