@@ -109,6 +109,177 @@ def format_comac_to_dataframe(input_path: str, output_path: str = None):
 
     return cov_df
 
+@log_exec()
+def format_gendf_to_dataframe(input_path:Path, output_path:Path = None, iso_out:str=None) :
+   
+    reac_trad_gendf=reac_trad.copy()
+    reac_trad_gendf_inv = {val:key for key,val in reac_trad_gendf.items()}
+ 
+    dikt_cov = {'ISO_H':[], 'REAC_H':[],'ISO_V':[], 'REAC_V':[],  'STD': []}
+ 
+    file = input_path
+    with open(os.path.join(file), 'r') as f :
+        lines = f.readlines()
+    iMAT = lines[2][66:70] #file.split('_')[0][:-1]
+    iMAT1 = iMAT
+    
+    iso_1_id = file.split('_')[0][:-1]
+    iso_2_id = iso_1_id
+        
+    group_nb = int(lines[2].split()[2])
+    
+    grep_data = False
+    val_tot_nb, start_x_idx, start_y_idx = None, None, None
+    vals = []
+    i_line = 0
+
+    # SEND : Section END, defined by  MT  =  0
+    # FEND : File END, defined by     MF  =  0
+    # MEND : Material END, defined by MAT =  0
+    # TEND : Tape END, defined by     MAT = -1
+    # Read until the Nth-3 line
+    while i_line < (len(lines)-4) :
+        i_line += 1
+        line = lines[i_line]
+        #splited_part = textwrap.wrap(line[:66], 6)
+        # 1 number = 11 digits
+        # read the 6 numbers, delete empties
+        splited_part = [line[i*11:(i+1)*11].replace(' ','') for i in range(6)]
+        splited_part = [x for x in splited_part[:] if x != '']
+        
+        # read the second part of the line (MAT,MF,MT)
+        infos_part = line[66:]
+        
+        iMAT, iMF, iMT, data_progress_id = infos_part[:4], str(int(infos_part[4:6])), str(int(infos_part[6:9])), infos_part[9:14]
+
+        # If SEND, read next line
+        if (iMAT, iMF) != ('0', '0') and iMT == '0': continue
+        # If FEND, read next line
+        if iMAT != '0' and (iMF, iMT) == ('0', '0'): continue
+
+        # If reading info RECORD MF1 MT451
+        if iMAT != '0' and iMF == '1' and iMT == '451':
+            # First line does not interest us, read next one
+            i_line+=1
+            line = lines[i_line]
+            LIST_MF1451 = [line[i*11:(i+1)*11].replace(' ','') for i in range(6)]
+            LIST_MF1451 = [x for x in LIST_MF1451[:] if x != '']
+            energymesh = []
+            while len(energymesh) < int(LIST_MF1451[4]):
+                i_line+=1
+                line = lines[i_line]
+                energylist = [line[i*11:(i+1)*11].replace(' ','') for i in range(6)]
+                energylist = [x for x in energylist[:] if x != '']
+                for energy in energylist :
+                    if re.search('-', energy[-3:]) :
+                        valE = energy[:-3] + energy[-3:].split('-')[0]+'E-'+energy[-3:].split('-')[1]
+                        valE = float(valE)
+                    elif re.search('\+', energy) :
+                        valE = energy[:-3] + energy[-3:].split('+')[0]+'E+'+energy[-3:].split('+')[1]
+                        valE = float(valE)
+                    else :
+                        valE = float(energy)
+                        
+                    energymesh.append(valE)
+            
+            dikt_cov['ISO_H'].append('0')
+            dikt_cov['REAC_H'].append('0')
+            dikt_cov['ISO_V'].append('0')
+            dikt_cov['REAC_V'].append('0')
+            dikt_cov['STD'].append(energymesh)
+        
+        # If reading cross sections MF3 MTxxx
+        crossSectionLine = []
+        if iMAT != '0' and iMF == '3' and iMT != '0':
+            while len(crossSectionLine) < int(splited_part[4]):
+                i_line+=1
+                line = lines[i_line]
+                LIST_MF3 = [line[i*11:(i+1)*11].replace(' ','') for i in range(6)]
+                LIST_MF3 = [x for x in LIST_MF3[:] if x != '']
+                for CrossSec_str in LIST_MF3 :
+                    if re.search('-', CrossSec_str[-3:]) :
+                        valXS = CrossSec_str[:-3] + CrossSec_str[-3:].split('-')[0]+'E-'+CrossSec_str[-3:].split('-')[1]
+                        valXS = float(valXS)
+                    elif re.search('\+', CrossSec_str) :
+                        valXS = CrossSec_str[:-3] + CrossSec_str[-3:].split('+')[0]+'E+'+CrossSec_str[-3:].split('+')[1]
+                        valXS = float(valXS)
+                    else :
+                        valXS = float(CrossSec_str)
+                        
+                    crossSectionLine.append(valXS)
+
+            dikt_cov['ISO_H'].append(iMAT)
+            dikt_cov['REAC_H'].append(iMT)
+            dikt_cov['ISO_V'].append('0')
+            dikt_cov['REAC_V'].append('0')
+            dikt_cov['STD'].append(crossSectionLine)
+                
+        
+        if len(splited_part) > 4 and splited_part[2] == '0' and splited_part[3] in reac_trad_gendf.keys() and splited_part[4] == '0' and iMT in reac_trad_gendf.keys() :
+            
+            reac_2_id = splited_part[3]
+            
+            grep_data = True  
+            
+            sub_mat = np.zeros((group_nb, group_nb))
+
+            continue
+        
+        elif grep_data :
+            
+            if (val_tot_nb, start_x_idx, start_y_idx) == (None, None, None) :
+
+                val_tot_nb = int(splited_part[2])
+                start_x_idx = int(splited_part[3]) - 1
+                start_y_idx = int(splited_part[5]) - 1
+                continue
+                        
+            for val_str in splited_part :
+                if re.search('-', val_str[-3:]) :
+                    val = val_str[:-3] + val_str[-3:].split('-')[0]+'E-'+val_str[-3:].split('-')[1]
+                    val = float(val)
+                elif re.search('\+', val_str) :
+                    val = val_str[:-3] + val_str[-3:].split('+')[0]+'E+'+val_str[-3:].split('+')[1]
+                    val = float(val)
+                else :
+                    val = float(val_str)
+                    
+                vals.append(val)
+            
+            if len(vals) == val_tot_nb :
+
+                sub_mat[start_y_idx][start_x_idx : start_x_idx+val_tot_nb] = vals
+                val_tot_nb, start_x_idx, start_y_idx = None, None, None
+
+                vals = []
+                
+
+                if (len(lines[i_line+1].split()) < 3 or lines[i_line+1].split()[2] == '0') :
+
+                    if not sum(np.array(sub_mat[:]).flatten()) == 0.0 :
+                        
+                        # Reverse energy bining order ->  decreasing from left to right
+                        # sub_mat = np.flip(sub_mat)                       
+                        dikt_cov['ISO_H'].append(iso_1_id)
+                        dikt_cov['REAC_H'].append(iMT)
+                        dikt_cov['ISO_V'].append(iso_2_id)
+                        dikt_cov['REAC_V'].append(reac_2_id)
+                        dikt_cov['STD'].append(sub_mat.tolist())
+                    
+                    grep_data = False
+                    
+                continue
+    
+    cov_df = pd.DataFrame(dikt_cov)
+
+    if cov_df.empty : raise errors.EmptyParsingError(f"No data was extracted from your var-covar matrix file : {input_path}")
+
+    if output_path != None :
+        if output_path.endswith('.xlsx') : cov_df.to_excel(output_path)
+        elif os.path.isdir(output_path) : cov_df.to_excel(os.path.join(output_path,  'COV_MAT_GENDF.xlsx'))    
+        else : cov_df.to_excel(output_path + '.xlsx')
+        
+    return cov_df
 
 @log_exec()
 def format_scale_corr_to_dataframe(input_path: str, output_path: str = None):
