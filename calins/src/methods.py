@@ -24,7 +24,7 @@ iso_z_inv = {val: key for key, val in iso_z.items()}
 
 
 @log_exec()
-def format_comac_to_dataframe(input_path: str, output_path: str = None):
+def format_comac_to_dataframe(input_path: str):
     """
     Function to parse the COMAC (CEA) covariance matrix folder and extract the covariance values into a DataFrame, that can be passes to other functions.
 
@@ -32,13 +32,14 @@ def format_comac_to_dataframe(input_path: str, output_path: str = None):
     ----------
     input_path : str
         [Required] Path to the input covariance matrix folder.
-    output_path : str, optional
-        Path to store the DataFrame as an Excel file. The default is None.
 
     Returns
     -------
-    pd.DataFrame
-        DataFrame containing the covariance values. This DataFrame can be passed to other functions.
+    tuple (pd.DataFrame, list, int, str)
+        pd.DataFrame : DataFrame containing the covariance values. This DataFrame can be passed to other functions.
+        list : Energy bins.
+        int : Number of energy groups.
+        str : Header of the files.
     """
 
     reac_trad_comac = {"2": "ELASTIC", "4": "INELASTIC", "16": "NXN", "18": "FISSION", "101": "CAPTURE", "452": "NU", "455": "NU_D"}
@@ -99,187 +100,204 @@ def format_comac_to_dataframe(input_path: str, output_path: str = None):
     if cov_df.empty:
         raise errors.EmptyParsingError(f"No data was extracted from your var-covar matrix file : {input_path}")
 
-    if output_path != None:
-        if output_path.endswith(".xlsx"):
-            cov_df.to_excel(output_path)
-        elif os.path.isdir(output_path):
-            cov_df.to_excel(os.path.join(output_path, "COV_MAT_COMAC.xlsx"))
-        else:
-            cov_df.to_excel(output_path + ".xlsx")
-
-    return cov_df
+    return cov_df, [], group_nb, None
 
 @log_exec()
-def format_gendf_to_dataframe(input_path:Path, output_path:Path = None, iso_out:str=None) :
-   
-    reac_trad_gendf=reac_trad.copy()
+def format_gendf_to_dataframe(input_path:Path) :
+    """
+    Function to parse the GAIA ENDF covariance matrix file and extract the covariance values into a DataFrame, that can be passes to other functions.
+
+    Parameters
+    ----------
+    input_path : str
+        [Required] Path to the input covariance matrix folder.
+        
+    Returns
+    -------
+    tuple (pd.DataFrame, list, int, str)
+        pd.DataFrame : DataFrame containing the covariance values. This DataFrame can be passed to other functions.
+        list : Energy bins.
+        int : Number of energy groups.
+        str : Header of the file.
+    """
+    reac_trad_gendf={'2':'ELASTIC', '4':'INELASTIC',  '16':'NXN', '18':'FISSION','101':'CAPTURE','102':'N,GAMMA', '452':'NU', '455':'NU_D'}
     reac_trad_gendf_inv = {val:key for key,val in reac_trad_gendf.items()}
  
     dikt_cov = {'ISO_H':[], 'REAC_H':[],'ISO_V':[], 'REAC_V':[],  'STD': []}
+    dikt_100 = {'ISO_H':[], 'REAC_H':[],'ISO_V':[], 'REAC_V':[],  'STD': []}
+    COV_ROOT = os.path.join(input_path)
  
-    file = input_path
-    with open(os.path.join(file), 'r') as f :
-        lines = f.readlines()
-    iMAT = lines[2][66:70] #file.split('_')[0][:-1]
-    iMAT1 = iMAT
+    for file in os.listdir(COV_ROOT) :
+       
+        if not file.endswith('.gendf') : continue
+       
     
-    iso_1_id = file.split('_')[0][:-1]
-    iso_2_id = iso_1_id
-        
-    group_nb = int(lines[2].split()[2])
-    
-    grep_data = False
-    val_tot_nb, start_x_idx, start_y_idx = None, None, None
-    vals = []
-    i_line = 0
+        with open(os.path.join(COV_ROOT,file), 'r') as f :
+            lines = f.readlines()
 
-    # SEND : Section END, defined by  MT  =  0
-    # FEND : File END, defined by     MF  =  0
-    # MEND : Material END, defined by MAT =  0
-    # TEND : Tape END, defined by     MAT = -1
-    # Read until the Nth-3 line
-    while i_line < (len(lines)-4) :
-        i_line += 1
-        line = lines[i_line]
-        #splited_part = textwrap.wrap(line[:66], 6)
-        # 1 number = 11 digits
-        # read the 6 numbers, delete empties
-        splited_part = [line[i*11:(i+1)*11].replace(' ','') for i in range(6)]
-        splited_part = [x for x in splited_part[:] if x != '']
+        iMAT = lines[2][66:70] #file.split('_')[0][:-1]
+        iMAT1 = iMAT
         
-        # read the second part of the line (MAT,MF,MT)
-        infos_part = line[66:]
+        iso_1_id = file.split('_')[0][:-1]
+        iso_2_id = iso_1_id
+            
+        group_nb = int(lines[2].split()[2])
         
-        iMAT, iMF, iMT, data_progress_id = infos_part[:4], str(int(infos_part[4:6])), str(int(infos_part[6:9])), infos_part[9:14]
+        grep_data = False
+        val_tot_nb, start_x_idx, start_y_idx = None, None, None
+        vals = []
+        i_line = 0
 
-        # If SEND, read next line
-        if (iMAT, iMF) != ('0', '0') and iMT == '0': continue
-        # If FEND, read next line
-        if iMAT != '0' and (iMF, iMT) == ('0', '0'): continue
-
-        # If reading info RECORD MF1 MT451
-        if iMAT != '0' and iMF == '1' and iMT == '451':
-            # First line does not interest us, read next one
-            i_line+=1
+        # SEND : Section END, defined by  MT  =  0
+        # FEND : File END, defined by     MF  =  0
+        # MEND : Material END, defined by MAT =  0
+        # TEND : Tape END, defined by     MAT = -1
+        # Read until the Nth-3 line
+        while i_line < (len(lines)-4) :
+            i_line += 1
             line = lines[i_line]
-            LIST_MF1451 = [line[i*11:(i+1)*11].replace(' ','') for i in range(6)]
-            LIST_MF1451 = [x for x in LIST_MF1451[:] if x != '']
-            energymesh = []
-            while len(energymesh) < int(LIST_MF1451[4]):
+            #splited_part = textwrap.wrap(line[:66], 6)
+            # 1 number = 11 digits
+            # read the 6 numbers, delete empties
+            splited_part = [line[i*11:(i+1)*11].replace(' ','') for i in range(6)]
+            splited_part = [x for x in splited_part[:] if x != '']
+            
+            # read the second part of the line (MAT,MF,MT)
+            infos_part = line[66:]
+            
+            iMAT, iMF, iMT, data_progress_id = infos_part[:4], str(int(infos_part[4:6])), str(int(infos_part[6:9])), infos_part[9:14]
+
+            # If SEND, read next line
+            if (iMAT, iMF) != ('0', '0') and iMT == '0': continue
+            # If FEND, read next line
+            if iMAT != '0' and (iMF, iMT) == ('0', '0'): continue
+
+            # If reading info RECORD MF1 MT451
+            if iMAT != '0' and iMF == '1' and iMT == '451':
+                # First line does not interest us, read next one
                 i_line+=1
                 line = lines[i_line]
-                energylist = [line[i*11:(i+1)*11].replace(' ','') for i in range(6)]
-                energylist = [x for x in energylist[:] if x != '']
-                for energy in energylist :
-                    if re.search('-', energy[-3:]) :
-                        valE = energy[:-3] + energy[-3:].split('-')[0]+'E-'+energy[-3:].split('-')[1]
-                        valE = float(valE)
-                    elif re.search('\+', energy) :
-                        valE = energy[:-3] + energy[-3:].split('+')[0]+'E+'+energy[-3:].split('+')[1]
-                        valE = float(valE)
-                    else :
-                        valE = float(energy)
-                        
-                    energymesh.append(valE)
-            
-            dikt_cov['ISO_H'].append('0')
-            dikt_cov['REAC_H'].append('0')
-            dikt_cov['ISO_V'].append('0')
-            dikt_cov['REAC_V'].append('0')
-            dikt_cov['STD'].append(energymesh)
-        
-        # If reading cross sections MF3 MTxxx
-        crossSectionLine = []
-        if iMAT != '0' and iMF == '3' and iMT != '0':
-            while len(crossSectionLine) < int(splited_part[4]):
-                i_line+=1
-                line = lines[i_line]
-                LIST_MF3 = [line[i*11:(i+1)*11].replace(' ','') for i in range(6)]
-                LIST_MF3 = [x for x in LIST_MF3[:] if x != '']
-                for CrossSec_str in LIST_MF3 :
-                    if re.search('-', CrossSec_str[-3:]) :
-                        valXS = CrossSec_str[:-3] + CrossSec_str[-3:].split('-')[0]+'E-'+CrossSec_str[-3:].split('-')[1]
-                        valXS = float(valXS)
-                    elif re.search('\+', CrossSec_str) :
-                        valXS = CrossSec_str[:-3] + CrossSec_str[-3:].split('+')[0]+'E+'+CrossSec_str[-3:].split('+')[1]
-                        valXS = float(valXS)
-                    else :
-                        valXS = float(CrossSec_str)
-                        
-                    crossSectionLine.append(valXS)
-
-            dikt_cov['ISO_H'].append(iMAT)
-            dikt_cov['REAC_H'].append(iMT)
-            dikt_cov['ISO_V'].append('0')
-            dikt_cov['REAC_V'].append('0')
-            dikt_cov['STD'].append(crossSectionLine)
+                LIST_MF1451 = [line[i*11:(i+1)*11].replace(' ','') for i in range(6)]
+                LIST_MF1451 = [x for x in LIST_MF1451[:] if x != '']
+                e_bins = []
+                while len(e_bins) < int(LIST_MF1451[4]):
+                    i_line+=1
+                    line = lines[i_line]
+                    energylist = [line[i*11:(i+1)*11].replace(' ','') for i in range(6)]
+                    energylist = [x for x in energylist[:] if x != '']
+                    for energy in energylist :
+                        if re.search('-', energy[-3:]) :
+                            valE = energy[:-3] + energy[-3:].split('-')[0]+'E-'+energy[-3:].split('-')[1]
+                            valE = float(valE)
+                        elif re.search(r'\+', energy) :
+                            valE = energy[:-3] + energy[-3:].split('+')[0]+'E+'+energy[-3:].split('+')[1]
+                            valE = float(valE)
+                        else :
+                            valE = float(energy)
+                            
+                        e_bins.append(valE)
                 
-        
-        if len(splited_part) > 4 and splited_part[2] == '0' and splited_part[3] in reac_trad_gendf.keys() and splited_part[4] == '0' and iMT in reac_trad_gendf.keys() :
+                e_bins = np.flip(e_bins)
+                dikt_cov['ISO_H'].append(0)
+                dikt_cov['REAC_H'].append(0)
+                dikt_cov['ISO_V'].append(0)
+                dikt_cov['REAC_V'].append(0)
+                dikt_cov['STD'].append(e_bins)
             
-            reac_2_id = splited_part[3]
-            
-            grep_data = True  
-            
-            sub_mat = np.zeros((group_nb, group_nb))
+            # If reading cross sections MF3 MTxxx
+            crossSectionLine = []
+            if iMAT != '0' and iMF == '3' and iMT != '0':
+                while len(crossSectionLine) < int(splited_part[4]):
+                    i_line+=1
+                    line = lines[i_line]
+                    LIST_MF3 = [line[i*11:(i+1)*11].replace(' ','') for i in range(6)]
+                    LIST_MF3 = [x for x in LIST_MF3[:] if x != '']
+                    for CrossSec_str in LIST_MF3 :
+                        if re.search('-', CrossSec_str[-3:]) :
+                            valXS = CrossSec_str[:-3] + CrossSec_str[-3:].split('-')[0]+'E-'+CrossSec_str[-3:].split('-')[1]
+                            valXS = float(valXS)
+                        elif re.search(r'\+', CrossSec_str) :
+                            valXS = CrossSec_str[:-3] + CrossSec_str[-3:].split('+')[0]+'E+'+CrossSec_str[-3:].split('+')[1]
+                            valXS = float(valXS)
+                        else :
+                            valXS = float(CrossSec_str)
+                            
+                        crossSectionLine.append(valXS)
 
-            continue
-        
-        elif grep_data :
-            
-            if (val_tot_nb, start_x_idx, start_y_idx) == (None, None, None) :
-
-                val_tot_nb = int(splited_part[2])
-                start_x_idx = int(splited_part[3]) - 1
-                start_y_idx = int(splited_part[5]) - 1
-                continue
-                        
-            for val_str in splited_part :
-                if re.search('-', val_str[-3:]) :
-                    val = val_str[:-3] + val_str[-3:].split('-')[0]+'E-'+val_str[-3:].split('-')[1]
-                    val = float(val)
-                elif re.search('\+', val_str) :
-                    val = val_str[:-3] + val_str[-3:].split('+')[0]+'E+'+val_str[-3:].split('+')[1]
-                    val = float(val)
-                else :
-                    val = float(val_str)
+                dikt_cov['ISO_H'].append(int(iMAT))
+                dikt_cov['REAC_H'].append(int(iMT))
+                dikt_cov['ISO_V'].append(0)
+                dikt_cov['REAC_V'].append(0)
+                dikt_cov['STD'].append(crossSectionLine)
                     
-                vals.append(val)
             
-            if len(vals) == val_tot_nb :
-
-                sub_mat[start_y_idx][start_x_idx : start_x_idx+val_tot_nb] = vals
-                val_tot_nb, start_x_idx, start_y_idx = None, None, None
-
-                vals = []
+            if len(splited_part) > 4 and splited_part[2] == '0' and splited_part[3] in reac_trad_gendf.keys() and splited_part[4] == '0' and iMT in reac_trad_gendf.keys() :
                 
+                reac_2_id = splited_part[3]
+                
+                grep_data = True  
+                
+                sub_mat = np.zeros((group_nb, group_nb))
 
-                if (len(lines[i_line+1].split()) < 3 or lines[i_line+1].split()[2] == '0') :
-
-                    if not sum(np.array(sub_mat[:]).flatten()) == 0.0 :
-                        
-                        # Reverse energy bining order ->  decreasing from left to right
-                        # sub_mat = np.flip(sub_mat)                       
-                        dikt_cov['ISO_H'].append(iso_1_id)
-                        dikt_cov['REAC_H'].append(iMT)
-                        dikt_cov['ISO_V'].append(iso_2_id)
-                        dikt_cov['REAC_V'].append(reac_2_id)
-                        dikt_cov['STD'].append(sub_mat.tolist())
-                    
-                    grep_data = False
-                    
                 continue
+            
+            elif grep_data :
+                
+                if (val_tot_nb, start_x_idx, start_y_idx) == (None, None, None) :
+
+                    val_tot_nb = int(splited_part[2])
+                    start_x_idx = int(splited_part[3]) - 1
+                    start_y_idx = int(splited_part[5]) - 1
+                    continue
+                            
+                for val_str in splited_part :
+                    if re.search('-', val_str[-3:]) :
+                        val = val_str[:-3] + val_str[-3:].split('-')[0]+'E-'+val_str[-3:].split('-')[1]
+                        val = float(val)
+                    elif re.search(r'\+', val_str) :
+                        val = val_str[:-3] + val_str[-3:].split('+')[0]+'E+'+val_str[-3:].split('+')[1]
+                        val = float(val)
+                    else :
+                        val = float(val_str)
+                    
+                    if val > 100 :
+                        dikt_100['ISO_H'].append(int(iso_1_id))
+                        dikt_100['REAC_H'].append(int(iMT))
+                        dikt_100['ISO_V'].append(int(iso_2_id))
+                        dikt_100['REAC_V'].append(int(reac_2_id))
+                        dikt_100['STD'].append(val)
+                    vals.append(val)
+                
+                if len(vals) == val_tot_nb :
+
+                    sub_mat[start_y_idx][start_x_idx : start_x_idx+val_tot_nb] = vals
+                    val_tot_nb, start_x_idx, start_y_idx = None, None, None
+
+                    vals = []
+                    
+
+                    if (len(lines[i_line+1].split()) < 3 or lines[i_line+1].split()[2] == '0') :
+
+                        if not sum(np.array(sub_mat[:]).flatten()) == 0.0 :
+                            
+                            # Reverse energy bining order ->  decreasing from left to right
+                            sub_mat = np.flip(sub_mat)
+                            
+                            dikt_cov['ISO_H'].append(int(iso_1_id))
+                            dikt_cov['REAC_H'].append(int(iMT))
+                            dikt_cov['ISO_V'].append(int(iso_2_id))
+                            dikt_cov['REAC_V'].append(int(reac_2_id))
+                            dikt_cov['STD'].append(sub_mat.tolist())
+                        
+                        grep_data = False
+                        
+                    continue
     
     cov_df = pd.DataFrame(dikt_cov)
 
     if cov_df.empty : raise errors.EmptyParsingError(f"No data was extracted from your var-covar matrix file : {input_path}")
-
-    if output_path != None :
-        if output_path.endswith('.xlsx') : cov_df.to_excel(output_path)
-        elif os.path.isdir(output_path) : cov_df.to_excel(os.path.join(output_path,  'COV_MAT_GENDF.xlsx'))    
-        else : cov_df.to_excel(output_path + '.xlsx')
         
-    return cov_df
+    return cov_df, e_bins, group_nb, None
 
 @log_exec()
 def format_scale_corr_to_dataframe(input_path: str, output_path: str = None):
@@ -340,26 +358,24 @@ def format_scale_corr_to_dataframe(input_path: str, output_path: str = None):
 
 
 @log_exec()
-def format_scale_binary_to_dataframe(input_path: str, output_xlsx_path: str = None, output_txt_path: str = None, big_endian=False):
+def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
     """
     Function to parse the SCALE covariance matrix binary file and extract the covariance values into a DataFrame, that can be passes to other functions.
 
     Parameters
     ----------
     input_path : str
-        [Required] Path to the input covariance matrix text file.
-
-    output_xlsx_path : str, optional
-        Path to store the DataFrame as an Excel file. The default is None.
-    output_txt_path : str, optional
-        Path to store the covariance matrix as a text file. The default is None.
+        [Required] Path to the input covariance matrix binary file.
     big_endian : bool, optional
         Indicates if the binary file has integers and floats in big-endian format. Can be usefull for old COVERX files. The default is False.
 
     Returns
     -------
-    pd.DataFrame
-        DataFrame containing the covariance values. This DataFrame can be passed to other functions.
+    tuple (pd.DataFrame, list, int, str)
+        pd.DataFrame : DataFrame containing the covariance values. This DataFrame can be passed to other functions.
+        list : Energy bins.
+        int : Number of energy groups.
+        str : Header of the file.
     """
 
     big_endian = ""
@@ -384,6 +400,9 @@ def format_scale_binary_to_dataframe(input_path: str, output_xlsx_path: str = No
         # Read the file control
         (ngroup, nngrup, nggrup, ntype, nmmp, nmtrix, nholl) = struct.unpack(f"{big_endian}7i", input_file.read(7 * single_number))
 
+        header = f"{hname} {huse} {ivers} {desc}\n"
+        header += f"{ngroup: >12}{ntype: >12}{nmtrix: >12}{nmmp: >12}\n"
+
         input_file.read(2 * single_number)
         
         # Read the file description
@@ -392,12 +411,16 @@ def format_scale_binary_to_dataframe(input_path: str, output_xlsx_path: str = No
         input_file.read(2 * single_number)
 
         # Read the neutron group boundaries
-        ebc = []
+        e_bins = []
         for i in range((nngrup + 1)):
 
-            ebc.append(struct.unpack(f"{big_endian}f", input_file.read(single_number))[0])
+            e_bins.append(struct.unpack(f"{big_endian}f", input_file.read(single_number))[0])
 
-        ebc = ["{:.7E}".format(j) for j in ebc]
+        dikt_cov['ISO_H'].append(0)
+        dikt_cov['REAC_H'].append(0)
+        dikt_cov['ISO_V'].append(0)
+        dikt_cov['REAC_V'].append(0)
+        dikt_cov['STD'].append(e_bins)
 
         # Read the material-reaction control
         iso_reac = {"matid": [], "mtid": [], "mwgt": [], "xs": [], "err": []}
@@ -471,8 +494,6 @@ def format_scale_binary_to_dataframe(input_path: str, output_xlsx_path: str = No
                     cov[j][i] = struct.unpack(f"{big_endian}f", input_file.read(single_number))[0]
                     i += 1
 
-            #input_file.read(single_number)
-
             if np.sum(cov) == 0.0:
                 continue
 
@@ -482,50 +503,16 @@ def format_scale_binary_to_dataframe(input_path: str, output_xlsx_path: str = No
             dikt_cov["REAC_V"].append(mt2)
             dikt_cov["STD"].append(cov.tolist())
 
-        if output_txt_path != None:
-
-            with open(output_txt_path, "w") as output_file:
-                output_file.write(f"{hname} {huse} {ivers} {desc}\n")
-                output_file.write(f"{ngroup: >12}{ntype: >12}{nmtrix: >12}{nmmp: >12}\n")
-
-                for idx, energy in enumerate(ebc):
-                    if idx > 0 and idx % 5 == 0:
-                        output_file.write("\n")
-                    output_file.write(f"{energy: >15}")
-                output_file.write("\n")
-
-                for idx, iso in enumerate(dikt_cov["ISO_H"]):
-
-                    output_file.write(
-                        f"{dikt_cov['ISO_H'][idx]: >12}{dikt_cov['REAC_H'][idx]: >12}{dikt_cov['ISO_V'][idx]: >12}{dikt_cov['REAC_V'][idx]: >12}{'1': >12}\n"
-                    )
-
-                    for std_x in dikt_cov["STD"][idx]:
-                        for i, std in enumerate(std_x):
-                            if i > 0 and i % 5 == 0:
-                                output_file.write("\n")
-                            std = "{:.7E}".format(std)
-                            output_file.write(f"{std: >15}")
-                        output_file.write("\n")
-
     cov_df = pd.DataFrame(dikt_cov)
 
     if cov_df.empty:
         raise errors.EmptyParsingError(f"No data was extracted from your var-covar matrix file : {input_path}")
 
-    if output_xlsx_path != None:
-        if output_xlsx_path.endswith(".xlsx"):
-            cov_df.to_excel(output_xlsx_path)
-        elif os.path.isdir(output_xlsx_path):
-            cov_df.to_excel(os.path.join(output_xlsx_path, os.path.basename(input_path) + ".xlsx"))
-        else:
-            cov_df.to_excel(output_xlsx_path + ".xlsx")
-
-    return cov_df
+    return cov_df, e_bins, ngroup, header
 
 
 @log_exec()
-def format_scale_txt_to_dataframe(input_path: str, output_path: str = None):
+def format_scale_txt_to_dataframe(input_path: str):
     """
     Function to parse the SCALE covariance matrix text file and extract the covariance values into a DataFrame, that can be passes to other functions.
 
@@ -533,13 +520,14 @@ def format_scale_txt_to_dataframe(input_path: str, output_path: str = None):
     ----------
     input_path : str
         [Required] Path to the input covariance matrix text file.
-    output_path : str, optional
-        Path to store the DataFrame as an Excel file. The default is None.
 
     Returns
     -------
-    pd.DataFrame
-        DataFrame containing the covariance values. This DataFrame can be passed to other functions.
+    tuple (pd.DataFrame, list, int, str)
+        pd.DataFrame : DataFrame containing the covariance values. This DataFrame can be passed to other functions.
+        list : Energy bins.
+        int : Number of energy groups.
+        str : Header of the file.
     """
     cov_root = os.path.join(input_path)
 
@@ -550,10 +538,19 @@ def format_scale_txt_to_dataframe(input_path: str, output_path: str = None):
 
     group_nb = int(lines_cov[1].split()[0])
 
+    header = " ".join(lines_cov[0:2])
+
     block_len = ceil(group_nb / 5)
 
+    e_bins = [float(e_bin) for e_bin in " ".join(lines_cov[2 : 2 + ceil((group_nb +1)/ 5)]).split()]
+
+    dikt_cov["ISO_H"].append(0)
+    dikt_cov["REAC_H"].append(0)
+    dikt_cov["ISO_V"].append(0)
+    dikt_cov["REAC_V"].append(0)
+    dikt_cov["STD"].append(e_bins)
+
     for i, line in enumerate(lines_cov):
-        # if line.startswith('     ') and i != 1 :
         if i > 2 and len(line.split()) == 5:
             cov_val = []
             if line.split()[1] != "1" and line.split()[3] != "1" and line.split()[1].upper() in reac_trad and line.split()[3].upper() in reac_trad:
@@ -578,16 +575,35 @@ def format_scale_txt_to_dataframe(input_path: str, output_path: str = None):
     if cov_df.empty:
         raise errors.EmptyParsingError(f"No data was extracted from your var-covar matrix file : {input_path}")
 
-    if output_path != None:
-        if output_path.endswith(".xlsx"):
-            cov_df.to_excel(output_path)
-        elif os.path.isdir(output_path):
-            cov_df.to_excel(os.path.join(output_path, "COV_MAT_SCALE.xlsx"))
-        else:
-            cov_df.to_excel(output_path + ".xlsx")
+    return cov_df, e_bins, group_nb, header
 
-    return cov_df
+def format_xlsx_to_dataframe(input_path: str):
+    import ast
+    cov_df = pd.read_excel(input_path, index_col=0)
+    
+    # Convert string representations of lists in STD column back to actual lists of floats
+    cov_df["STD"] = cov_df["STD"].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
+    
+    # Extract energy bins from special row (0,0,0,0)
+    row_ebins = cov_df[(cov_df["ISO_H"]== 0) & (cov_df["REAC_H"]== 0) & (cov_df["ISO_V"]== 0) & (cov_df["REAC_V"]== 0)]
+    if not row_ebins.empty:
+        e_bins = row_ebins["STD"].values[0]
+    else:
+        e_bins = []
+    
+    # Determine group_nb from the last row (non-energy bin row) since first row may contain energy bins
+    for idx in reversed(cov_df.index):
+        std_val = cov_df["STD"].iloc[idx]
+        # Check if this is a covariance matrix (2D list) and not energy bins (1D list)
+        if isinstance(std_val, list) and len(std_val) > 0 and isinstance(std_val[0], list):
+            group_nb = len(std_val)
+            break
+    else:
+        raise errors.EmptyParsingError("Cannot determine group_nb from covariance dataframe, seems like the covariance dataframe does not include 2D lists.")
 
+    header = None
+
+    return cov_df, e_bins, group_nb, header
 
 def condense_binning(values, i_ebins, o_ebins, std=False):
     sorted_input, sorted_input_reverse = sorted(i_ebins[:], reverse=False), sorted(i_ebins[:], reverse=True)
@@ -1010,23 +1026,42 @@ def format_sensi_to_dataframe(
     sensi_df = sensi_df.sort_values(by=["ISO", "REAC"]).reset_index(drop=True)
 
     if sensi_df.empty:
-        raise errors.EmptyParsingError(f"No data was extracted from your sdf file : {input_path}")
+        raise errors.EmptyParsingError(f"No data was extracted from your sdf file : {input_sdf_path}")
 
     if output_path != None:
         if output_path.endswith(".xlsx"):
             sensi_df.to_excel(output_path)
         elif os.path.isdir(output_path):
-            xls_name = os.path.basename(input_path)[:-4] + ".sensi.xlsx"
+            xls_name = os.path.basename(input_sdf_path)[:-4] + ".sensi.xlsx"
             sensi_df.to_excel(os.path.join(output_path, xls_name))
 
     return sensi_df
 
 
 # ----- Build the covariance matrix according to the 'iso_reac_list'
-def make_cov_matrix(cov_dataf: pd.DataFrame, iso_reac_list: list):
+def make_cov_matrix(cov_data, iso_reac_list: list):
+    """Create a covariance matrix from covariance data.
+    
+    Parameters
+    ----------
+    cov_data : NDCovariances
+        Covariance data object
+    iso_reac_list : list
+        List of (isotope, reaction) tuples
+    
+    Returns
+    -------
+    tuple
+        (cov_matrix, iso_reac_list_present) - Covariance matrix and list of isotope-reaction pairs actually present
+    """
+    # Extract data from NDCovariances object
+    cov_dataf = cov_data.cov_dataf
+    iso_reac_cov = cov_data.iso_reac_list
+    group_nb = cov_data.group_nb
+
+    iso_cov = [iso for iso, reac in iso_reac_cov]
 
     # ----- Loop over col_idx and line_idx coordinates (iso-reac_Horizontal and iso-reac_Vertical) and insert a submatrix (or its transpose) if the input covariance matrix contains values for this iso-reac pair
-    group_nb = len(list(cov_dataf["STD"])[0])
 
     cov_inter_iso = []
     for idx in cov_dataf.index:
@@ -1034,12 +1069,6 @@ def make_cov_matrix(cov_dataf: pd.DataFrame, iso_reac_list: list):
             cov_inter_iso.append((cov_dataf["ISO_H"][idx], cov_dataf["ISO_V"][idx]))
 
     # Create new submatrices for versatile isotopes (e.g., H-poly / 1901) and isotopes not present but associated with their natural isotope
-    iso_reac_cov_H, iso_reac_cov_V = (
-        cov_dataf.apply(lambda x: (x["ISO_H"], x["REAC_H"]), axis=1).to_list(),
-        cov_dataf.apply(lambda x: (x["ISO_V"], x["REAC_V"]), axis=1).to_list(),
-    )
-    iso_reac_cov = list(set(iso_reac_cov_H) | set(iso_reac_cov_V))
-    iso_cov = [iso for iso, reac in iso_reac_cov]
 
     for iso in list(set([iso for iso, reac in iso_reac_list])):
         # Handle isotopes not present in the matrix, if their natural isotope is present
@@ -1068,6 +1097,7 @@ def make_cov_matrix(cov_dataf: pd.DataFrame, iso_reac_list: list):
                     f"The unconventional isotope {iso} is not present in the var-covar matrix file. It will be replaced by its base isotope {rebased_idx} for the construction of the covariance matrix."
                 )
 
+    # Recompute iso_reac_list of covariance data to include rebased and natural isotopes            
     iso_reac_cov_H, iso_reac_cov_V = (
         cov_dataf.apply(lambda x: (x["ISO_H"], x["REAC_H"]), axis=1).to_list(),
         cov_dataf.apply(lambda x: (x["ISO_V"], x["REAC_V"]), axis=1).to_list(),
@@ -1232,19 +1262,43 @@ def make_sensi_vectors(
 
 def make_sensi_vectors_and_cov_matrix(
     cases_list: list,
-    cov_dataf: pd.DataFrame,
+    cov_data,
     iso_reac_list: list = None,
     reac_list=None,
     iso_list: list = None,
     exclude_iso: list = None,
     operation="union",
 ):
+    """Make sensitivity vectors and covariance matrix.
+    
+    Parameters
+    ----------
+    cases_list : list
+        List of Case objects or paths
+    cov_data : NDCovariances
+        Covariance data object
+    iso_reac_list : list, optional
+        List of (isotope, reaction) tuples to consider
+    reac_list : list, optional
+        List of reaction IDs to consider
+    iso_list : list, optional  
+        List of isotope IDs to consider
+    exclude_iso : list, optional
+        List of isotope IDs to exclude
+    operation : str
+        'union' or 'intersection'
+    
+    Returns
+    -------
+    tuple
+        (sensi_vecs, cov_mat, iso_reac_list)
+    """
 
     common_list = get_common_iso_reac_list(
         cases_list=cases_list, iso_reac_list=iso_reac_list, reac_list=reac_list, iso_list=iso_list, exclude_iso=exclude_iso, operation=operation
     )
 
-    cov_mat, iso_reac_list_present = make_cov_matrix(cov_dataf=cov_dataf, iso_reac_list=common_list)
+    cov_mat, iso_reac_list_present = make_cov_matrix(cov_data=cov_data, iso_reac_list=common_list)
 
     (sensi_vecs_output, common_list) = make_sensi_vectors(cases_list=cases_list, iso_reac_list=iso_reac_list_present, operation=operation)
 
@@ -1526,8 +1580,8 @@ def calcul_Ck(
         The first case for which the Ck is calculated.
     case_2 : str, Path, or Case object
         The second case for which the Ck is calculated.
-    cov_data : pd.DataFrame or Assimilation object
-        The covariance data as a DataFrame or inside an Assimilation object.
+    cov_data : NDCovariances or Assimilation
+        The covariance data as NDCovariances object or Assimilation object.
     return_iso_reac_list : bool, optional
         Flag to return the iso-reac list with the Ck value. Default is False.
     iso_reac_list : list, optional
@@ -1560,11 +1614,11 @@ def calcul_Ck(
         else:
             raise TypeError(f"Wrong sensitivity type for {case_i} - Choose case object, Path, or string")
 
-    if isinstance(cov_data, pd.DataFrame):
+    if isinstance(cov_data, classes.NDCovariances):
 
         [sensi_vec1, sensi_vec2], cov_mat, iso_reac_list = make_sensi_vectors_and_cov_matrix(
             cases_list=cases,
-            cov_dataf=cov_data,
+            cov_data=cov_data,
             iso_reac_list=iso_reac_list,
             reac_list=reac_list,
             iso_list=iso_list,
@@ -1577,7 +1631,7 @@ def calcul_Ck(
 
         if iso_reac_list != None or reac_list != None or iso_list != None or exclude_iso != None:
             warn(
-                f"The list of iso-reac taking into account is fixed by the object Assimilation in argument. If you need to restrict the list of iso-reac, insert a cov-matrix (Dataframe format) as argument 'cov_data'."
+                f"The list of iso-reac taking into account is fixed by the object Assimilation in argument. If you need to restrict the list of iso-reac, insert a NDCovariances object as argument 'cov_data'."
             )
 
         iso_reac_list = cov_data.iso_reac_list
@@ -1587,6 +1641,9 @@ def calcul_Ck(
         cov_mat = np.substract(cov_data.cov_mat, cov_data.cov_mat_delta)
 
         check_dimmensions(casename=cases[0].casename, sensi_vec=sensi_vec1, cov_mat=cov_mat, iso_reac_list=iso_reac_list)
+
+    else:
+        raise TypeError(f"cov_data must be NDCovariances or Assimilation object. Got {type(cov_data)}")
 
     if (sensi_vec1 @ cov_mat @ sensi_vec1) * (sensi_vec2 @ cov_mat @ sensi_vec2) == 0:
         Ck = 0
@@ -1611,8 +1668,8 @@ def calcul_uncertainty(
     ----------
     study_case : str, Path, or Case object
         The study case for which the uncertainty is calculated.
-    cov_data : pd.DataFrame or Assimilation object
-        The covariance data as a DataFrame or inside an Assimilation object.
+    cov_data : NDCovariances or Assimilation
+        The covariance data as NDCovariances object or Assimilation object.
     iso_reac_list : list, optional
         The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
     reac_list : list, optional
@@ -1637,17 +1694,17 @@ def calcul_uncertainty(
     else:
         raise TypeError(f"Wrong sensitivity type for {study_case}- Choose case, Path, or string")
 
-    if isinstance(cov_data, pd.DataFrame):
+    if isinstance(cov_data, classes.NDCovariances):
 
         [sensi_vec], cov_mat, iso_reac_list = make_sensi_vectors_and_cov_matrix(
-            cases_list=[study_case], cov_dataf=cov_data, iso_reac_list=iso_reac_list, reac_list=reac_list, iso_list=iso_list, exclude_iso=exclude_iso
+            cases_list=[study_case], cov_data=cov_data, iso_reac_list=iso_reac_list, reac_list=reac_list, iso_list=iso_list, exclude_iso=exclude_iso
         )
 
     elif isinstance(cov_data, classes.Assimilation):
 
         if iso_reac_list != None or reac_list != None or iso_list != None or exclude_iso != None:
             warn(
-                f"The list of iso-reac taking into account is fixed by the object Assimilation in argument. If you need to restrict the list of iso-reac, insert a cov-matrix (Dataframe format) as argument 'cov_data'."
+                f"The list of iso-reac taking into account is fixed by the object Assimilation in argument. If you need to restrict the list of iso-reac, insert a NDCovariances object as argument 'cov_data'."
             )
 
         iso_reac_list = cov_data.iso_reac_list
@@ -1655,6 +1712,9 @@ def calcul_uncertainty(
         [sensi_vec], dump = make_sensi_vectors(cases_list=[study_case], iso_reac_list=iso_reac_list)
 
         cov_mat = np.subtract(cov_data.cov_mat, cov_data.cov_mat_delta)
+
+    else:
+        raise TypeError(f"cov_data must be NDCovariances or Assimilation object. Got {type(cov_data)}")
 
     check_dimmensions(casename=study_case.casename, sensi_vec=sensi_vec, cov_mat=cov_mat, iso_reac_list=iso_reac_list)
     check_correspondences(sensi_vec=sensi_vec, cov_mat=cov_mat, iso_reac_list=iso_reac_list, group_nb=study_case.group_nb)

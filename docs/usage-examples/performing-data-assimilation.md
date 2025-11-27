@@ -15,16 +15,16 @@ benchmarks = [
     cl.Case('path/to/benchmark3.sdf')
 ]
 
-# Load covariance data
-cov_df = cl.format_scale_binary_to_dataframe('path/to/covariance')
+# Load covariance data (recommended: use NDCovariances object)
+cov_data = cl.NDCovariances(input_path='path/to/covariance', format='auto')  # auto-detect format
 
 # Perform assimilation
 assimilation = cl.Assimilation(
     study_case=study_case,
-    benchmark_list=benchmarks,
-    cov_data=cov_df,
-    chi2_target=1.2,  # Optional: chi-squared filtering threshold
-    Ck_target=0.8,    # Optional: C_k similarity threshold
+    benchmarks_list=benchmarks,
+    cov_data=cov_data,  # NDCovariances object
+    targetted_chi2=1.2,  # Optional: chi-squared filtering threshold
+    Ck_threshold=0.8,    # Optional: C_k similarity threshold
     output_html_path='assimilation_results.html'
 )
 
@@ -32,5 +32,6 @@ assimilation = cl.Assimilation(
 print(f"Prior uncertainty: {assimilation.prior_uncertainty.value} pcm")
 print(f"Posterior uncertainty: {assimilation.post_uncertainty.value} pcm")
 print(f"Posterior bias: {assimilation.bias.value} pcm")
-print(f"Chi-squared: {assimilation.chi2_initial} → {assimilation.chi2_final}")
+print(f"Chi-squared prior: {assimilation.prior_chi2}")
+print(f"Chi-squared post: {assimilation.post_chi2}")
 ```

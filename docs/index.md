@@ -27,6 +27,6 @@ The package is particularly useful for criticality safety analyses where underst
 - ✅ **Sensitivity Analysis**: Process and visualize sensitivity profiles from SDF files
 - ✅ **Similarity Indices**: Calculate E, C<sub>k</sub>, G, and SSR indices between cases
 - ✅ **GLLSM Assimilation**: Assimilate experimental benchmark data to reduce uncertainties
-- ✅ **Multiple Covariance Formats**: Support for SCALE (AMPX, binary), COMAC, and GENDF formats
+- ✅ **Multiple Covariance Formats**: Support for SCALE (COVERX binary/text), COMAC, GENDF, and Excel (xlsx) formats, with auto-detection
 - ✅ **Interactive Visualizations**: Generate HTML reports with Plotly graphs
 - ✅ **Chi-squared Filtering**: Automatic filtering of inconsistent benchmark cases

@@ -8,6 +8,7 @@ nav:
   - Installation: installation.md
   - Usage Examples:
     - Creating a Case Object: usage-examples/creating-case-object.md
+    - Loading Covariance Data: usage-examples/loading-covariance-data.md
     - Calculating Uncertainty: usage-examples/calculating-uncertainty.md
     - Computing Similarity Indices: usage-examples/computing-similarity-indices.md
     - Performing Data Assimilation: usage-examples/performing-data-assimilation.md

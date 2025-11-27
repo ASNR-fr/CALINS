@@ -79,7 +79,7 @@ The package is particularly useful for criticality safety analyses where underst
 - ✅ **Sensitivity Analysis**: Process and visualize sensitivity profiles from SDF files
 - ✅ **Similarity Indices**: Calculate E, C<sub>k</sub>, G, and SSR indices between cases
 - ✅ **GLLSM Assimilation**: Assimilate experimental benchmark data to reduce uncertainties
-- ✅ **Multiple Covariance Formats**: Support for SCALE (AMPX, binary), COMAC, and GENDF formats
+- ✅ **Multiple Covariance Formats**: Support for SCALE (COVERX binary/text), COMAC, GENDF, and Excel (xlsx) formats, with auto-detection
 - ✅ **Interactive Visualizations**: Generate HTML reports with Plotly graphs
 - ✅ **Chi-squared Filtering**: Automatic filtering of inconsistent benchmark cases
 
@@ -179,9 +179,10 @@ Calculate nuclear data uncertainty using the sandwich formula:
 ```python
 import calins as cl
 
-# Load covariance matrix (example: SCALE format)
+# Load covariance data using NDCovariances object (recommended)
 scale_file_path = 'path/to/scale_44g'
-cov_df = cl.format_scale_binary_to_dataframe(input_path=scale_file_path)
+cov_data = cl.NDCovariances(input_path=scale_file_path, format='coverx')
+# Alternative formats: 'coverx_text', 'comac', 'gendf', 'xlsx', or 'auto' for auto-detection
 
 # Load sensitivity data
 sensi_file_path = 'path/to/sensitivity.sdf'
@@ -189,7 +190,7 @@ sensi_file_path = 'path/to/sensitivity.sdf'
 # Calculate a priori uncertainty
 uncertainty = cl.calcul_uncertainty(
     study_case=sensi_file_path,  # Can also be a Case object
-    cov_data=cov_df,
+    cov_data=cov_data,
     output_html_path='uncertainty_report.html'
 )
 
@@ -198,6 +199,10 @@ print(f"Calculated k_eff: {uncertainty.resp_calc}")
 
 # Export decomposition to Excel
 uncertainty.decomposition.to_excel('uncertainty_decomposition.xlsx')
+
+# Optional: Export and re-import covariance data via Excel
+# cov_data.write_xlsx('covariance_data.xlsx')
+# cov_data_reloaded = cl.NDCovariances(input_path='covariance_data.xlsx', format='xlsx')
 ```
 
 ## Computing Similarity Indices
@@ -211,15 +216,15 @@ import calins as cl
 case1 = cl.Case('path/to/case1.sdf')
 case2 = cl.Case('path/to/case2.sdf')
 
-# Load covariance data
-cov_df = cl.format_scale_binary_to_dataframe('path/to/covariance')
+# Load covariance data using NDCovariances object (recommended)
+cov_data = cl.NDCovariances(input_path='path/to/covariance', format='auto')
 
 # Calculate E similarity index (0 to 1)
 E_index = cl.calcul_E(case1, case2)
 print(f"E similarity index: {E_index}")
 
 # Calculate C_k index (weighted by covariances)
-Ck_index = cl.calcul_Ck(case1, case2, cov_df)
+Ck_index = cl.calcul_Ck(case1, case2, cov_data)
 print(f"C_k similarity index: {Ck_index}")
 
 # Calculate SSR index (Shared Sensitivity Ratio)
@@ -244,23 +249,23 @@ benchmarks = [
     cl.Case('path/to/benchmark3.sdf')
 ]
 
-# Load covariance data
-cov_df = cl.format_scale_binary_to_dataframe('path/to/covariance')
+# Load covariance data using NDCovariances object (recommended)
+cov_data = cl.NDCovariances(input_path='path/to/covariance', format='auto')
 
 # Perform assimilation
 assimilation = cl.Assimilation(
     study_case=study_case,
-    benchmark_list=benchmarks,
-    cov_data=cov_df,
-    chi2_target=1.5,  # Optional: chi-squared filtering threshold
-    Ck_target=0.7,    # Optional: C_k similarity threshold
+    benchmarks_list=benchmarks,
+    cov_data=cov_data,
+    chi2_threshold=1.5,  # Optional: chi-squared filtering threshold
+    Ck_threshold=0.7,    # Optional: C_k similarity threshold
     output_html_path='assimilation_results.html'
 )
 
 # Access results
 print(f"Prior uncertainty: {assimilation.prior_uncertainty.value} pcm")
 print(f"Posterior uncertainty: {assimilation.post_uncertainty.value} pcm")
-print(f"Posterior bias: {assimilation.bias.value} pcm")
+print(f"Bias: {assimilation.bias.value} pcm")
 print(f"Chi-squared: {assimilation.chi2_initial} → {assimilation.chi2_final}")
 ```
 
@@ -569,10 +574,13 @@ Where:
 - $Cov^{(i_h, r_h), (i_v, r_v)}$: 2D python list [[. , . , ..], [. , . , ..], ..] containing the multi-group covariance sub-matrix for reaction r_h of isotope i_h and reaction r_v of isotope i_v;
 
 There is, among others, a format_..._to_dataframe(...) function for each type of covariance matrix. Currently readable matrices are:
-- SCALE AMPX format (file form)
-- SCALE binary format (file form)
+- SCALE COVERX binary format (file form)
+- SCALE COVERX text format (file form)
 - COMAC (folder of files)
-- GENDF
+- GENDF (file form)
+- Excel xlsx format (file form) - for re-importing exported data
+
+**Note**: The **recommended approach** is to use the *NDCovariances* class which provides a unified interface to all these formats with automatic format detection (format='auto'). The class handles format-specific parsing internally and provides the standardized DataFrame via the `cov_dataf` attribute, along with extracted metadata (energy bins, group numbers, iso-reac list).
 
 **WARNING**: The **CALINS norm** is to format sensitivity and covariance data in **decreasing** energy group order from 20 MeV -> 0 MeV.
 
@@ -630,6 +638,18 @@ The *Case* object allows building a study case (or benchmark case) from a sensit
 - *case.sigma_resp_expe*: uncertainty on the experimental response (for benchmark cases).
 
 Finally, the *Case* object has a function to display and save, in *.html* format, a histogram of integral sensitivities along with the sensitivity profiles for each isotope and isotopic reaction.
+
+### **NDCovariances**
+The *NDCovariances* object provides a unified interface for loading and managing nuclear data covariance matrices from various file formats. This is the **recommended method** for handling covariance data in CALINS. The available attributes are:
+- *NDCovariances.input_path*: path to the covariance file;
+- *NDCovariances.format*: detected or specified format ('coverx', 'coverx_text', 'comac', 'gendf', 'xlsx', or 'auto');
+- *NDCovariances.cov_dataf*: DataFrame containing the covariance data in standardized format;
+- *NDCovariances.e_bins*: energy group boundaries;
+- *NDCovariances.group_nb*: number of energy groups;
+- *NDCovariances.header*: original file header (if available);
+- *NDCovariances.iso_reac_list*: list of (isotope, reaction) pairs present in the covariance data, automatically extracted and filtered to exclude energy bin entries.
+
+The object supports automatic format detection and provides a `write_xlsx()` method for exporting covariance data to Excel format, enabling full round-trip export/import cycles.
 
 ### **Uncertainty**
 The *Uncertainty* object allows calculating an (absolute) uncertainty using the Sandwich formula and storing several properties related to this calculation. This object takes as input a sensitivity vector and a covariance matrix, already built as Numpy arrays, as well as the number of energy groups and the isotope-reaction list describing the construction of the vector and matrix. The available attributes are:
@@ -702,7 +722,7 @@ Finally, the *Bias* object is only invoked as a property of the *Assimilation* o
 ---
 
 ### **Assimilation**
-The *Assimilation* object performs GLLSM based on a list of benchmark cases, a study case, and a covariance matrix. Benchmark cases and the study case can be either paths to *SDF* files or *Case* objects. Conversely, the covariance matrix must currently be formatted as a DataFrame. This class uses functions from *methods*, *plots*, and *errors* to format the data, build vector/matrix objects, performs assimilation through GLLSM, and display useful data as plots.
+The *Assimilation* object performs GLLSM based on a list of benchmark cases, a study case, and a covariance matrix. Benchmark cases and the study case can be either paths to *SDF* files or *Case* objects. The covariance data can be provided as an *NDCovariances* object (recommended), a *DataFrame* (alternative), or an *Assimilation* object. This class uses functions from *methods*, *plots*, and *errors* to format the data, build vector/matrix objects, performs assimilation through GLLSM, and display useful data as plots.
 
 Initialization of an *Assimilation* object consists of several main steps:
 1. Formatting sensitivity data (benchmarks and study case) into a DataFrame;

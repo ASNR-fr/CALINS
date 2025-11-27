@@ -48,10 +48,12 @@ Where:
 - $Cov^{(i_h, r_h), (i_v, r_v)}$: 2D python list [[. , . , ..], [. , . , ..], ..] containing the multi-group covariance sub-matrix for reaction r_h of isotope i_h and reaction r_v of isotope i_v;
 
 There is, among others, a format_..._to_dataframe(...) function for each type of covariance matrix. Currently readable matrices are:
-- SCALE AMPX format (file form)
-- SCALE binary format (file form)
+- SCALE COVERX binary format (file form)
+- SCALE COVERX text format (file form)
 - COMAC (folder of files)
-- GENDF
+- GENDF (file form)
+
+**Note**: The **recommended approach** is to use the *NDCovariances* class which provides a unified interface to all these formats with automatic format detection (format='auto'). The class handles format-specific parsing internally and provides the standardized DataFrame via the `cov_dataf` attribute, along with extracted metadata (energy bins, group numbers, iso-reac list).
 
 **WARNING**: The **CALINS norm** is to format sensitivity and covariance data in **decreasing** energy group order from 20 MeV -> 0 MeV.
 

@@ -16,10 +16,12 @@ sensi_case_1 = cl.Case(sdf_path=sensi_correct_path_1)
 sensi_case_2 = cl.Case(sdf_path=sensi_correct_path_2)
 
 cov_scale_correct_path_1 = os.path.join(TEST_INPUTS_ROOT, "cov_correct_1.txt")
-cov_dataf_1_scale = cl.format_scale_txt_to_dataframe(cov_scale_correct_path_1)
+cov_dataf_1_scale_tuple = cl.format_scale_txt_to_dataframe(cov_scale_correct_path_1)
+cov_dataf_1_scale = cov_dataf_1_scale_tuple[0]  # Extract DataFrame from tuple
+cov_1_nd = cl.NDCovariances(cov_scale_correct_path_1, format='coverx_text')
 
 
-class TestDataFormattingFunctions(unittest.TestCase):
+class TestFunctions(unittest.TestCase):
 
     def assertDataframeEqual(self, a, b, msg="Both Dataframes are not equals"):
         try:
@@ -45,13 +47,28 @@ class TestDataFormattingFunctions(unittest.TestCase):
             print("Test successfull empty file :", str(e))
 
         # --- Test fomattage cov data - SCALE
-        if len(cov_dataf_1_scale["STD"]) != 0:
+        if len(cov_dataf_1_scale_tuple[0]["STD"]) != 0:
             print("Test successfull for reading covariances file (type COVERX txt)")
 
         # --- Test fomattage cov data - COMAC
         cov_comac_correct_path_2 = os.path.join(TEST_INPUTS_ROOT, "cov_correct_2_comac")
         cov_dataf_2_comac = cl.format_comac_to_dataframe(cov_comac_correct_path_2)
         print("Test successfull for reading covariances file (type COMAC)")
+        
+        # --- Test NDCovariances object creation
+        cov_obj_scale = cl.NDCovariances(input_path=cov_scale_correct_path_1, format='coverx_text')
+        self.assertIsNotNone(cov_obj_scale.cov_dataf)
+        self.assertEqual(cov_obj_scale.format, 'coverx_text')
+        self.assertIsNotNone(cov_obj_scale.iso_reac_list)
+        self.assertIsInstance(cov_obj_scale.iso_reac_list, list)
+        print("Test successfull for creating NDCovariances object (SCALE text)")
+        
+        cov_obj_comac = cl.NDCovariances(input_path=cov_comac_correct_path_2, format='comac')
+        self.assertIsNotNone(cov_obj_comac.cov_dataf)
+        self.assertEqual(cov_obj_comac.format, 'comac')
+        self.assertIsNotNone(cov_obj_comac.iso_reac_list)
+        self.assertIsInstance(cov_obj_comac.iso_reac_list, list)
+        print("Test successfull for creating NDCovariances object (COMAC)")
 
         try:
             cov_comac_corrupted_path_1 = os.path.join(TEST_INPUTS_ROOT, "cov_corrompu_2_comac")
@@ -145,6 +162,11 @@ class TestDataFormattingFunctions(unittest.TestCase):
 
         Ck = cl.calcul_Ck(case_1=sensi_case_1, case_2=sensi_correct_path_2, cov_data=cov_dataf_1_scale)
         self.assertAlmostEqual(Ck, 0.7807, places=4)
+        
+        # Test with NDCovariances object
+        cov_obj = cl.NDCovariances(input_path=cov_scale_correct_path_1, format='coverx_text')
+        Ck = cl.calcul_Ck(case_1=sensi_case_1, case_2=sensi_case_2, cov_data=cov_obj)
+        self.assertAlmostEqual(Ck, 0.7807, places=4)
 
         print("Test successfull for calculation type Ck")
 
@@ -157,6 +179,14 @@ class TestDataFormattingFunctions(unittest.TestCase):
         self.assertAlmostEqual(prior_unc.value, 8.5277e-1, places=4)
 
         prior_unc = cl.calcul_uncertainty(study_case=sensi_correct_path_1, cov_data=cov_dataf_1_scale)
+        self.assertAlmostEqual(prior_unc.value, 1.12811, places=4)
+        
+        # Test with NDCovariances object
+        cov_obj = cl.NDCovariances(input_path=cov_scale_correct_path_1, format='coverx_text')
+        prior_unc = cl.calcul_uncertainty(study_case=sensi_case_1, cov_data=cov_obj)
+        self.assertAlmostEqual(prior_unc.value, 1.12811, places=4)
+
+        prior_unc = cl.calcul_uncertainty(study_case=sensi_correct_path_3, cov_data=cov_dataf_1_scale)
         self.assertAlmostEqual(prior_unc.value, 1.12811, places=4)
 
         cl.calcul_uncertainty(study_case=sensi_correct_path_3, cov_data=cov_dataf_1_scale)
@@ -175,14 +205,14 @@ class TestDataFormattingFunctions(unittest.TestCase):
             assim = cl.Assimilation(
                 benchmarks_list=[sensi_correct_path_1],
                 study_case=sensi_correct_path_2,
-                cov_dataf=cov_dataf_1_scale,
+                cov_data=cov_dataf_1_scale,
                 iso_reac_list=[("3", "1"), ("3", "2")],
             )
         except cl.UserInputError as e:
             print("Test successfull for wrong input iso_reac_list :", str(e))
 
         # --- Test calcul
-        assim = cl.Assimilation(benchmarks_list=[sensi_correct_path_2], study_case=sensi_correct_path_1, cov_dataf=cov_dataf_1_scale)
+        assim = cl.Assimilation(benchmarks_list=[sensi_correct_path_2], study_case=sensi_correct_path_1, cov_data=cov_dataf_1_scale)
 
         self.assertAlmostEqual(assim.prior_uncertainty.value, 1.12811, places=4)
         self.assertAlmostEqual(assim.bias.value, -2.423986551e-2, places=4)
@@ -192,7 +222,7 @@ class TestDataFormattingFunctions(unittest.TestCase):
         assim = cl.Assimilation(
             benchmarks_list=[sensi_correct_path_2, sensi_correct_path_4],
             study_case=sensi_correct_path_1,
-            cov_dataf=cov_dataf_1_scale,
+            cov_data=cov_dataf_1_scale,
             Ck_threshold=0.7,
         )
 
@@ -201,6 +231,13 @@ class TestDataFormattingFunctions(unittest.TestCase):
         self.assertAlmostEqual(assim.post_uncertainty.value, 1.1281, places=4)
 
         assim.export_results(output_html_path="./assim_test.html")
+
+        # --- Test calcul avec objet NDCovariances (option par défaut recommandée)
+        assim_nd = cl.Assimilation(benchmarks_list=[sensi_correct_path_2], study_case=sensi_correct_path_1, cov_data=cov_1_nd)
+
+        self.assertAlmostEqual(assim_nd.prior_uncertainty.value, 1.12811, places=4)
+        self.assertAlmostEqual(assim_nd.bias.value, -2.423986551e-2, places=4)
+        self.assertAlmostEqual(assim_nd.post_uncertainty.value, 1.1281, places=4)
 
         print("Test successfull for calculation type GLLSM")
 

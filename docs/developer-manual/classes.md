@@ -1,19 +1,35 @@
 # Developer Manual - classes.py
 
 ## Case
-The *Case* object allows building a study case (or benchmark case) from a sensitivity file (*.sdf*) and storing the relevant data associated with the case. Using an object makes this information easily accessible. The available attributes are as follows:
-- *case.sdf_path*: path to the case;
-- *case.casename*: name of the study case (initialized as the base name of the *.sdf* file path);
-- *case.group_nb*: number of energy groups in the used mesh;
-- *case.e_bins*: energy group boundaries of the used mesh;
-- *case.iso_reac_list*: list of isotope-reaction pairs for which data are available in the sensitivity file, in the form of isotope and reaction ID numbers;
-- *case.sensitivities*: DataFrame containing the sensitivities of the case, obtained using the function *format_sensi_to_dataframe(...)* (*methods.py*);
-- *case.resp_calc*: calculated/modeled response value;
-- *case.sigma_resp_calc*: uncertainty on the calculated/modeled response;
-- *case.resp_expe*: experimental response value (for benchmark cases);
-- *case.sigma_resp_expe*: uncertainty on the experimental response (for benchmark cases).
+The *Case* object allows building a study case (or benchmark case) from a sensitivity file (*.sdf*) and storing the relevant data associated with the Case. Using an object makes this information easily accessible. The available attributes are as follows:
+- *Case.sdf_path*: path to the case;
+- *Case.casename*: name of the study case (initialized as the base name of the *.sdf* file path);
+- *Case.group_nb*: number of energy groups in the used mesh;
+- *Case.e_bins*: energy group boundaries of the used mesh;
+- *Case.iso_reac_list*: list of isotope-reaction pairs for which data are available in the sensitivity file, in the form of isotope and reaction ID numbers;
+- *Case.sensitivities*: DataFrame containing the sensitivities of the case, obtained using the function *format_sensi_to_dataframe(...)* (*methods.py*);
+- *Case.resp_calc*: calculated/modeled response value;
+- *Case.sigma_resp_calc*: uncertainty on the calculated/modeled response;
+- *Case.resp_expe*: experimental response value (for benchmark cases);
+- *Case.sigma_resp_expe*: uncertainty on the experimental response (for benchmark cases).
 
 Finally, the *Case* object has a function to display and save, in *.html* format, a histogram of integral sensitivities along with the sensitivity profiles for each isotope and isotopic reaction.
+
+## NDCovariances
+The *NDCovariances* object provides a unified interface for loading and managing nuclear data covariance matrices from various file formats. This is the **recommended method** for handling covariance data in CALINS. 
+
+The available attributes are:
+- *NDCovariances.input_path*: path to the covariance file;
+- *NDCovariances.format*: detected or specified format ('coverx', 'coverx_text', 'comac', 'gendf', 'xlsx', or 'auto');
+- *NDCovariances.cov_dataf*: DataFrame containing the covariance data in standardized format;
+- *NDCovariances.e_bins*: energy group boundaries;
+- *NDCovariances.group_nb*: number of energy groups;
+- *NDCovariances.header*: original file header (if available);
+- *NDCovariances.iso_reac_list*: list of (isotope, reaction) pairs present in the covariance data, automatically extracted and filtered to exclude energy bin entries.
+
+The object supports automatic format detection (using `format='auto'`) and provides `write_xlsx()` and `write_txt()` methods for exporting covariance data to Excel or COVERX text format, enabling full round-trip export/import cycles.
+
+For detailed usage examples, see the [Loading Covariance Data](../usage-examples/loading-covariance-data.md) guide.
 
 ## Uncertainty
 The *Uncertainty* object allows calculating an (absolute) uncertainty using the Sandwich formula and storing several properties related to this calculation. This object takes as input a sensitivity vector and a covariance matrix, already built as Numpy arrays, as well as the number of energy groups and the isotope-reaction list describing the construction of the vector and matrix. The available attributes are:
@@ -90,7 +106,7 @@ Finally, the *Bias* object is only invoked as a property of the *Assimilation* o
 ---
 
 ## Assimilation
-The *Assimilation* object performs GLLSM based on a list of benchmark cases, a study case, and a covariance matrix. Benchmark cases and the study case can be either paths to *SDF* files or *Case* objects. Conversely, the covariance matrix must currently be formatted as a DataFrame. This class uses functions from *methods*, *plots*, and *errors* to format the data, build vector/matrix objects, performs assimilation through GLLSM, and display useful data as plots.
+The *Assimilation* object performs GLLSM based on a list of benchmark cases, a study case, and a covariance matrix. Benchmark cases and the study case can be either paths to *SDF* files or *Case* objects. The covariance data must be provided as an *NDCovariances* object or an *Assimilation* object. This class uses functions from *methods*, *plots*, and *errors* to format the data, build vector/matrix objects, performs assimilation through GLLSM, and display useful data as plots.
 
 Initialization of an *Assimilation* object consists of several main steps:
 1. Formatting sensitivity data (benchmarks and study case) into a DataFrame;
