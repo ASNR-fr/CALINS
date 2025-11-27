@@ -154,13 +154,13 @@ class TestFunctions(unittest.TestCase):
 
     def test_Ck(self):
 
-        Ck = cl.calcul_Ck(case_1=sensi_correct_path_1, case_2=sensi_correct_path_2, cov_data=cov_dataf_1_scale)
+        Ck = cl.calcul_Ck(case_1=sensi_correct_path_1, case_2=sensi_correct_path_2, cov_data=cov_1_nd)
         self.assertAlmostEqual(Ck, 0.7807, places=4)
 
-        Ck = cl.calcul_Ck(case_1=sensi_case_1, case_2=sensi_case_2, cov_data=cov_dataf_1_scale)
+        Ck = cl.calcul_Ck(case_1=sensi_case_1, case_2=sensi_case_2, cov_data=cov_1_nd)
         self.assertAlmostEqual(Ck, 0.7807, places=4)
 
-        Ck = cl.calcul_Ck(case_1=sensi_case_1, case_2=sensi_correct_path_2, cov_data=cov_dataf_1_scale)
+        Ck = cl.calcul_Ck(case_1=sensi_case_1, case_2=sensi_correct_path_2, cov_data=cov_1_nd)
         self.assertAlmostEqual(Ck, 0.7807, places=4)
         
         # Test with NDCovariances object
@@ -172,13 +172,13 @@ class TestFunctions(unittest.TestCase):
 
     def test_prior_unc(self):
 
-        prior_unc = cl.calcul_uncertainty(study_case=sensi_case_1, cov_data=cov_dataf_1_scale)
+        prior_unc = cl.calcul_uncertainty(study_case=sensi_case_1, cov_data=cov_1_nd)
         self.assertAlmostEqual(prior_unc.value, 1.12811, places=4)
 
-        prior_unc = cl.calcul_uncertainty(study_case=sensi_case_1, cov_data=cov_dataf_1_scale, exclude_iso=[20000], reac_list=[2, 4])
+        prior_unc = cl.calcul_uncertainty(study_case=sensi_case_1, cov_data=cov_1_nd, exclude_iso=[20000], reac_list=[2, 4])
         self.assertAlmostEqual(prior_unc.value, 8.5277e-1, places=4)
 
-        prior_unc = cl.calcul_uncertainty(study_case=sensi_correct_path_1, cov_data=cov_dataf_1_scale)
+        prior_unc = cl.calcul_uncertainty(study_case=sensi_correct_path_1, cov_data=cov_1_nd)
         self.assertAlmostEqual(prior_unc.value, 1.12811, places=4)
         
         # Test with NDCovariances object
@@ -186,10 +186,10 @@ class TestFunctions(unittest.TestCase):
         prior_unc = cl.calcul_uncertainty(study_case=sensi_case_1, cov_data=cov_obj)
         self.assertAlmostEqual(prior_unc.value, 1.12811, places=4)
 
-        prior_unc = cl.calcul_uncertainty(study_case=sensi_correct_path_3, cov_data=cov_dataf_1_scale)
+        prior_unc = cl.calcul_uncertainty(study_case=sensi_correct_path_3, cov_data=cov_1_nd)
         self.assertAlmostEqual(prior_unc.value, 1.12811, places=4)
 
-        cl.calcul_uncertainty(study_case=sensi_correct_path_3, cov_data=cov_dataf_1_scale)
+        cl.calcul_uncertainty(study_case=sensi_correct_path_3, cov_data=cov_1_nd)
         with open(os.path.join(cl.logs.LOG_DIR, f'CALINS_{time.strftime("%Y-%m-%d")}.log'), "r") as f:
             warn_line = f.readlines()[-4]
 
@@ -205,14 +205,14 @@ class TestFunctions(unittest.TestCase):
             assim = cl.Assimilation(
                 benchmarks_list=[sensi_correct_path_1],
                 study_case=sensi_correct_path_2,
-                cov_data=cov_dataf_1_scale,
+                cov_data=cov_1_nd,
                 iso_reac_list=[("3", "1"), ("3", "2")],
             )
         except cl.UserInputError as e:
             print("Test successfull for wrong input iso_reac_list :", str(e))
 
         # --- Test calcul
-        assim = cl.Assimilation(benchmarks_list=[sensi_correct_path_2], study_case=sensi_correct_path_1, cov_data=cov_dataf_1_scale)
+        assim = cl.Assimilation(benchmarks_list=[sensi_correct_path_2], study_case=sensi_correct_path_1, cov_data=cov_1_nd)
 
         self.assertAlmostEqual(assim.prior_uncertainty.value, 1.12811, places=4)
         self.assertAlmostEqual(assim.bias.value, -2.423986551e-2, places=4)
@@ -222,7 +222,7 @@ class TestFunctions(unittest.TestCase):
         assim = cl.Assimilation(
             benchmarks_list=[sensi_correct_path_2, sensi_correct_path_4],
             study_case=sensi_correct_path_1,
-            cov_data=cov_dataf_1_scale,
+            cov_data=cov_1_nd,
             Ck_threshold=0.7,
         )
 
