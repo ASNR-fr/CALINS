@@ -68,8 +68,6 @@ for iso, reac in cov_data.iso_reac_list[:5]:
 
 ### Export to Excel
 
-You can export covariance data to Excel format for easy sharing or archiving:
-
 ```python
 import calins as cl
 
@@ -80,8 +78,6 @@ cov_data.write_xlsx('covariance_export.xlsx')
 ```
 
 ### Export to COVERX Text Format
-
-You can also export to SCALE COVERX text format:
 
 ```python
 import calins as cl

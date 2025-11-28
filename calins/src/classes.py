@@ -93,8 +93,8 @@ class Case:
 
     Methods
     --------
-    plot_case_sensi(output_html_path: str = None, show=False):
-        Plots the sensitivity data for the case in HTML.
+    export_to_html(output_html_path: str, plotting_unit="pcm", show=False):
+        Exports the sensitivity data for the case to an HTML file with interactive plots.
     condense_sensi(output_ebins: list):
         Condenses the sensitivity coefficients and std to a specified energy binning (if compatible).
     create_sdf(output_sdf_path="", header=""):
@@ -248,9 +248,9 @@ class Case:
             None
 
     @log_exec()
-    def plot_case_sensi(self, output_html_path: str, plotting_unit="pcm", show=False):
+    def export_to_html(self, output_html_path: str, plotting_unit="pcm", show=False):
         """
-        Plots the sensitivity data for the case in HTML.
+        Exports the sensitivity data for the case to an HTML file with interactive plots.
 
         Parameters
         -----------
@@ -707,7 +707,7 @@ class NDCovariances:
     input_path : str
         Path to the covariance file.
     format : str
-        Format of the covariance file (coverx, coverx_text, comac, gendf).
+        Format of the covariance file (coverx, coverx_text, comac, gendf, xlsx).
     cov_dataf : pd.DataFrame
         Covariance data in DataFrame format.
     e_bins : list
@@ -902,9 +902,9 @@ class Assimilation:
 
     Methods
     --------
-    export_results(output_html_path, plotting_unit, isotopes_to_detail):
-        Exports the results of the assimilation process to an HTML file.
-    plot_case_sensi(output_html_path, show=False):
+    export_to_html(output_html_path, plotting_unit="pcm", isotopes_to_detail=[]):
+        Exports the results of the assimilation process to an HTML file with interactive plots.
+    plot_study_case_sensi(output_html_path, show=False):
         Plots the sensitivity data for the study case in HTML.
     [+ explicit internal methods...]
     """
@@ -1043,7 +1043,7 @@ class Assimilation:
         self.calcul_bias()
         self.calcul_post_chi2()
         self.calcul_post_uncertainty()
-        self.export_results(output_html_path=self.output_html_path, plotting_unit=plotting_unit, isotopes_to_detail=isotopes_to_detail)
+        self.export_to_html(output_html_path=self.output_html_path, plotting_unit=plotting_unit, isotopes_to_detail=isotopes_to_detail)
 
     def make_sensimat_covmat_casevec_expemat_and_deltaCE(
         self, iso_reac_list: list = None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None
@@ -1466,10 +1466,10 @@ class Assimilation:
         show : bool, optional
             Flag to display the plot. Defaults to False.
         """
-        self.study_case.plot_case_sensi(output_html_path=output_html_path, show=show)
+        self.study_case.export_to_html(output_html_path=output_html_path, show=show)
 
     @log_exec()
-    def export_results(self, output_html_path: str, plotting_unit="pcm", isotopes_to_detail=[]):
+    def export_to_html(self, output_html_path: str, plotting_unit="pcm", isotopes_to_detail=[]):
         """
         Export the results of the assimilation process to an HTML file.
 
@@ -2076,8 +2076,8 @@ class Uncertainty:
 
     Methods
     --------
-    export_results(output_html_path, plotting_unit, isotopes_to_detail)
-        Export the results of the uncertainty calculation to an HTML file.
+    export_to_html(output_html_path, plotting_unit="pcm", isotopes_to_detail=[])
+        Exports the results of the uncertainty calculation to an HTML file with interactive plots.
     """
 
     def __init__(
@@ -2165,10 +2165,10 @@ class Uncertainty:
         self.__cov_mat = cov_mat
 
         if output_html_path is not None:
-            self.export_results(output_html_path=self.output_html_path, plotting_unit=plotting_unit, isotopes_to_detail=isotopes_to_detail)
+            self.export_to_html(output_html_path=self.output_html_path, plotting_unit=plotting_unit, isotopes_to_detail=isotopes_to_detail)
 
     @log_exec()
-    def export_results(self, output_html_path: str, plotting_unit="pcm", isotopes_to_detail=[]):
+    def export_to_html(self, output_html_path: str, plotting_unit="pcm", isotopes_to_detail=[]):
         """
         Export the results of the uncertainty calculation to an HTML file.
         It contains the uncertainty value and the decomposition of the uncertainty into contributions from isotopes and reactions.

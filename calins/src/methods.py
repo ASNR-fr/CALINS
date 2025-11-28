@@ -1659,7 +1659,7 @@ def calcul_Ck(
 
 @log_exec()
 def calcul_uncertainty(
-    study_case, cov_data, iso_reac_list=None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None, output_html_path=None
+    study_case, cov_data, iso_reac_list=None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None, output_html_path=None,  isotopes_to_detail=[]
 ):
     """
     Calculate the uncertainty of a study case using a covariances Dataframe.
@@ -1678,6 +1678,8 @@ def calcul_uncertainty(
         The list of isotopes to consider. If None, all isotopes are used.
     exclude_iso : list, optional
         The list of isotopes to exclude. If None, no isotopes are excluded.
+    isotopes_to_detail : list, optional
+        List of isotopes (ID) to provide detailed variances-covariances (as heatmaps) in the HTML outputfile.
 
     Returns
     -------
@@ -1727,6 +1729,7 @@ def calcul_uncertainty(
         cov_mat=cov_mat,
         iso_reac_list=iso_reac_list,
         output_html_path=output_html_path,
+        isotopes_to_detail=isotopes_to_detail,
     )
 
     return unc

@@ -61,7 +61,7 @@ $$
 \( S_{\text{cas}}^i \) is the sensitivity sub-vector for isotope-reaction pair *i*.
 
 The *Uncertainty* object has a function to display and/or save several analysis elements in *.html* format (that can be activated with the parameter *output_html_path* in the function *calcul_uncertatiny()*):
-- *Uncertainty.export_results()*:
+- *Uncertainty.export_to_html()*:
   - the uncertainty;
   - the calculated response value and its calculation-scheme uncertainty;
   - the number of energy groups;

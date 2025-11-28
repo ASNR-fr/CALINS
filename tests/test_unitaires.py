@@ -88,7 +88,7 @@ class TestFunctions(unittest.TestCase):
         self.assertAlmostEqual(sensi_df["SENSI_INTEGRAL_ABS"][3], 1.200000e-03, places=4)
 
         # --- export sensi
-        sensi_case_1.plot_case_sensi(output_html_path="./sensi_test.html")
+        sensi_case_1.export_to_html(output_html_path="./sensi_test.html")
 
         # --- Test condense sdf
         input_path = os.path.join(TEST_INPUTS_ROOT, "sensi_correct_1.sdf")
@@ -195,7 +195,7 @@ class TestFunctions(unittest.TestCase):
 
         self.assertEqual(warn_line.split()[2], "WARNING")
 
-        prior_unc.export_results(output_html_path="./prior_unc_test.html")
+        prior_unc.export_to_html(output_html_path="./prior_unc_test.html")
 
         print("Test successfull for calculation type a priori uncertainty")
 
@@ -230,7 +230,7 @@ class TestFunctions(unittest.TestCase):
         self.assertAlmostEqual(assim.bias.value, -2.423986551e-2, places=4)
         self.assertAlmostEqual(assim.post_uncertainty.value, 1.1281, places=4)
 
-        assim.export_results(output_html_path="./assim_test.html")
+        assim.export_to_html(output_html_path="./assim_test.html")
 
         # --- Test calcul avec objet NDCovariances (option par défaut recommandée)
         assim_nd = cl.Assimilation(benchmarks_list=[sensi_correct_path_2], study_case=sensi_correct_path_1, cov_data=cov_1_nd)

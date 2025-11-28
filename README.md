@@ -159,7 +159,7 @@ sensi_file_path = 'path/to/sensitivity.sdf'
 my_case = cl.Case(sdf_path=sensi_file_path, occurrences_rule="sum")
 
 # Generate HTML visualization of sensitivities
-my_case.plot_case_sensi(
+my_case.export_to_html(
     output_html_path='case_sensitivities.html',
     plotting_unit='pcm'  # Options: 'pcm' or 'relative'
 )
@@ -679,7 +679,7 @@ d^i = X^i \cdot S_{cas}^i
 \( S_{cas}^i \) is the sensitivity sub-vector for isotope-reaction pair *i*.
 
 The *Uncertainty* object has a function to display and/or save several analysis elements in *.html* format (that can be activated with the parameter *output_html_path* in the function *calcul_uncertatiny()*):
-- *Uncertainty.export_results()*:
+- *Uncertainty.export_to_html()*:
   - the uncertainty;
   - the calculated response value and its calculation-scheme uncertainty;
   - the number of energy groups;
