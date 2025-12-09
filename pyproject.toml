@@ -18,6 +18,7 @@ authors = [
   { name="Barthelemi Petillon", email="barth.petillon@gmail.com" },
 ]
 description = "Package used to compute ND uncertainties propagation, sensitivities analyses and assimilation with GLLSM"
+readme = "README.md"
 requires-python = ">=3.9"
 classifiers = [
     "Programming Language :: Python :: 3.9",
