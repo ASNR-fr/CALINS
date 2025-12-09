@@ -446,7 +446,7 @@ These indicators should be calculated for each benchmark to add to the assimilat
 
 **Similarity index $E$ (value between 0 and 1):**
 This index is a normalized dot product between a benchmark and the case.
-$$ E = {{S_1} \space · \space {S_2}^t \over ||S_1|| \space · \space ||S_2||} $$
+$$ E = { {S_1} \space · \space {S_2}^t \over ||S_1|| \space · \space ||S_2|| } $$
 
 **Similarity index $C_k$ (value between 0 and 1):**
 This index weights the dot product with covariance values.
