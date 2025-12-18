@@ -191,6 +191,7 @@ sensi_file_path = 'path/to/sensitivity.sdf'
 uncertainty = cl.calcul_uncertainty(
     study_case=sensi_file_path,  # Can also be a Case object
     cov_data=cov_data,
+    reac_list=[2, 4, 16, 18, 102, 103, 452, 1018],
     output_html_path='uncertainty_report.html'
 )
 
@@ -220,15 +221,15 @@ case2 = cl.Case('path/to/case2.sdf')
 cov_data = cl.NDCovariances(input_path='path/to/covariance', format='auto')
 
 # Calculate E similarity index (0 to 1)
-E_index = cl.calcul_E(case1, case2)
+E_index = cl.calcul_E(case1, case2, reac_list=[2, 4, 16, 18, 102, 103, 452, 1018])
 print(f"E similarity index: {E_index}")
 
 # Calculate C_k index (weighted by covariances)
-Ck_index = cl.calcul_Ck(case1, case2, cov_data)
+Ck_index = cl.calcul_Ck(case1, case2, cov_data, reac_list=[2, 4, 16, 18, 102, 103, 452, 1018])
 print(f"C_k similarity index: {Ck_index}")
 
 # Calculate SSR index (Shared Sensitivity Ratio)
-SSR_index = cl.calcul_SSR(study_case=case1, bench_case=case2, reference=case1)
+SSR_index = cl.calcul_SSR(study_case=case1, bench_case=case2, reference=case1, reac_list=[2, 4, 16, 18, 102, 103, 452, 1018])
 print(f"SSR index: {SSR_index}")
 ```
 
@@ -259,6 +260,7 @@ assimilation = cl.Assimilation(
     cov_data=cov_data,
     chi2_threshold=1.5,  # Optional: chi-squared filtering threshold
     Ck_threshold=0.7,    # Optional: C_k similarity threshold
+    reac_list=[2, 4, 16, 18, 102, 103, 452, 1018],
     output_html_path='assimilation_results.html'
 )
 

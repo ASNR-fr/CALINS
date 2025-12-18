@@ -30,3 +30,10 @@ The package is particularly useful for criticality safety analyses where underst
 - ✅ **Multiple Covariance Formats**: Support for SCALE (COVERX binary/text), COMAC, GENDF, and Excel (xlsx) formats, with auto-detection
 - ✅ **Interactive Visualizations**: Generate HTML reports with Plotly graphs
 - ✅ **Chi-squared Filtering**: Automatic filtering of inconsistent benchmark cases
+
+<div align="center"><img src="./images/Assim.PNG" alt="Assim" style="width:70%;border:1px solid #1d1d53ff"></div>
+<div align="left"><img src="./images/Bench_list.PNG" alt="Benchmark List" style="width:70%;border:1px solid #1d1d53ff;"></div>
+<div align="right"><img src="./images/Case_sensi.PNG" alt="Case Sensi" style="width:70%;border:1px solid #1d1d53ff;"></div>
+<div align="left"><img src="./images/Sensi_heatmap.PNG" alt="Sensi Heatmap" style="width:70%;border:1px solid #1d1d53ff;"></div>
+<div align="right"><img src="./images/Iso_reac_list.PNG" alt="Iso Reac List" style="width:70%;border:1px solid #1d1d53ff;"></div>
+<div align="left"><img src="./images/Contributions.PNG" alt="Contributions" style="width:70%;border:1px solid #1d1d53ff;"></div>

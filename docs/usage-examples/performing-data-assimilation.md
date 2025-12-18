@@ -23,6 +23,7 @@ assimilation = cl.Assimilation(
     study_case=study_case,
     benchmarks_list=benchmarks,
     cov_data=cov_data,  # NDCovariances object
+    reac_list=[2, 4, 16, 18, 101, 452, 1018],
     targetted_chi2=1.2,  # Optional: chi-squared filtering threshold
     Ck_threshold=0.8,    # Optional: C_k similarity threshold
     output_html_path='assimilation_results.html'
