@@ -1173,39 +1173,48 @@ def get_common_iso_reac_list(
                 if reac.upper() not in reac_trad_inv:
                     raise errors.UserInputError(f"The reaction '{reac}' is not recognized.")
                 exclude_reac[i] = int(reac_trad_inv(reac.upper()))
-
-    if iso_reac_list == None:
-        iso_reac_lists = []
-        for sensi_case in cases_list:
-            iso_reac_lists.append(sensi_case.iso_reac_list)
-
-        if len(cases_list) == 1:
-            common_list = sensi_case.iso_reac_list
-        elif operation == "intersection":
-            common_list = list(set(iso_reac_lists[0]).intersection(*iso_reac_lists))
-        elif operation == "union":
-            common_list = list(set(iso_reac_lists[0]).union(*iso_reac_lists))
-        else:
-            raise ValueError("The 'operation' argument can only be 'intersection' or 'union'")
-
-        common_list = sorted(common_list)
-
-        common_list = [(iso, reac) for (iso, reac) in common_list if reac in reac_list]
-
-        if iso_list != None:
-            common_list = [(iso, reac) for (iso, reac) in common_list if iso in iso_list]
-        if exclude_iso != None:
-            common_list = [(iso, reac) for (iso, reac) in common_list if iso not in exclude_iso]
-        if exclude_reac != None:
-            common_list = [(iso, reac) for (iso, reac) in common_list if reac not in exclude_reac]
-
-    else:
+    if iso_reac_list != None:
         for i, (iso, reac) in enumerate(iso_reac_list):
             if not isinstance(iso, int):
                 iso_reac_list[i] = (convert_iso_string_to_id(iso), reac)
             if not isinstance(reac, int):
                 raise errors.UserInputError(f"The reaction '{reac}' should be an integer.")
-        common_list = iso_reac_list
+
+    iso_reac_lists = []
+    for sensi_case in cases_list:
+        iso_reac_lists.append(sensi_case.iso_reac_list)
+
+    if len(cases_list) == 1:
+        common_list = sensi_case.iso_reac_list
+    elif operation == "intersection":
+        common_list = list(set(iso_reac_lists[0]).intersection(*iso_reac_lists))
+    elif operation == "union":
+        common_list = list(set(iso_reac_lists[0]).union(*iso_reac_lists))
+    else:
+        raise ValueError("The 'operation' argument can only be 'intersection' or 'union'")
+
+    common_list = sorted(common_list)
+
+    common_list = [(iso, reac) for (iso, reac) in common_list if reac in reac_list]
+
+    if iso_reac_list != None:
+        common_list = [(iso, reac) for (iso, reac) in common_list if (iso, reac) in iso_reac_list]
+
+        no_contrib = [(iso, reac) for (iso, reac) in iso_reac_list if (iso, reac) not in common_list]
+        no_contrib = [convert_iso_id_to_string(iso) + " " + str(reac) for iso, reac in no_contrib]
+        if len(no_contrib) > 0:
+            warn(
+                f"The following iso-reac from the given list 'iso_reac_list' have no contribution in the sensitivities vectors and are thus ignored :  \n{list(set(no_contrib))}"
+            )
+
+    if iso_list != None:
+        common_list = [(iso, reac) for (iso, reac) in common_list if iso in iso_list]
+    if exclude_iso != None:
+        common_list = [(iso, reac) for (iso, reac) in common_list if iso not in exclude_iso]
+    if exclude_reac != None:
+        common_list = [(iso, reac) for (iso, reac) in common_list if reac not in exclude_reac]
+
+
 
     if len(common_list) == 0:
         raise errors.EmptyParsingError(
@@ -1389,7 +1398,7 @@ def calcul_E(case_1, case_2, return_iso_reac_list=False, iso_reac_list=None, rea
     return_iso_reac_list : bool, optional
         Flag to return the iso-reac list with the E value. Default is False.
     iso_reac_list : list, optional
-        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used. If provided, it overwrites other isotope and reaction inclusion/exclusion parameters.
+        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
     reac_list : list of int or str, optional
         The list of reactions to consider. If None, all reactions are used.
     iso_list : list of int or str, optional
@@ -1447,7 +1456,7 @@ def calcul_SSR(
     return_iso_reac_list : bool, optional
         Flag to return the iso-reac list with the SS value. Default is False.
     iso_reac_list : list, optional
-        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used. If provided, it overwrites other isotope and reaction inclusion/exclusion parameters.
+        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
     reac_list : list of int or str, optional
         The list of reactions to consider. If None, all reactions are used.
     iso_list : list of int or str, optional
@@ -1523,7 +1532,7 @@ def calcul_G(
     return_iso_reac_list : bool, optional
         Flag to return the iso-reac list with the G value. Default is False.
     iso_reac_list : list, optional
-        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used. If provided, it overwrites other isotope and reaction inclusion/exclusion parameters.
+        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
     reac_list : list of int or str, optional
         The list of reactions to consider. If None, all reactions are used.
     iso_list : list of int or str, optional
@@ -1602,7 +1611,7 @@ def calcul_Ck(
     return_iso_reac_list : bool, optional
         Flag to return the iso-reac list with the Ck value. Default is False.
     iso_reac_list : list, optional
-        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used. If provided, it overwrites other isotope and reaction inclusion/exclusion parameters.
+        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
     reac_list : list of int or str, optional
         The list of reactions to consider. If None, all reactions are used.
     iso_list : list of int or str, optional
@@ -1691,7 +1700,7 @@ def calcul_uncertainty(
     cov_data : NDCovariances or Assimilation
         The covariance data as NDCovariances object or Assimilation object.
     iso_reac_list : list, optional
-        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used. If provided, it overwrites other isotope and reaction inclusion/exclusion parameters.
+        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
     reac_list : list of int or str, optional
         The list of reactions to consider. If None, all reactions are used.
     iso_list : list of int or str, optional
