@@ -1152,7 +1152,7 @@ def make_cov_matrix(cov_data, iso_reac_list: list):
 
 
 def get_common_iso_reac_list(
-    cases_list: list, iso_reac_list: list = None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None, operation="union"
+    cases_list: list, iso_reac_list: list = None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None, exclude_reac: list = None, operation="union"
 ):
     default_reac_list = [int(x) for x in reac_trad.keys() if x != "1"]
 
@@ -1167,6 +1167,12 @@ def get_common_iso_reac_list(
         for i, iso in enumerate(exclude_iso):
             if not isinstance(iso, int):
                 exclude_iso[i] = convert_iso_string_to_id(iso)
+    if exclude_reac != None:
+        for i, reac in enumerate(exclude_reac):
+            if not isinstance(reac, int):
+                if reac.upper() not in reac_trad_inv:
+                    raise errors.UserInputError(f"The reaction '{reac}' is not recognized.")
+                exclude_reac[i] = int(reac_trad_inv(reac.upper()))
 
     if iso_reac_list == None:
         iso_reac_lists = []
@@ -1190,6 +1196,8 @@ def get_common_iso_reac_list(
             common_list = [(iso, reac) for (iso, reac) in common_list if iso in iso_list]
         if exclude_iso != None:
             common_list = [(iso, reac) for (iso, reac) in common_list if iso not in exclude_iso]
+        if exclude_reac != None:
+            common_list = [(iso, reac) for (iso, reac) in common_list if reac not in exclude_reac]
 
     else:
         for i, (iso, reac) in enumerate(iso_reac_list):
@@ -1209,7 +1217,7 @@ def get_common_iso_reac_list(
 
 
 def make_sensi_vectors(
-    cases_list: list, iso_reac_list: list = None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None, operation="union"
+    cases_list: list, iso_reac_list: list = None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None, exclude_reac: list = None, operation="union"
 ):
 
     common_list = get_common_iso_reac_list(**locals())
@@ -1267,6 +1275,7 @@ def make_sensi_vectors_and_cov_matrix(
     reac_list=None,
     iso_list: list = None,
     exclude_iso: list = None,
+    exclude_reac: list = None,
     operation="union",
 ):
     """Make sensitivity vectors and covariance matrix.
@@ -1279,11 +1288,11 @@ def make_sensi_vectors_and_cov_matrix(
         Covariance data object
     iso_reac_list : list, optional
         List of (isotope, reaction) tuples to consider
-    reac_list : list, optional
+    reac_list : list of int or str, optional
         List of reaction IDs to consider
-    iso_list : list, optional  
+    iso_list : list of int or str, optional  
         List of isotope IDs to consider
-    exclude_iso : list, optional
+    exclude_iso : list of int or str, optional
         List of isotope IDs to exclude
     operation : str
         'union' or 'intersection'
@@ -1295,7 +1304,7 @@ def make_sensi_vectors_and_cov_matrix(
     """
 
     common_list = get_common_iso_reac_list(
-        cases_list=cases_list, iso_reac_list=iso_reac_list, reac_list=reac_list, iso_list=iso_list, exclude_iso=exclude_iso, operation=operation
+        cases_list=cases_list, iso_reac_list=iso_reac_list, reac_list=reac_list, iso_list=iso_list, exclude_iso=exclude_iso, exclude_reac=exclude_reac,operation=operation
     )
 
     cov_mat, iso_reac_list_present = make_cov_matrix(cov_data=cov_data, iso_reac_list=common_list)
@@ -1367,7 +1376,7 @@ def convert_iso_string_to_id(iso_str):
 
 
 @log_exec()
-def calcul_E(case_1, case_2, return_iso_reac_list=False, iso_reac_list=None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None):
+def calcul_E(case_1, case_2, return_iso_reac_list=False, iso_reac_list=None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None, exclude_reac: list = None):
     """
     Calculate the E similarity coefficient between two cases.
 
@@ -1380,13 +1389,15 @@ def calcul_E(case_1, case_2, return_iso_reac_list=False, iso_reac_list=None, rea
     return_iso_reac_list : bool, optional
         Flag to return the iso-reac list with the E value. Default is False.
     iso_reac_list : list, optional
-        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
-    reac_list : list, optional
+        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used. If provided, it overwrites other isotope and reaction inclusion/exclusion parameters.
+    reac_list : list of int or str, optional
         The list of reactions to consider. If None, all reactions are used.
-    iso_list : list, optional
+    iso_list : list of int or str, optional
         The list of isotopes to consider. If None, all isotopes are used.
-    exclude_iso : list, optional
+    exclude_iso : list of int or str, optional
         The list of isotopes to exclude. If None, no isotopes are excluded.
+    exclude_reac : list of int or str, optional
+        The list of reactions to exclude. If None, no reactions are excluded.
 
     Returns
     -------
@@ -1409,7 +1420,7 @@ def calcul_E(case_1, case_2, return_iso_reac_list=False, iso_reac_list=None, rea
             raise TypeError(f"Wrong sensitivity type for {case_i} - Choose case object, Path, or string")
 
     [sensi_vec1, sensi_vec2], iso_reac_list = make_sensi_vectors(
-        cases_list=cases, operation="union", iso_reac_list=iso_reac_list, reac_list=reac_list, iso_list=iso_list, exclude_iso=exclude_iso
+        cases_list=cases, operation="union", iso_reac_list=iso_reac_list, reac_list=reac_list, iso_list=iso_list, exclude_iso=exclude_iso, exclude_reac=exclude_reac,
     )
 
     E = abs(sensi_vec1 @ sensi_vec2 / (np.linalg.norm(sensi_vec1) * np.linalg.norm(sensi_vec2)))
@@ -1422,7 +1433,7 @@ def calcul_E(case_1, case_2, return_iso_reac_list=False, iso_reac_list=None, rea
 
 @log_exec()
 def calcul_SSR(
-    study_case, bench_case, return_iso_reac_list=False, iso_reac_list=None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None
+    study_case, bench_case, return_iso_reac_list=False, iso_reac_list=None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None, exclude_reac: list = None
 ):
     """
     Calculate the Share Sensitivity Ratio between two cases.
@@ -1436,13 +1447,15 @@ def calcul_SSR(
     return_iso_reac_list : bool, optional
         Flag to return the iso-reac list with the SS value. Default is False.
     iso_reac_list : list, optional
-        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
-    reac_list : list, optional
+        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used. If provided, it overwrites other isotope and reaction inclusion/exclusion parameters.
+    reac_list : list of int or str, optional
         The list of reactions to consider. If None, all reactions are used.
-    iso_list : list, optional
+    iso_list : list of int or str, optional
         The list of isotopes to consider. If None, all isotopes are used.
-    exclude_iso : list, optional
+    exclude_iso : list of int or str, optional
         The list of isotopes to exclude. If None, no isotopes are excluded.
+    exclude_reac : list of int or str, optional
+        The list of reactions to exclude. If None, no reactions are excluded.
 
     Returns
     -------
@@ -1469,10 +1482,11 @@ def calcul_SSR(
     [study_vec, bench_vec], iso_reac_list = make_sensi_vectors(
         cases_list=[study_case, bench_case],
         operation="union",
-        iso_reac_list=study_case.iso_reac_list,
+        iso_reac_list=iso_reac_list,
         reac_list=reac_list,
         iso_list=iso_list,
         exclude_iso=exclude_iso,
+        exclude_reac=exclude_reac,
     )
 
     integ_abs_study_case = 0
@@ -1495,7 +1509,7 @@ def calcul_SSR(
 
 @log_exec()
 def calcul_G(
-    study_case, bench_case, return_iso_reac_list=False, iso_reac_list=None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None
+    study_case, bench_case, return_iso_reac_list=False, iso_reac_list=None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None, exclude_reac: list = None
 ):
     """
     Calculate the G similarity coefficient between two cases.
@@ -1509,13 +1523,15 @@ def calcul_G(
     return_iso_reac_list : bool, optional
         Flag to return the iso-reac list with the G value. Default is False.
     iso_reac_list : list, optional
-        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
-    reac_list : list, optional
+        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used. If provided, it overwrites other isotope and reaction inclusion/exclusion parameters.
+    reac_list : list of int or str, optional
         The list of reactions to consider. If None, all reactions are used.
-    iso_list : list, optional
+    iso_list : list of int or str, optional
         The list of isotopes to consider. If None, all isotopes are used.
-    exclude_iso : list, optional
+    exclude_iso : list of int or str, optional
         The list of isotopes to exclude. If None, no isotopes are excluded.
+    exclude_reac : list of int or str, optional
+        The list of reactions to exclude. If None, no reactions are excluded.
 
     Returns
     -------
@@ -1546,6 +1562,7 @@ def calcul_G(
         reac_list=reac_list,
         iso_list=iso_list,
         exclude_iso=exclude_iso,
+        exclude_reac=exclude_reac,
     )
 
     integ_study_case = 0
@@ -1569,7 +1586,7 @@ def calcul_G(
 
 @log_exec()
 def calcul_Ck(
-    case_1, case_2, cov_data, return_iso_reac_list=False, iso_reac_list=None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None
+    case_1, case_2, cov_data, return_iso_reac_list=False, iso_reac_list=None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None, exclude_reac: list = None
 ):
     """
     Calculate the Ck similarity coefficient between two cases using a covariance DataFrame.
@@ -1585,13 +1602,15 @@ def calcul_Ck(
     return_iso_reac_list : bool, optional
         Flag to return the iso-reac list with the Ck value. Default is False.
     iso_reac_list : list, optional
-        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
-    reac_list : list, optional
+        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used. If provided, it overwrites other isotope and reaction inclusion/exclusion parameters.
+    reac_list : list of int or str, optional
         The list of reactions to consider. If None, all reactions are used.
-    iso_list : list, optional
+    iso_list : list of int or str, optional
         The list of isotopes to consider. If None, all isotopes are used.
-    exclude_iso : list, optional
+    exclude_iso : list of int or str, optional
         The list of isotopes to exclude. If None, no isotopes are excluded.
+    exclude_reac : list of int or str, optional
+        The list of reactions to exclude. If None, no reactions are excluded.
 
     Returns
     -------
@@ -1623,6 +1642,7 @@ def calcul_Ck(
             reac_list=reac_list,
             iso_list=iso_list,
             exclude_iso=exclude_iso,
+            exclude_reac=exclude_reac,
             operation="union",
         )
         check_dimmensions(casename=cases[0].casename, sensi_vec=sensi_vec1, cov_mat=cov_mat, iso_reac_list=iso_reac_list)
@@ -1659,7 +1679,7 @@ def calcul_Ck(
 
 @log_exec()
 def calcul_uncertainty(
-    study_case, cov_data, iso_reac_list=None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None, output_html_path=None,  isotopes_to_detail=[]
+    study_case, cov_data, iso_reac_list=None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None, exclude_reac: list = None, output_html_path=None,  isotopes_to_detail=[]
 ):
     """
     Calculate the uncertainty of a study case using a covariances Dataframe.
@@ -1671,13 +1691,15 @@ def calcul_uncertainty(
     cov_data : NDCovariances or Assimilation
         The covariance data as NDCovariances object or Assimilation object.
     iso_reac_list : list, optional
-        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
-    reac_list : list, optional
+        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used. If provided, it overwrites other isotope and reaction inclusion/exclusion parameters.
+    reac_list : list of int or str, optional
         The list of reactions to consider. If None, all reactions are used.
-    iso_list : list, optional
+    iso_list : list of int or str, optional
         The list of isotopes to consider. If None, all isotopes are used.
-    exclude_iso : list, optional
+    exclude_iso : list of int or str, optional
         The list of isotopes to exclude. If None, no isotopes are excluded.
+    exclude_reac : list of int or str, optional
+        The list of reactions to exclude. If None, no reactions are excluded.
     isotopes_to_detail : list, optional
         List of isotopes (ID) to provide detailed variances-covariances (as heatmaps) in the HTML outputfile.
 
@@ -1699,12 +1721,12 @@ def calcul_uncertainty(
     if isinstance(cov_data, classes.NDCovariances):
 
         [sensi_vec], cov_mat, iso_reac_list = make_sensi_vectors_and_cov_matrix(
-            cases_list=[study_case], cov_data=cov_data, iso_reac_list=iso_reac_list, reac_list=reac_list, iso_list=iso_list, exclude_iso=exclude_iso
+            cases_list=[study_case], cov_data=cov_data, iso_reac_list=iso_reac_list, reac_list=reac_list, iso_list=iso_list, exclude_iso=exclude_iso, exclude_reac=exclude_reac,
         )
 
     elif isinstance(cov_data, classes.Assimilation):
 
-        if iso_reac_list != None or reac_list != None or iso_list != None or exclude_iso != None:
+        if iso_reac_list != None or reac_list != None or iso_list != None or exclude_iso != None or exclude_reac != None:
             warn(
                 f"The list of iso-reac taking into account is fixed by the object Assimilation in argument. If you need to restrict the list of iso-reac, insert a NDCovariances object as argument 'cov_data'."
             )

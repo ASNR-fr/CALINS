@@ -890,14 +890,16 @@ class Assimilation:
         Method for filtering chi2 values.
     iso_reac_list : list of tuples if ints
         List of isotope-reaction pairs (iso_ID, reac_ID) to consider for assimilation.
-    reac_list : list of ints
-        List of reactions (ID) to consider for assimilation.
-    iso_list : list of ints
-        List of isotopes (ID) to consider for assimilation.
-    exclude_iso : list of ints
-        List of isotopes (ID) to exclude from assimilation.
-    isotopes_to_detail : list of ints
-        List of isotopes (ID) to provide detailed variances and nuclear data information in the html outputfile.
+    reac_list : list of int or str, optional
+        List of reactions to consider for assimilation.
+    iso_list : list of int or str, optional
+        List of isotopes to consider for assimilation.
+    exclude_iso : list of int or str, optional
+        List of isotopes to exclude from assimilation.
+    exclude_reac : list of int or str, optional
+        List of reactions to exclude from assimilation.
+    isotopes_to_detail : list of int or str, optional
+        List of isotopes to provide detailed variances-covariances (as heatmaps) in the HTML outputfile.
     [+ explicit internal attributes...]
 
     Methods
@@ -919,6 +921,7 @@ class Assimilation:
         reac_list: list = None,
         iso_list: list = None,
         exclude_iso: list = None,
+        exclude_reac: list = None,
         Ck_threshold=None,
         targetted_chi2=None,
         filtering_chi2_method="delta",
@@ -949,14 +952,16 @@ class Assimilation:
             Method for filtering based on chi2 values. Defaults to "delta".
         iso_reac_list : list of tuples if ints, optional
             List of isotope-reaction pairs (iso_ID, reac_ID) to consider for assimilation.
-        reac_list : list of ints, optional
-            List of reactions (ID) to consider for assimilation.
-        iso_list : list of ints, optional
-            List of isotopes (ID) to consider for assimilation.
-        exclude_iso : list of ints, optional
-            List of isotopes (ID) to exclude from assimilation.
-        isotopes_to_detail : list of ints, optional
-            List of isotopes (ID) to provide detailed variances-covariances (as heatmaps) in the HTML outputfile.
+        reac_list : list of int or str, optional
+            List of reactions to consider for assimilation.
+        iso_list : list of int or str, optional
+            List of isotopes to consider for assimilation.
+        exclude_iso : list of int or str, optional
+            List of isotopes to exclude from assimilation.
+        exclude_reac : list of int or str, optional
+            List of reactions to exclude from assimilation.
+        isotopes_to_detail : list of int or str, optional
+            List of isotopes to provide detailed variances-covariances (as heatmaps) in the HTML outputfile.
         """
 
         self.bench_cases = benchmarks_list[:]
@@ -1027,6 +1032,7 @@ class Assimilation:
             reac_list=reac_list,
             iso_list=iso_list,
             exclude_iso=exclude_iso,
+            exclude_reac=exclude_reac,
         )
 
         self.check_dimmensions()
@@ -1046,7 +1052,7 @@ class Assimilation:
         self.export_to_html(output_html_path=self.output_html_path, plotting_unit=plotting_unit, isotopes_to_detail=isotopes_to_detail)
 
     def make_sensimat_covmat_casevec_expemat_and_deltaCE(
-        self, iso_reac_list: list = None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None
+        self, iso_reac_list: list = None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None, exclude_reac: list = None
     ):
         """Create sensitivity matrix, covariance matrix, case vector, experimental matrix, and delta C-E.
         
@@ -1055,11 +1061,13 @@ class Assimilation:
         iso_reac_list : list, optional
             List of (isotope, reaction) tuples to consider
         reac_list : list, optional
-            List of reaction IDs to consider  
+            List of reactions to consider  
         iso_list : list, optional
-            List of isotope IDs to consider
+            List of isotopes to consider
         exclude_iso : list, optional
-            List of isotope IDs to exclude
+            List of isotopes to exclude
+        exclude_reac : list, optional
+            List of reactions to exclude
         """
         # Construct the sensitivity vectors and covariances matrix from the iso_reac_list given or the union of every case's iso_reac_list
         if self.study_case != None:
@@ -1071,6 +1079,7 @@ class Assimilation:
                 reac_list=reac_list,
                 iso_list=iso_list,
                 exclude_iso=exclude_iso,
+                exclude_reac=exclude_reac,
             )
             benchmark_vecs = sensi_vecs[: len(self.bench_cases)]
             case_vec = sensi_vecs[-1]
@@ -1083,6 +1092,7 @@ class Assimilation:
                 reac_list=reac_list,
                 iso_list=iso_list,
                 exclude_iso=exclude_iso,
+                exclude_reac=exclude_reac,
             )
             benchmark_vecs = sensi_vecs
             case_vec = []
@@ -2147,14 +2157,12 @@ class Uncertainty:
             else:
                 integral = None
 
-            if unc_partial_covar != 0.0 and unc_partial_var != 0.0:
-
-                dikt["ISO"].append(methods.convert_iso_id_to_string(iso))
-                dikt["REAC"].append(methods.reac_trad[str(reac)])
-                dikt["CASE SENSIB INTEGRAL"].append(integral)
-                dikt["CONTRIBUTION TO RELATIVE UNC_SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)"].append(unc_partial_covar_detail)
-                dikt["CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)"].append(unc_partial_covar)
-                dikt["CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (FROM AUTO-CORRELATION ONLY)"].append(unc_partial_var)
+            dikt["ISO"].append(methods.convert_iso_id_to_string(iso))
+            dikt["REAC"].append(methods.reac_trad[str(reac)])
+            dikt["CASE SENSIB INTEGRAL"].append(integral)
+            dikt["CONTRIBUTION TO RELATIVE UNC_SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)"].append(unc_partial_covar_detail)
+            dikt["CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)"].append(unc_partial_covar)
+            dikt["CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (FROM AUTO-CORRELATION ONLY)"].append(unc_partial_var)
 
         self.decomp_vec = decomp_vec
         self.decomposition = pd.DataFrame(dikt)
