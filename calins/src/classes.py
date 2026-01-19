@@ -90,6 +90,10 @@ class Case:
         Energy bins.
     iso_reac_list : list
         List of isotope-reaction pairs.
+    iso_list : list
+        List of isotopes present in the case.
+    reac_list : list
+        List of reactions present in the case.
 
     Methods
     --------
@@ -168,6 +172,8 @@ class Case:
         self.read_energy_bins()
 
         self.iso_reac_list = [(iso, reac) for (iso, reac) in zip(self.sensitivities["ISO"].to_list(), self.sensitivities["REAC"].to_list())]
+        self.iso_list = list(set([iso for (iso, reac) in self.iso_reac_list]))
+        self.reac_list = list(set([reac for (iso, reac) in self.iso_reac_list]))
 
         if self.resp_calc == None or self.sigma_resp_calc == None:
 
@@ -698,6 +704,7 @@ class Case:
 
         return filtered_sensi_values
 
+
 class NDCovariances:
     """
     A class to handle nuclear data covariance matrices from various file formats.
@@ -718,6 +725,10 @@ class NDCovariances:
         Header information from the covariance file.
     iso_reac_list : list of tuples
         List of (isotope_ID, reaction_ID) pairs present in the covariance data.
+    iso_list : list
+        List of isotopes present in the covariance data.
+    reac_list : list
+        List of reactions present in the covariance data.
 
     Methods
     --------
@@ -726,6 +737,7 @@ class NDCovariances:
     write_txt(output_path, header):
         Writes the covariance data to a text file in COVERX format.
     """
+
     @log_exec()
     def __init__(self, input_path: str, format: str = "auto"):
         """
@@ -736,7 +748,7 @@ class NDCovariances:
         input_path : str
             [Required] Path to the covariance file.
         format : str
-            Format of the covariance file. Can be "auto", "coverx", "coverx_text", "comac", "gendf", or "xlsx". 
+            Format of the covariance file. Can be "auto", "coverx", "coverx_text", "comac", "gendf", or "xlsx".
             Defaults to "auto".
             The "xlsx" format allows re-importing Excel files previously exported with write_xlsx().
             String representations of lists in the Excel file are automatically converted back to lists of floats.
@@ -758,8 +770,8 @@ class NDCovariances:
             self.cov_dataf, self.e_bins, self.group_nb, self.header = methods.format_xlsx_to_dataframe(input_path)
         else:
             raise errors.UserInputError(f"Format must be either 'coverx', 'coverx_txt', 'comac', 'gendf', or 'xlsx', but was provided as {format}")
-        
-        cov_dataf = self.cov_dataf        
+
+        cov_dataf = self.cov_dataf
 
         # Extract list of (isotope, reaction) pairs present in covariance data
         iso_reac_cov_H = cov_dataf.apply(lambda x: (x["ISO_H"], x["REAC_H"]), axis=1).to_list()
@@ -767,7 +779,8 @@ class NDCovariances:
         all_iso_reac = list(set(iso_reac_cov_H) | set(iso_reac_cov_V))
         # Filter out energy bins entries (0, 0)
         self.iso_reac_list = [(iso, reac) for iso, reac in all_iso_reac if not (iso == 0)]
-        
+        self.iso_list = list(set([iso for (iso, reac) in self.iso_reac_list]))
+        self.reac_list = list(set([reac for (iso, reac) in self.iso_reac_list]))
 
     def _detect_format(self) -> str:
         """
@@ -783,7 +796,7 @@ class NDCovariances:
         str
             Detected format of the covariance file.
         """
-        if self.input_path.endswith('.xlsx'):
+        if self.input_path.endswith(".xlsx"):
             return "xlsx"
         elif "scale" in self.input_path or "SCALE" in self.input_path:
             if "txt" in self.input_path:
@@ -794,12 +807,14 @@ class NDCovariances:
         elif "gendf" in self.input_path or "GENDF" in self.input_path or "endf" in self.input_path or "ENDF" in self.input_path:
             return "gendf"
         else:
-            raise errors.UserInputError("Could not detect the format of the covariance file. Please specify the format explicitly among 'coverx', 'coverx_text', 'comac', or 'gendf'.")
+            raise errors.UserInputError(
+                "Could not detect the format of the covariance file. Please specify the format explicitly among 'coverx', 'coverx_text', 'comac', or 'gendf'."
+            )
 
     def write_xlsx(self, output_path: str):
         """
         Writes the covariance data to an Excel file.
-        
+
         The file can be re-imported later with NDCovariances(path, format='xlsx').
         String representations of lists will be automatically converted back to lists.
 
@@ -808,13 +823,13 @@ class NDCovariances:
         output_path : str
             [Required] Path to save the output Excel file.
         """
-        if output_path.endswith('.xlsx'):
+        if output_path.endswith(".xlsx"):
             self.cov_dataf.to_excel(output_path)
         elif os.path.isdir(output_path):
-            self.cov_dataf.to_excel(os.path.join(output_path, os.path.basename(self.input_path) + '.xlsx'))    
+            self.cov_dataf.to_excel(os.path.join(output_path, os.path.basename(self.input_path) + ".xlsx"))
         else:
-            self.cov_dataf.to_excel(output_path + '.xlsx')
-    
+            self.cov_dataf.to_excel(output_path + ".xlsx")
+
     def write_txt(self, output_path: str, header: str = None):
         """
         Writes the covariance data to a text file in COVERX format.
@@ -826,29 +841,27 @@ class NDCovariances:
         header : str
             Header to include in the output file.
         """
-        if header == None :
+        if header == None:
             header = self.header
 
         with open(output_path, "w") as output_file:
             output_file.write(header)
 
-            if self.e_bins != [] :
+            if self.e_bins != []:
                 for idx, e_bin in enumerate(self.e_bins):
                     if idx > 0 and idx % 5 == 0:
                         e_bin = "{:.7E}".format(e_bin)
                         output_file.write("\n")
                     output_file.write(f"{e_bin: >15}")
                 output_file.write("\n")
-            else :
+            else:
                 output_file.write(f"The number of groups is {self.group_nb}. Covariance data file doesn't have its energy binning embeded.\n")
 
             for idx, row in self.cov_dataf.iterrows():
-                if row['ISO_H'] ==  0 or row['ISO_V'] ==  0  :
+                if row["ISO_H"] == 0 or row["ISO_V"] == 0:
                     continue
 
-                output_file.write(
-                    f"{row['ISO_H']: >12}{row['REAC_H']: >12}{row['ISO_V']: >12}{row['REAC_V']: >12}{'1': >12}\n"
-                )
+                output_file.write(f"{row['ISO_H']: >12}{row['REAC_H']: >12}{row['ISO_V']: >12}{row['REAC_V']: >12}{'1': >12}\n")
 
                 for std_x in row["STD"]:
                     for i, std in enumerate(std_x):
@@ -857,6 +870,7 @@ class NDCovariances:
                         std = "{:.7E}".format(std)
                         output_file.write(f"{std: >15}")
                     output_file.write("\n")
+
 
 class Assimilation:
     """
@@ -891,9 +905,9 @@ class Assimilation:
     iso_reac_list : list of tuples if ints
         List of isotope-reaction pairs (iso_ID, reac_ID) to consider for assimilation.
     reac_list : list of int or str, optional
-        List of reactions to consider for assimilation.
+        List of reactions considered for assimilation.
     iso_list : list of int or str, optional
-        List of isotopes to consider for assimilation.
+        List of isotopes considered for assimilation.
     exclude_iso : list of int or str, optional
         List of isotopes to exclude from assimilation.
     exclude_reac : list of int or str, optional
@@ -965,7 +979,7 @@ class Assimilation:
         """
 
         self.bench_cases = benchmarks_list[:]
-        
+
         # Store the original covariance data object
         self.cov_data = cov_data
 
@@ -1055,13 +1069,13 @@ class Assimilation:
         self, iso_reac_list: list = None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None, exclude_reac: list = None
     ):
         """Create sensitivity matrix, covariance matrix, case vector, experimental matrix, and delta C-E.
-        
+
         Parameters
         ----------
         iso_reac_list : list, optional
             List of (isotope, reaction) tuples to consider
         reac_list : list, optional
-            List of reactions to consider  
+            List of reactions to consider
         iso_list : list, optional
             List of isotopes to consider
         exclude_iso : list, optional
@@ -1106,6 +1120,8 @@ class Assimilation:
         self.case_vec = np.array(case_vec)
         self.cov_mat = cov_mat
         self.iso_reac_list = iso_reac_list
+        self.iso_list = list(set([iso for (iso, reac) in self.iso_reac_list]))
+        self.reac_list = list(set([reac for (iso, reac) in self.iso_reac_list]))
 
         expe_mat = np.zeros((len(self.bench_cases), len(self.bench_cases)), dtype=float)
         delta_CE_vec = np.zeros(len(self.bench_cases), dtype=float)
@@ -2077,6 +2093,10 @@ class Uncertainty:
         List of contributions to the uncertainty from every isotopes, reactions and energy group (last step of matrix multiplication, before summing and square rooting).
     iso_reac_list : list
         List of isotopes and reactions taken into account.
+    iso_list : list
+        List of isotopes taken into account.
+    reac_list : list
+        List of reactions taken into account.
     e_bins : list
         Energy bins.
     group_nb : int
@@ -2120,6 +2140,8 @@ class Uncertainty:
         self.study_case = study_case
         self.cov_data = cov_data
         self.iso_reac_list = iso_reac_list
+        self.iso_list = list(set([iso for iso, reac in iso_reac_list]))
+        self.reac_list = list(set([reac for iso, reac in iso_reac_list]))
         self.resp_calc = resp_calc
         self.e_bins = study_case.e_bins
         self.group_nb = self.study_case.group_nb
@@ -2338,13 +2360,13 @@ class Uncertainty:
         case_reac = [reac for iso, reac in self.study_case.iso_reac_list if reac != 1]
         case_iso_str = [methods.convert_iso_id_to_string(iso) for iso in case_iso]
         case_reac_str = [methods.reac_trad[str(reac)] for reac in case_reac]
-        
+
         # Get iso_reac_list from cov_data
         if isinstance(self.cov_data, NDCovariances):
             cov_iso_reac_list = self.cov_data.iso_reac_list
         elif isinstance(self.cov_data, Assimilation):
             cov_iso_reac_list = self.cov_data.cov_data.iso_reac_list
-        
+
         cov_present = [True if (iso, reac) in cov_iso_reac_list else False for iso, reac in zip(case_iso, case_reac)]
         calc_present = [True if (iso, reac) in self.iso_reac_list else False for iso, reac in zip(case_iso, case_reac)]
 
@@ -2469,6 +2491,10 @@ class Bias:
         The calculated response of the study case.
     iso_reac_list : list
         List of isotopes and reactions taken into account.
+    iso_list : list
+        List of isotopes taken into account.
+    reac_list : list
+        List of reactions taken into account.
     e_bins : list
         Energy bins.
     group_nb : int
@@ -2481,6 +2507,8 @@ class Bias:
 
         self.study_case = study_case
         self.iso_reac_list = iso_reac_list
+        self.iso_list = list(set([iso for iso, reac in iso_reac_list]))
+        self.reac_list = list(set([reac for iso, reac in iso_reac_list]))
         self.resp_calc = resp_calc
         self.e_bins = study_case.e_bins
         self.group_nb = self.study_case.group_nb
