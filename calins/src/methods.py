@@ -58,14 +58,19 @@ def format_comac_to_dataframe(input_path: str):
 
         for i_line, line in enumerate(lines):
 
-            if line.split()[0] in reac_trad_comac_inv and line.split()[2] in reac_trad_comac_inv:
-                dikt_cov["REAC_V"].append(int(reac_trad_comac_inv[line.split()[0]]))
-                dikt_cov["REAC_H"].append(int(reac_trad_comac_inv[line.split()[2]]))
+            line_parts = line.split()
+
+            if len(line_parts) < 3:
+                continue
+
+            if line_parts[0] in reac_trad_comac_inv and line_parts[2] in reac_trad_comac_inv:
+                dikt_cov["REAC_V"].append(int(reac_trad_comac_inv[line_parts[0]]))
+                dikt_cov["REAC_H"].append(int(reac_trad_comac_inv[line_parts[2]]))
 
                 try:
                     for idx, direction in enumerate(["V", "H"], start=1):
-                        Z = re.findall("[A-Z]+", line.split()[idx * 2 - 1].upper())
-                        A = re.findall("[0-9]+", line.split()[idx * 2 - 1])
+                        Z = re.findall("[A-Z]+", line_parts[idx * 2 - 1].upper())
+                        A = re.findall("[0-9]+", line_parts[idx * 2 - 1])
 
                         if len(A) != 0:
                             iso_idx = iso_z[Z[0]] * 1000 + int(A[0])
@@ -1077,39 +1082,45 @@ def make_cov_matrix(cov_data, iso_reac_list: list):
 
     # ----- Loop over col_idx and line_idx coordinates (iso-reac_Horizontal and iso-reac_Vertical) and insert a submatrix (or its transpose) if the input covariance matrix contains values for this iso-reac pair
 
-    cov_inter_iso = []
-    for idx in cov_dataf.index:
-        if cov_dataf["ISO_H"][idx] != cov_dataf["ISO_V"][idx]:
-            cov_inter_iso.append((cov_dataf["ISO_H"][idx], cov_dataf["ISO_V"][idx]))
+    cov_inter_iso = [(row["ISO_H"], row["ISO_V"]) for _, row in cov_dataf[(cov_dataf["ISO_H"] != cov_dataf["ISO_V"])].iterrows()]
 
     # Create new submatrices for versatile isotopes (e.g., H-poly / 1901) and isotopes not present but associated with their natural isotope
+
+    new_rows_list = []
 
     for iso in list(set([iso for iso, reac in iso_reac_list])):
         # Handle isotopes not present in the matrix, if their natural isotope is present
         natural_idx = int(iso / 1000) * 1000
         if iso not in iso_cov and natural_idx in iso_cov:
-            for i, row in cov_dataf[(cov_dataf["ISO_H"] == natural_idx) | (cov_dataf["ISO_V"] == natural_idx)].iterrows():
-                if row["ISO_H"] == natural_idx:
-                    row["ISO_H"] = iso
-                if row["ISO_V"] == natural_idx:
-                    row["ISO_V"] = iso
-                cov_dataf = pd.concat([cov_dataf, pd.DataFrame([row])], ignore_index=True)
-                warn(
-                    f"The isotope {iso} is not present in the var-covar matrix file. It will be replaced by its natural isotope {natural_idx} for the construction of the covariance matrix."
-                )
+
+            mask_natural = (cov_dataf["ISO_H"] == natural_idx) | (cov_dataf["ISO_V"] == natural_idx)
+            rows_to_add = cov_dataf.loc[mask_natural].copy()
+
+            rows_to_add.loc[rows_to_add["ISO_H"] == natural_idx, "ISO_H"] = iso
+            rows_to_add.loc[rows_to_add["ISO_V"] == natural_idx, "ISO_V"] = iso
+
+            new_rows_list.append(rows_to_add)
+            warn(
+                f"The isotope {iso} is not present in the var-covar matrix file. It will be replaced by its natural isotope {natural_idx} for the construction of the covariance matrix."
+            )
 
         # Handle unconventional isotopes (e.g., H-poly / 1901) if their standard isotope (e.g., H-1 / 1001) is present
         rebased_idx = int(iso / 1000) * 1000 + int(str(iso)[-2:])
         if iso not in iso_cov and rebased_idx in iso_cov:
-            for i, row in cov_dataf[(cov_dataf["ISO_H"] == rebased_idx) | (cov_dataf["ISO_V"] == rebased_idx)].iterrows():
-                if row["ISO_H"] == rebased_idx:
-                    row["ISO_H"] = iso
-                if row["ISO_V"] == rebased_idx:
-                    row["ISO_V"] = iso
-                cov_dataf = pd.concat([cov_dataf, pd.DataFrame([row])], ignore_index=True)
-                warn(
-                    f"The unconventional isotope {iso} is not present in the var-covar matrix file. It will be replaced by its base isotope {rebased_idx} for the construction of the covariance matrix."
-                )
+
+            mask_rebased = (cov_dataf["ISO_H"] == rebased_idx) | (cov_dataf["ISO_V"] == rebased_idx)
+            rows_to_add = cov_dataf.loc[mask_rebased].copy()
+
+            rows_to_add.loc[rows_to_add["ISO_H"] == rebased_idx, "ISO_H"] = iso
+            rows_to_add.loc[rows_to_add["ISO_V"] == rebased_idx, "ISO_V"] = iso
+
+            new_rows_list.append(rows_to_add)
+            warn(
+                f"The unconventional isotope {iso} is not present in the var-covar matrix file. It will be replaced by its base isotope {rebased_idx} for the construction of the covariance matrix."
+            )
+
+    if new_rows_list:
+        cov_dataf = pd.concat([cov_dataf] + new_rows_list, ignore_index=True)
 
     # Recompute iso_reac_list of covariance data to include rebased and natural isotopes
     iso_reac_cov_H, iso_reac_cov_V = (
