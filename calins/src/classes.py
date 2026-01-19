@@ -2150,6 +2150,8 @@ class Uncertainty:
         dikt = {
             "ISO": [],
             "REAC": [],
+            "ISO_NAME": [],
+            "REAC_NAME": [],
             "CASE SENSIB INTEGRAL": [],
             "CONTRIBUTION TO RELATIVE UNC_SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)": [],
             "CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)": [],
@@ -2179,8 +2181,10 @@ class Uncertainty:
             else:
                 integral = None
 
-            dikt["ISO"].append(methods.convert_iso_id_to_string(iso))
-            dikt["REAC"].append(methods.reac_trad[str(reac)])
+            dikt["ISO"].append(iso)
+            dikt["REAC"].append(reac)
+            dikt["ISO_NAME"].append(methods.convert_iso_id_to_string(iso))
+            dikt["REAC_NAME"].append(methods.reac_trad[str(reac)])
             dikt["CASE SENSIB INTEGRAL"].append(integral)
             dikt["CONTRIBUTION TO RELATIVE UNC_SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)"].append(unc_partial_covar_detail)
             dikt["CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)"].append(unc_partial_covar)
@@ -2513,7 +2517,15 @@ class Bias:
         self.e_bins = study_case.e_bins
         self.group_nb = self.study_case.group_nb
 
-        dikt = {"ISO": [], "REAC": [], "CASE SENSIB INTEGRAL": [], "CONTRIBUTION TO RELATIVE BIAS": [], "CONTRIBUTION INTEGRAL TO RELATIVE BIAS": []}
+        dikt = {
+            "ISO": [],
+            "REAC": [],
+            "ISO_NAME": [],
+            "REAC_NAME": [],
+            "CASE SENSIB INTEGRAL": [],
+            "CONTRIBUTION TO RELATIVE BIAS": [],
+            "CONTRIBUTION INTEGRAL TO RELATIVE BIAS": [],
+        }
         sum = 0
         decomp_vec = []
         for i, (iso, reac) in enumerate(iso_reac_list):
@@ -2539,8 +2551,10 @@ class Bias:
 
             if bias_partial != 0.0:
 
-                dikt["ISO"].append(methods.convert_iso_id_to_string(iso))
-                dikt["REAC"].append(methods.reac_trad[str(reac)])
+                dikt["ISO"].append(iso)
+                dikt["REAC"].append(reac)
+                dikt["ISO_NAME"].append(methods.convert_iso_id_to_string(iso))
+                dikt["REAC_NAME"].append(methods.reac_trad[str(reac)])
                 dikt["CASE SENSIB INTEGRAL"].append(np.sum(sub_sensi_vec))
                 dikt["CONTRIBUTION TO RELATIVE BIAS"].append(bias_partial_detail)
                 dikt["CONTRIBUTION INTEGRAL TO RELATIVE BIAS"].append(bias_partial)
