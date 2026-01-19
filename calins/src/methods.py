@@ -1204,10 +1204,16 @@ def get_common_iso_reac_list(
                 if reac.upper() not in reac_trad_inv:
                     raise errors.UserInputError(f"The reaction '{reac}' is not recognized.")
                 exclude_reac[i] = int(reac_trad_inv(reac.upper()))
+    if reac_list != None:
+        for i, reac in enumerate(reac_list):
+            if not isinstance(reac, int):
+                if reac.upper() not in reac_trad_inv:
+                    raise errors.UserInputError(f"The reaction '{reac}' is not recognized.")
+                reac_list[i] = int(reac_trad_inv(reac.upper()))
     if iso_reac_list != None:
         for i, (iso, reac) in enumerate(iso_reac_list):
             if not isinstance(iso, int):
-                iso_reac_list[i] = (convert_iso_string_to_id(iso), reac)
+                raise errors.UserInputError(f"The isotope '{iso}' should be an integer.")
             if not isinstance(reac, int):
                 raise errors.UserInputError(f"The reaction '{reac}' should be an integer.")
 
