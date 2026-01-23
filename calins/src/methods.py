@@ -1545,9 +1545,9 @@ def calcul_SSR(
 
     Parameters
     ----------
-    case_1 : str, Path, or Case object
+    study_case : str, Path, or Case object
         The first case for which the SS is calculated.
-    case_2 : str, Path, or Case object
+    bench_case : str, Path, or Case object
         The second case for which the SS is calculated.
     return_iso_reac_list : bool, optional
         Flag to return the iso-reac list with the SS value. Default is False.
@@ -1586,6 +1586,8 @@ def calcul_SSR(
 
     if iso_reac_list == None:
         iso_reac_list = study_case.iso_reac_list
+    else:
+        iso_reac_list = [iso_reac for iso_reac in iso_reac_list if iso_reac in study_case.iso_reac_list]
 
     [study_vec, bench_vec], iso_reac_list = make_sensi_vectors(
         cases_list=[study_case, bench_case],
@@ -1704,6 +1706,8 @@ def calcul_G(
 
     if iso_reac_list == None:
         iso_reac_list = study_case.iso_reac_list
+    else:
+        iso_reac_list = [iso_reac for iso_reac in iso_reac_list if iso_reac in study_case.iso_reac_list]
 
     [study_vec, bench_vec], iso_reac_list = make_sensi_vectors(
         cases_list=[study_case, bench_case],
