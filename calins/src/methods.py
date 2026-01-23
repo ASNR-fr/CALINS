@@ -2060,8 +2060,9 @@ def check_correspondences(sensi_vec, cov_mat, iso_reac_list, group_nb):
     i = 0
     while i < nb_iso_reac_check and i < len(df):
         if df.iloc[i, 2] == 0.0:
+            reac_name = reac_trad.get(str(df.iloc[i, 0][1]), f"REAC_{df.iloc[i, 0][1]}")
             warn(
-                f"The isotope-reaction {convert_iso_id_to_string(df.iloc[i, 0][0])} - {reac_trad.get(str(df.iloc[i, 0][1]), f"REAC_{df.iloc[i, 0][1]}")} doesn't have data inside the covariances matrix you selected ; it is the {i+1}-th isotope-reaction with the highest absolute integral sensitivity."
+                f"The isotope-reaction {convert_iso_id_to_string(df.iloc[i, 0][0])} - {reac_name} doesn't have data inside the covariances matrix you selected ; it is the {i+1}-th isotope-reaction with the highest absolute integral sensitivity."
             )
 
         i += 1
