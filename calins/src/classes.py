@@ -487,11 +487,11 @@ class Case:
         for iso_reac, sensi_nuclide in sensi_nuclide.items():
             iso_idx = iso_reac.split()[0]
             reac_idx = iso_reac.split()[1]
-            iso_trad = methods.convert_iso_id_to_string(iso_idx).lower()
-            reac_trad = methods.reac_trad[str(int(reac_idx))].lower()
+            iso_trad_str = methods.convert_iso_id_to_string(iso_idx).lower()
+            reac_trad_str = methods.reac_trad.get(str(int(reac_idx)), f"REAC_{int(reac_idx)}").lower()
             integral_abs = sensi_nuclide["means"]
 
-            text += f"{iso_trad: <13}{reac_trad: <17}{iso_idx: >5}{reac_idx: >7}\n"
+            text += f"{iso_trad_str: <13}{reac_trad_str: <17}{iso_idx: >5}{reac_idx: >7}\n"
             text += "      0      0\n"
             text += "  0.000000E+00  0.000000E+00      0      0\n"
             text += f"{sensi_nuclide['integral']: >14}{sensi_nuclide['integral_std']: >14}{sensi_nuclide['integral_abs']: >14}{sensi_nuclide['integral_oppose']: >14}{sensi_nuclide['sigma_oppose']: >14}\n"
@@ -1888,7 +1888,7 @@ class Assimilation:
         iso_str, reac_str, case_present, benchs_present, cov_present, calc_present = [], [], [], [], [], []
         for iso, reac in common_iso_reac:
             iso_str.append(methods.convert_iso_id_to_string(iso))
-            reac_str.append(methods.reac_trad[str(reac)])
+            reac_str.append(methods.reac_trad.get(str(reac), f"REAC_{reac}"))
             case_present.append(True if (iso, reac) in case_iso_reac else False)
             benchs_present.append(True if (iso, reac) in benchs_iso_reac else False)
             cov_present.append(
@@ -2184,7 +2184,7 @@ class Uncertainty:
             dikt["ISO"].append(iso)
             dikt["REAC"].append(reac)
             dikt["ISO_NAME"].append(methods.convert_iso_id_to_string(iso))
-            dikt["REAC_NAME"].append(methods.reac_trad[str(reac)])
+            dikt["REAC_NAME"].append(methods.reac_trad.get(str(reac), f"REAC_{reac}"))
             dikt["CASE SENSIB INTEGRAL"].append(integral)
             dikt["CONTRIBUTION TO RELATIVE UNC_SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)"].append(unc_partial_covar_detail)
             dikt["CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)"].append(unc_partial_covar)
@@ -2363,7 +2363,7 @@ class Uncertainty:
         case_iso = [iso for iso, reac in self.study_case.iso_reac_list if reac != 1]
         case_reac = [reac for iso, reac in self.study_case.iso_reac_list if reac != 1]
         case_iso_str = [methods.convert_iso_id_to_string(iso) for iso in case_iso]
-        case_reac_str = [methods.reac_trad[str(reac)] for reac in case_reac]
+        case_reac_str = [methods.reac_trad.get(str(reac), f"REAC_{reac}") for reac in case_reac]
 
         # Get iso_reac_list from cov_data
         if isinstance(self.cov_data, NDCovariances):
@@ -2554,7 +2554,7 @@ class Bias:
                 dikt["ISO"].append(iso)
                 dikt["REAC"].append(reac)
                 dikt["ISO_NAME"].append(methods.convert_iso_id_to_string(iso))
-                dikt["REAC_NAME"].append(methods.reac_trad[str(reac)])
+                dikt["REAC_NAME"].append(methods.reac_trad.get(str(reac), f"REAC_{reac}"))
                 dikt["CASE SENSIB INTEGRAL"].append(np.sum(sub_sensi_vec))
                 dikt["CONTRIBUTION TO RELATIVE BIAS"].append(bias_partial_detail)
                 dikt["CONTRIBUTION INTEGRAL TO RELATIVE BIAS"].append(bias_partial)

@@ -1436,6 +1436,7 @@ def calcul_E(
     case_1,
     case_2,
     return_iso_reac_list=False,
+    return_decomposition=False,
     iso_reac_list=None,
     reac_list: list = None,
     iso_list: list = None,
@@ -1496,8 +1497,33 @@ def calcul_E(
 
     E = abs(sensi_vec1 @ sensi_vec2 / (np.linalg.norm(sensi_vec1) * np.linalg.norm(sensi_vec2)))
 
-    if return_iso_reac_list:
-        return E, iso_reac_list
+    if return_decomposition:
+        decomp = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY": []}
+        group_nb = cases[0].group_nb
+
+        for i, (iso, reac) in enumerate(iso_reac_list):
+
+            sub_sensi_vec1 = sensi_vec1[i * group_nb : (i + 1) * group_nb]
+            sub_sensi_vec2 = sensi_vec2[i * group_nb : (i + 1) * group_nb]
+
+            E_sub = (sub_sensi_vec1 @ sub_sensi_vec2) / (np.linalg.norm(sub_sensi_vec1) * np.linalg.norm(sub_sensi_vec2))
+
+            decomp["ISO"].append(iso)
+            decomp["REAC"].append(reac)
+            decomp["ISO_NAME"].append(convert_iso_id_to_string(iso))
+            decomp["REAC_NAME"].append(reac_trad.get(str(reac), f"REAC_{reac}"))
+            decomp["SIMILARITY"].append(E_sub)
+        decomp = pd.DataFrame(decomp)
+
+        if return_iso_reac_list:
+
+            return {"total_value": E, "iso_reac_list": iso_reac_list, "decomposition": decomp}
+        else:
+            return {"total_value": E, "decomposition": decomp}
+
+    elif return_iso_reac_list:
+        return {"total_value": E, "iso_reac_list": iso_reac_list}
+
     else:
         return E
 
@@ -1507,6 +1533,7 @@ def calcul_SSR(
     study_case,
     bench_case,
     return_iso_reac_list=False,
+    return_decomposition=False,
     iso_reac_list=None,
     reac_list: list = None,
     iso_list: list = None,
@@ -1567,22 +1594,53 @@ def calcul_SSR(
         exclude_reac=exclude_reac,
     )
 
+    decomp = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY_NUMERATOR": [], "SIMILARITY_DENOMINATOR": []}
+    group_nb = study_case.group_nb
+
     integ_abs_study_case = 0
     SS_sum = 0
-    for val_study, val_bench in zip(study_vec, bench_vec):
-        integ_abs_study_case += abs(val_study)
-        if val_study * val_bench > 0:
-            SS_sum += min([abs(val_study), abs(val_bench)])
+    for i, (iso, reac) in enumerate(iso_reac_list):
+
+        integ_abs_study_case_dec = 0
+        SS_sum_dec = 0
+        for g in range(group_nb):
+
+            val_study = study_vec[i * group_nb + g]
+            val_bench = bench_vec[i * group_nb + g]
+
+            abs_val_study = abs(val_study)
+            abs_val_bench = abs(val_bench)
+
+            integ_abs_study_case += abs_val_study
+            integ_abs_study_case_dec += abs_val_study
+
+            if val_study * val_bench > 0:
+                SS_sum += min([abs_val_study, abs_val_bench])
+                SS_sum_dec += min([abs_val_study, abs_val_bench])
+
+        if return_decomposition:
+            decomp["ISO"].append(iso)
+            decomp["REAC"].append(reac)
+            decomp["ISO_NAME"].append(convert_iso_id_to_string(iso))
+            decomp["REAC_NAME"].append(reac_trad.get(str(reac), f"REAC_{reac}"))
+            decomp["SIMILARITY_NUMERATOR"].append(SS_sum_dec)
+            decomp["SIMILARITY_DENOMINATOR"].append(integ_abs_study_case_dec)
 
     if integ_abs_study_case == 0:
-        SS = 0
+        SS_tot = 0
     else:
-        SS = SS_sum / integ_abs_study_case
+        SS_tot = SS_sum / integ_abs_study_case
 
-    if return_iso_reac_list:
-        return SS, iso_reac_list
+    if return_decomposition:
+        decomp = pd.DataFrame(decomp)
+        if return_iso_reac_list:
+            return {"total_value": SS_tot, "iso_reac_list": iso_reac_list, "decomposition": decomp}
+        else:
+            return {"total_value": SS_tot, "decomposition": decomp}
+    elif return_iso_reac_list:
+        return {"total_value": SS_tot, "iso_reac_list": iso_reac_list}
     else:
-        return SS
+        return SS_tot
 
 
 @log_exec()
@@ -1590,6 +1648,7 @@ def calcul_G(
     study_case,
     bench_case,
     return_iso_reac_list=False,
+    return_decomposition=False,
     iso_reac_list=None,
     reac_list: list = None,
     iso_list: list = None,
@@ -1601,9 +1660,9 @@ def calcul_G(
 
     Parameters
     ----------
-    case_1 : str, Path, or Case object
+    study_case : str, Path, or Case object
         The first case for which the G is calculated.
-    case_2 : str, Path, or Case object
+    bench_case : str, Path, or Case object
         The second case for which the G is calculated.
     return_iso_reac_list : bool, optional
         Flag to return the iso-reac list with the G value. Default is False.
@@ -1650,23 +1709,54 @@ def calcul_G(
         exclude_reac=exclude_reac,
     )
 
+    decomp = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY_NUMERATOR": [], "SIMILARITY_DENOMINATOR": []}
+    group_nb = study_case.group_nb
+
     integ_study_case = 0
     G_sum = 0
-    for val_study, val_bench in zip(study_vec, bench_vec):
-        integ_study_case += val_study
-        if val_study * val_bench > 0:
-            if abs(val_study) >= abs(val_bench):
-                G_sum += val_study - val_bench
+    for i, (iso, reac) in enumerate(iso_reac_list):
 
-        else:
-            G_sum += val_study
+        integ_study_case_dec = 0
+        G_sum_dec = 0
+        for g in range(group_nb):
 
-    G_coef = 1 - (G_sum / integ_study_case)
+            val_study = study_vec[i * group_nb + g]
+            val_bench = bench_vec[i * group_nb + g]
 
-    if return_iso_reac_list:
-        return G_coef, iso_reac_list
+            integ_study_case += val_study
+            integ_study_case_dec += val_study
+
+            if val_study * val_bench > 0:
+                if abs(val_study) >= abs(val_bench):
+                    G_sum += val_study - val_bench
+                    G_sum_dec += val_study - val_bench
+            else:
+                G_sum += val_study
+                G_sum_dec += val_study
+
+        if return_decomposition:
+            decomp["ISO"].append(iso)
+            decomp["REAC"].append(reac)
+            decomp["ISO_NAME"].append(convert_iso_id_to_string(iso))
+            decomp["REAC_NAME"].append(reac_trad.get(str(reac), f"REAC_{reac}"))
+            decomp["SIMILARITY_NUMERATOR"].append(integ_study_case_dec - G_sum_dec)
+            decomp["SIMILARITY_DENOMINATOR"].append(integ_study_case_dec)
+
+    if integ_study_case == 0:
+        G_tot = 0
     else:
-        return G_coef
+        G_tot = 1 - (G_sum / integ_study_case)
+
+    if return_decomposition:
+        decomp = pd.DataFrame(decomp)
+        if return_iso_reac_list:
+            return {"total_value": G_tot, "iso_reac_list": iso_reac_list, "decomposition": decomp}
+        else:
+            return {"total_value": G_tot, "decomposition": decomp}
+    elif return_iso_reac_list:
+        return {"total_value": G_tot, "iso_reac_list": iso_reac_list}
+    else:
+        return G_tot
 
 
 @log_exec()
@@ -1675,6 +1765,7 @@ def calcul_Ck(
     case_2,
     cov_data,
     return_iso_reac_list=False,
+    return_decomposition=False,
     iso_reac_list=None,
     reac_list: list = None,
     iso_list: list = None,
@@ -1758,14 +1849,47 @@ def calcul_Ck(
     else:
         raise TypeError(f"cov_data must be NDCovariances or Assimilation object. Got {type(cov_data)}")
 
-    if (sensi_vec1 @ cov_mat @ sensi_vec1) * (sensi_vec2 @ cov_mat @ sensi_vec2) == 0:
+    denom = (sensi_vec1 @ cov_mat @ sensi_vec1) * (sensi_vec2 @ cov_mat @ sensi_vec2)
+    if denom == 0:
         Ck = 0
     else:
-        Ck = ((sensi_vec1 @ cov_mat @ sensi_vec2) ** 2) / ((sensi_vec1 @ cov_mat @ sensi_vec1) * (sensi_vec2 @ cov_mat @ sensi_vec2))
+        Ck = ((sensi_vec1 @ cov_mat @ sensi_vec2) ** 2) / denom
         Ck = sqrt(abs(Ck))
 
-    if return_iso_reac_list:
-        return Ck, iso_reac_list
+    if return_decomposition:
+        decomp = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY": []}
+        group_nb = cases[0].group_nb
+
+        for i, (iso, reac) in enumerate(iso_reac_list):
+
+            sub_cov_mat = cov_mat[i * group_nb : (i + 1) * group_nb, i * group_nb : (i + 1) * group_nb]
+            sub_sensi_vec1 = sensi_vec1[i * group_nb : (i + 1) * group_nb]
+            sub_sensi_vec2 = sensi_vec2[i * group_nb : (i + 1) * group_nb]
+
+            denom = (sub_sensi_vec1 @ sub_cov_mat @ sub_sensi_vec1) * (sub_sensi_vec2 @ sub_cov_mat @ sub_sensi_vec2)
+
+            if denom == 0:
+                Ck_sub = 0
+            else:
+                Ck_sub = ((sub_sensi_vec1 @ sub_cov_mat @ sub_sensi_vec2) ** 2) / (denom)
+                Ck_sub = sqrt(abs(Ck_sub))
+
+            decomp["ISO"].append(iso)
+            decomp["REAC"].append(reac)
+            decomp["ISO_NAME"].append(convert_iso_id_to_string(iso))
+            decomp["REAC_NAME"].append(reac_trad.get(str(reac), f"REAC_{reac}"))
+            decomp["SIMILARITY"].append(Ck_sub)
+        decomp = pd.DataFrame(decomp)
+
+        if return_iso_reac_list:
+
+            return {"total_value": Ck, "iso_reac_list": iso_reac_list, "decomposition": decomp}
+        else:
+            return {"total_value": Ck, "decomposition": decomp}
+
+    elif return_iso_reac_list:
+        return {"total_value": Ck, "iso_reac_list": iso_reac_list}
+
     else:
         return Ck
 
@@ -1937,7 +2061,7 @@ def check_correspondences(sensi_vec, cov_mat, iso_reac_list, group_nb):
     while i < nb_iso_reac_check and i < len(df):
         if df.iloc[i, 2] == 0.0:
             warn(
-                f"The isotope-reaction {convert_iso_id_to_string(df.iloc[i, 0][0])} - {reac_trad[str(df.iloc[i, 0][1])]} doesn't have data inside the covariances matrix you selected ; it is the {i+1}-th isotope-reaction with the highest absolute integral sensitivity."
+                f"The isotope-reaction {convert_iso_id_to_string(df.iloc[i, 0][0])} - {reac_trad.get(str(df.iloc[i, 0][1]), f"REAC_{df.iloc[i, 0][1]}")} doesn't have data inside the covariances matrix you selected ; it is the {i+1}-th isotope-reaction with the highest absolute integral sensitivity."
             )
 
         i += 1
