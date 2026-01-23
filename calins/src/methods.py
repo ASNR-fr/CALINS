@@ -1584,10 +1584,15 @@ def calcul_SSR(
     elif not isinstance(bench_case, classes.Case):
         raise TypeError(f"Wrong sensitivity type {bench_case}- Choose case object, Path, or string")
 
+    if iso_reac_list != None:
+        for i, pair in enumerate(iso_reac_list):
+            if not isinstance(pair, tuple):
+                raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
+
     if iso_reac_list == None:
         iso_reac_list = study_case.iso_reac_list
     else:
-        iso_reac_list = [iso_reac for iso_reac in iso_reac_list if iso_reac in study_case.iso_reac_list]
+        iso_reac_list = [(iso, reac) for iso, reac in iso_reac_list if (iso, reac) in study_case.iso_reac_list]
 
     [study_vec, bench_vec], iso_reac_list = make_sensi_vectors(
         cases_list=[study_case, bench_case],
@@ -1704,10 +1709,15 @@ def calcul_G(
     elif not isinstance(bench_case, classes.Case):
         raise TypeError(f"Wrong sensitivity type for {bench_case} - Choose case object, Path, or string")
 
+    if iso_reac_list != None:
+        for i, pair in enumerate(iso_reac_list):
+            if not isinstance(pair, tuple):
+                raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
+
     if iso_reac_list == None:
         iso_reac_list = study_case.iso_reac_list
     else:
-        iso_reac_list = [iso_reac for iso_reac in iso_reac_list if iso_reac in study_case.iso_reac_list]
+        iso_reac_list = [(iso, reac) for iso, reac in iso_reac_list if (iso, reac) in study_case.iso_reac_list]
 
     [study_vec, bench_vec], iso_reac_list = make_sensi_vectors(
         cases_list=[study_case, bench_case],
