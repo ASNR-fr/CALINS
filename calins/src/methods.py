@@ -1584,6 +1584,9 @@ def calcul_SSR(
     elif not isinstance(bench_case, classes.Case):
         raise TypeError(f"Wrong sensitivity type {bench_case}- Choose case object, Path, or string")
 
+    if iso_reac_list == None:
+        iso_reac_list = study_case.iso_reac_list
+
     [study_vec, bench_vec], iso_reac_list = make_sensi_vectors(
         cases_list=[study_case, bench_case],
         operation="union",
@@ -1698,6 +1701,9 @@ def calcul_G(
 
     elif not isinstance(bench_case, classes.Case):
         raise TypeError(f"Wrong sensitivity type for {bench_case} - Choose case object, Path, or string")
+
+    if iso_reac_list == None:
+        iso_reac_list = study_case.iso_reac_list
 
     [study_vec, bench_vec], iso_reac_list = make_sensi_vectors(
         cases_list=[study_case, bench_case],
