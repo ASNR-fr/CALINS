@@ -1485,6 +1485,11 @@ def calcul_E(
         else:
             raise TypeError(f"Wrong sensitivity type for {case_i} - Choose case object, Path, or string")
 
+    if iso_reac_list != None:
+        for i, pair in enumerate(iso_reac_list):
+            if not isinstance(pair, tuple):
+                raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
+
     [sensi_vec1, sensi_vec2], iso_reac_list = make_sensi_vectors(
         cases_list=cases,
         operation="union",
@@ -1837,6 +1842,11 @@ def calcul_Ck(
         else:
             raise TypeError(f"Wrong sensitivity type for {case_i} - Choose case object, Path, or string")
 
+    if iso_reac_list != None:
+        for i, pair in enumerate(iso_reac_list):
+            if not isinstance(pair, tuple):
+                raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
+
     if isinstance(cov_data, classes.NDCovariances):
 
         [sensi_vec1, sensi_vec2], cov_mat, iso_reac_list = make_sensi_vectors_and_cov_matrix(
@@ -1962,6 +1972,11 @@ def calcul_uncertainty(
 
     else:
         raise TypeError(f"Wrong sensitivity type for {study_case}- Choose case, Path, or string")
+
+    if iso_reac_list != None:
+        for i, pair in enumerate(iso_reac_list):
+            if not isinstance(pair, tuple):
+                raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
 
     if isinstance(cov_data, classes.NDCovariances):
 

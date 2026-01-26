@@ -1011,6 +1011,11 @@ class Assimilation:
         else:
             raise errors.SensInputError("Wrong sensitivity type for study case data - Choose case, Path, or string")
 
+        if iso_reac_list != None:
+            for i, pair in enumerate(iso_reac_list):
+                if not isinstance(pair, tuple):
+                    raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
+
         self.output_html_path = output_html_path
 
         self.Ck_threshold = Ck_threshold
