@@ -1227,8 +1227,10 @@ def get_common_iso_reac_list(
         common_list = list(set(iso_reac_lists[0]).intersection(*iso_reac_lists))
     elif operation == "union":
         common_list = list(set(iso_reac_lists[0]).union(*iso_reac_lists))
+    elif operation == "first":
+        common_list = set(iso_reac_lists[0])
     else:
-        raise ValueError("The 'operation' argument can only be 'intersection' or 'union'")
+        raise ValueError("The 'operation' argument can only be 'intersection' or 'union' or 'first'")
 
     common_list = sorted(common_list)
 
@@ -1604,14 +1606,9 @@ def calcul_SSR(
             if not isinstance(pair, tuple):
                 raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
 
-    if iso_reac_list == None:
-        iso_reac_list = study_case.iso_reac_list
-    else:
-        iso_reac_list = [(iso, reac) for iso, reac in iso_reac_list if (iso, reac) in study_case.iso_reac_list]
-
     [study_vec, bench_vec], iso_reac_list = make_sensi_vectors(
         cases_list=[study_case, bench_case],
-        operation="union",
+        operation="first",
         iso_reac_list=iso_reac_list,
         reac_list=reac_list,
         iso_list=iso_list,
@@ -1734,14 +1731,9 @@ def calcul_G(
             if not isinstance(pair, tuple):
                 raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
 
-    if iso_reac_list == None:
-        iso_reac_list = study_case.iso_reac_list
-    else:
-        iso_reac_list = [(iso, reac) for iso, reac in iso_reac_list if (iso, reac) in study_case.iso_reac_list]
-
     [study_vec, bench_vec], iso_reac_list = make_sensi_vectors(
         cases_list=[study_case, bench_case],
-        operation="union",
+        operation="first",
         iso_reac_list=iso_reac_list,
         reac_list=reac_list,
         iso_list=iso_list,
