@@ -1525,7 +1525,7 @@ def calcul_E(
             partial["ISO_NAME"].append(convert_iso_id_to_string(iso))
             partial["REAC_NAME"].append(reac_trad.get(str(reac), f"REAC_{reac}"))
             partial["SIMILARITY"].append(E_sub)
-        decomp = pd.DataFrame(decomp)
+        partial = pd.DataFrame(partial)
 
         if return_iso_reac_list:
 
@@ -1545,7 +1545,7 @@ def calcul_SSR(
     study_case,
     bench_case,
     return_iso_reac_list=False,
-    return_partial=False,
+    return_decomposition=False,
     iso_reac_list=None,
     reac_list: list = None,
     iso_list: list = None,
@@ -1563,8 +1563,8 @@ def calcul_SSR(
         The second case for which the SSR is calculated.
     return_iso_reac_list : bool, optional
         Flag to return the iso-reac list with the SSR value. Default is False.
-    return_partial : bool, optional
-        Flag to return the partial SSR values as a pd.DataFrame with columns : "ISO", "REAC", "ISO_NAME", "REAC_NAME",  "SIMILARITY_NUMERATOR", "SIMILARITY_DENOMINATOR".
+    return_decomposition : bool, optional
+        Flag to return the contributions to SSR numerator and denominator values as a pd.DataFrame with columns : "ISO", "REAC", "ISO_NAME", "REAC_NAME",  "SIMILARITY_NUMERATOR", "SIMILARITY_DENOMINATOR".
     iso_reac_list : list of tuples (int ISO, int REAC), optional
         The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
     reac_list : list of int or str, optional
@@ -1616,7 +1616,7 @@ def calcul_SSR(
         exclude_reac=exclude_reac,
     )
 
-    partial = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY_NUMERATOR": [], "SIMILARITY_DENOMINATOR": []}
+    decomp = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY_NUMERATOR": [], "SIMILARITY_DENOMINATOR": []}
     group_nb = study_case.group_nb
 
     integ_abs_study_case = 0
@@ -1640,25 +1640,25 @@ def calcul_SSR(
                 SS_sum += min([abs_val_study, abs_val_bench])
                 SS_sum_dec += min([abs_val_study, abs_val_bench])
 
-        if return_partial:
-            partial["ISO"].append(iso)
-            partial["REAC"].append(reac)
-            partial["ISO_NAME"].append(convert_iso_id_to_string(iso))
-            partial["REAC_NAME"].append(reac_trad.get(str(reac), f"REAC_{reac}"))
-            partial["SIMILARITY_NUMERATOR"].append(SS_sum_dec)
-            partial["SIMILARITY_DENOMINATOR"].append(integ_abs_study_case_dec)
+        if return_decomposition:
+            decomp["ISO"].append(iso)
+            decomp["REAC"].append(reac)
+            decomp["ISO_NAME"].append(convert_iso_id_to_string(iso))
+            decomp["REAC_NAME"].append(reac_trad.get(str(reac), f"REAC_{reac}"))
+            decomp["SIMILARITY_NUMERATOR"].append(SS_sum_dec)
+            decomp["SIMILARITY_DENOMINATOR"].append(integ_abs_study_case_dec)
 
     if integ_abs_study_case == 0:
         SS_tot = 0
     else:
         SS_tot = SS_sum / integ_abs_study_case
 
-    if return_partial:
+    if return_decomposition:
         decomp = pd.DataFrame(decomp)
         if return_iso_reac_list:
-            return {"total_value": SS_tot, "iso_reac_list": iso_reac_list, "partial": partial}
+            return {"total_value": SS_tot, "iso_reac_list": iso_reac_list, "decomposition": decomp}
         else:
-            return {"total_value": SS_tot, "partial": partial}
+            return {"total_value": SS_tot, "decomposition": decomp}
     elif return_iso_reac_list:
         return {"total_value": SS_tot, "iso_reac_list": iso_reac_list}
     else:
@@ -1670,7 +1670,7 @@ def calcul_G(
     study_case,
     bench_case,
     return_iso_reac_list=False,
-    return_partial=False,
+    return_decomposition=False,
     iso_reac_list=None,
     reac_list: list = None,
     iso_list: list = None,
@@ -1690,8 +1690,8 @@ def calcul_G(
         Flag to return the iso-reac list with the G value. Default is False.
     iso_reac_list : list of tuples (int ISO, int REAC), optional
         The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
-    return_partial : bool, optional
-        Flag to return the partial G values as a pd.DataFrame with columns : "ISO", "REAC", "ISO_NAME", "REAC_NAME",  "SIMILARITY_NUMERATOR", "SIMILARITY_DENOMINATOR".
+    return_decomposition : bool, optional
+        Flag to return the contributions to G numerator and denominator as a pd.DataFrame with columns : "ISO", "REAC", "ISO_NAME", "REAC_NAME",  "SIMILARITY_NUMERATOR", "SIMILARITY_DENOMINATOR".
     reac_list : list of int or str, optional
         The list of reactions to consider. If None, all reactions are used.
     iso_list : list of int or str, optional
@@ -1741,7 +1741,7 @@ def calcul_G(
         exclude_reac=exclude_reac,
     )
 
-    partial = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY_NUMERATOR": [], "SIMILARITY_DENOMINATOR": []}
+    decomp = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY_NUMERATOR": [], "SIMILARITY_DENOMINATOR": []}
     group_nb = study_case.group_nb
 
     integ_study_case = 0
@@ -1766,25 +1766,25 @@ def calcul_G(
                 G_sum += val_study
                 G_sum_dec += val_study
 
-        if return_partial:
-            partial["ISO"].append(iso)
-            partial["REAC"].append(reac)
-            partial["ISO_NAME"].append(convert_iso_id_to_string(iso))
-            partial["REAC_NAME"].append(reac_trad.get(str(reac), f"REAC_{reac}"))
-            partial["SIMILARITY_NUMERATOR"].append(integ_study_case_dec - G_sum_dec)
-            partial["SIMILARITY_DENOMINATOR"].append(integ_study_case_dec)
+        if return_decomposition:
+            decomp["ISO"].append(iso)
+            decomp["REAC"].append(reac)
+            decomp["ISO_NAME"].append(convert_iso_id_to_string(iso))
+            decomp["REAC_NAME"].append(reac_trad.get(str(reac), f"REAC_{reac}"))
+            decomp["SIMILARITY_NUMERATOR"].append(integ_study_case_dec - G_sum_dec)
+            decomp["SIMILARITY_DENOMINATOR"].append(integ_study_case_dec)
 
     if integ_study_case == 0:
         G_tot = 0
     else:
         G_tot = 1 - (G_sum / integ_study_case)
 
-    if return_partial:
+    if return_decomposition:
         decomp = pd.DataFrame(decomp)
         if return_iso_reac_list:
-            return {"total_value": G_tot, "iso_reac_list": iso_reac_list, "partial": partial}
+            return {"total_value": G_tot, "iso_reac_list": iso_reac_list, "decomposition": decomp}
         else:
-            return {"total_value": G_tot, "partial": partial}
+            return {"total_value": G_tot, "decomposition": decomp}
     elif return_iso_reac_list:
         return {"total_value": G_tot, "iso_reac_list": iso_reac_list}
     else:
