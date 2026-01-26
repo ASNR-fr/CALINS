@@ -1336,7 +1336,7 @@ def make_sensi_vectors_and_cov_matrix(
         List of Case objects or paths
     cov_data : NDCovariances
         Covariance data object
-    iso_reac_list : list, optional
+    iso_reac_list : list of tuples (int ISO, int REAC), optional
         List of (isotope, reaction) tuples to consider
     reac_list : list of int or str, optional
         List of reaction IDs to consider
@@ -1456,7 +1456,7 @@ def calcul_E(
         Flag to return the iso-reac list with the E value. Default is False.
     return_partial : bool, optional
         Flag to return the partial E values as a pd.DataFrame with columns : "ISO", "REAC", "ISO_NAME", "REAC_NAME", "SIMILARITY".
-    iso_reac_list : list, optional
+    iso_reac_list : list of tuples (int ISO, int REAC), optional
         The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
     reac_list : list of int or str, optional
         The list of reactions to consider. If None, all reactions are used.
@@ -1563,7 +1563,7 @@ def calcul_SSR(
         Flag to return the iso-reac list with the SSR value. Default is False.
     return_partial : bool, optional
         Flag to return the partial SSR values as a pd.DataFrame with columns : "ISO", "REAC", "ISO_NAME", "REAC_NAME",  "SIMILARITY_NUMERATOR", "SIMILARITY_DENOMINATOR".
-    iso_reac_list : list, optional
+    iso_reac_list : list of tuples (int ISO, int REAC), optional
         The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
     reac_list : list of int or str, optional
         The list of reactions to consider. If None, all reactions are used.
@@ -1691,7 +1691,7 @@ def calcul_G(
         The second case for which the G is calculated.
     return_iso_reac_list : bool, optional
         Flag to return the iso-reac list with the G value. Default is False.
-    iso_reac_list : list, optional
+    iso_reac_list : list of tuples (int ISO, int REAC), optional
         The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
     return_partial : bool, optional
         Flag to return the partial G values as a pd.DataFrame with columns : "ISO", "REAC", "ISO_NAME", "REAC_NAME",  "SIMILARITY_NUMERATOR", "SIMILARITY_DENOMINATOR".
@@ -1827,7 +1827,7 @@ def calcul_Ck(
         Flag to return the iso-reac list with the Ck value. Default is False.
     return_partial : bool, optional
         Flag to return the partial Ck values as a pd.DataFrame with columns : "ISO", "REAC", "ISO_NAME", "REAC_NAME", "SIMILARITY".
-    iso_reac_list : list, optional
+    iso_reac_list : list of tuples (int ISO, int REAC), optional
         The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
     reac_list : list of int or str, optional
         The list of reactions to consider. If None, all reactions are used.
@@ -1965,7 +1965,7 @@ def calcul_uncertainty(
         The study case for which the uncertainty is calculated.
     cov_data : NDCovariances or Assimilation
         The covariance data as NDCovariances object or Assimilation object.
-    iso_reac_list : list, optional
+    iso_reac_list : list of tuples (int ISO, int REAC), optional
         The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
     reac_list : list of int or str, optional
         The list of reactions to consider. If None, all reactions are used.

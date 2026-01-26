@@ -964,7 +964,7 @@ class Assimilation:
             Targetted chi2 value to filter out benchmark cases.
         filtering_chi2_method : "delta" or "diagonal"
             Method for filtering based on chi2 values. Defaults to "delta".
-        iso_reac_list : list of tuples if ints, optional
+        iso_reac_list : list of tuples (int ISO, int REAC), optional
             List of isotope-reaction pairs (iso_ID, reac_ID) to consider for assimilation.
         reac_list : list of int or str, optional
             List of reactions to consider for assimilation.
@@ -1077,7 +1077,7 @@ class Assimilation:
 
         Parameters
         ----------
-        iso_reac_list : list, optional
+        iso_reac_list : list of tuples (int ISO, int REAC), optional
             List of (isotope, reaction) tuples to consider
         reac_list : list, optional
             List of reactions to consider
