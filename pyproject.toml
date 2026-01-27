@@ -19,7 +19,6 @@ write_to = "src/calins/_version.py"
 
 [project]
 name = "calins"
-dynamic=["version"]
 authors = [
   { name="Barthelemi Petillon", email="barth.petillon@gmail.com" },
 ]
@@ -31,7 +30,7 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
 ]
-dynamic = ["dependencies"]
+dynamic = ["dependencies", "version"]
 license = "BSD-3-Clause"
 
 [tool.setuptools.dynamic]
