@@ -12,8 +12,8 @@ exclude = ["images", "tests"]
 "calins.src.html_outputfile" = ["*.model"]
 
 [tool.setuptools_scm]
-version_scheme = "guess-next-semver"
-local_scheme = "node"
+version_scheme = "version_scheme:version_scheme"
+local_scheme = "version_scheme:local_scheme"
 fallback_version = "1.0.0b0"
 write_to = "src/calins/_version.py"
 
