@@ -37,7 +37,8 @@ jobs:
       - name: Generate version
         run: |
           # Read base version from version.py
-          baseVersion=$(grep -oP '__version__\s*=\s*"\K[^"]+' calins/src/version.py)
+          fullVersion=$(grep -oP '__version__\s*=\s*"\K[^"]+' calins/src/version.py)
+          baseVersion=${fullVersion%%.dev*}
           
           # Get git hash and date
           hash=$(git rev-parse --short HEAD)
