@@ -13,6 +13,8 @@ permissions:
 jobs:
   update-version:
     runs-on: ubuntu-latest
+    if: |
+      !contains(github.event.head_commit.message, 'chore: update version')
     
     steps:
       - uses: actions/checkout@v3
