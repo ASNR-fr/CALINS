@@ -23,6 +23,11 @@ jobs:
       - name: Install setuptools_scm
         run: pip install setuptools_scm[toml]
       
+      - name: Configure git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+      
       - name: Generate version
         run: |
           python -c "
@@ -34,9 +39,14 @@ jobs:
           print(f'Generated version: {version}')
           "
       
-      - name: Commit and push if version changed
-        run: |
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
-          git add calins/src/version.py
-          git diff --quiet && git diff --staged --quiet || (git commit -m "chore: update version" && git push)
+      - name: Stage changes
+        run: git add calins/src/version.py
+      
+      - name: Commit and create PR if version changed
+        uses: peter-evans/create-pull-request@v5
+        with:
+          commit-message: "chore: update version"
+          title: "chore: update version"
+          body: "Automatically generated version update"
+          branch: chore/update-version
+          delete-branch: true
