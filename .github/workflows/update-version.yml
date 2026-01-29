@@ -34,14 +34,23 @@ jobs:
       
       - name: Generate version
         run: |
-          python -c "
-          import setuptools_scm
-          version = setuptools_scm.get_version(local_scheme='node-and-date')
-          with open('calins/src/version.py', 'w') as f:
-              f.write('\"\"\"Version file - automatically generated.\"\"\"\\n')
-              f.write(f'__version__ = \"{version}\"\\n')
-          print(f'Generated version: {version}')
-          "
+          # Read base version from version.py
+          $baseVersion = (Select-String -Path 'calins/src/version.py' -Pattern '__version__\s*=\s*"([^"]+)"' | ForEach-Object {$_.Matches[0].Groups[1].Value})
+          
+          # Get git hash and date
+          $hash = git rev-parse --short HEAD
+          $date = (Get-Date -Format 'yyyyMMdd')
+          
+          # Build complete version
+          $version = "$baseVersion.dev0+${hash}.${date}"
+          
+          # Write to version.py
+          @"
+          `"``"Version file - automatically generated.`"``"
+          __version__ = "$version"
+          "@ | Out-File -FilePath 'calins/src/version.py' -Encoding UTF8
+          
+          Write-Host "Generated version: $version"
       
       - name: Stage changes
         run: git add calins/src/version.py
