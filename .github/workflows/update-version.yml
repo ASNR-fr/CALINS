@@ -6,6 +6,10 @@ on:
       - main
       - master
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   update-version:
     runs-on: ubuntu-latest
@@ -45,6 +49,7 @@ jobs:
       - name: Commit and create PR if version changed
         uses: peter-evans/create-pull-request@v5
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore: update version"
           title: "chore: update version"
           body: "Automatically generated version update"
