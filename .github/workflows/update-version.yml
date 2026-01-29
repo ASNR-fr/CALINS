@@ -35,22 +35,22 @@ jobs:
       - name: Generate version
         run: |
           # Read base version from version.py
-          $baseVersion = (Select-String -Path 'calins/src/version.py' -Pattern '__version__\s*=\s*"([^"]+)"' | ForEach-Object {$_.Matches[0].Groups[1].Value})
+          baseVersion=$(grep -oP '__version__\s*=\s*"\K[^"]+' calins/src/version.py)
           
           # Get git hash and date
-          $hash = git rev-parse --short HEAD
-          $date = (Get-Date -Format 'yyyyMMdd')
+          hash=$(git rev-parse --short HEAD)
+          date=$(date +%Y%m%d)
           
           # Build complete version
-          $version = "$baseVersion.dev0+${hash}.${date}"
+          version="${baseVersion}.dev0+${hash}.${date}"
           
           # Write to version.py
-          @"
-          `"``"Version file - automatically generated.`"``"
+          cat > calins/src/version.py << EOF
+          """Version file - automatically generated."""
           __version__ = "$version"
-          "@ | Out-File -FilePath 'calins/src/version.py' -Encoding UTF8
+          EOF
           
-          Write-Host "Generated version: $version"
+          echo "Generated version: $version"
       
       - name: Stage changes
         run: git add calins/src/version.py
