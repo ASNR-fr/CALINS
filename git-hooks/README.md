@@ -20,14 +20,14 @@ Cette commande configure Git pour utiliser les hooks depuis ce dossier.
 
 ## Hooks disponibles
 
-### `pre-push`
-S'exécute automatiquement **avant chaque push** sur les branches `main` et `master`.
+### `pre-commit`
+S'exécute automatiquement **avant chaque commit**.
 
 **Fonctionnalité :**
 - Génère automatiquement le numéro de version
 - Format : `{baseVersion}.dev0+{hash}.{date}`
 - Met à jour `calins/src/version.py`
-- Commite les changements avant le push
+- Inclut la version dans le commit (pas de commit supplémentaire)
 
 ## Notes
 
