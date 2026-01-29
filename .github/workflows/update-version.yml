@@ -1,0 +1,42 @@
+name: Update Version
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Important pour avoir accès à l'historique git
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      
+      - name: Install setuptools_scm
+        run: pip install setuptools_scm[toml]
+      
+      - name: Generate version
+        run: |
+          python -c "
+          import setuptools_scm
+          version = setuptools_scm.get_version(local_scheme='node-and-date')
+          with open('calins/src/version.py', 'w') as f:
+              f.write('\"\"\"Version file - automatically generated.\"\"\"\\n')
+              f.write(f'__version__ = \"{version}\"\\n')
+          print(f'Generated version: {version}')
+          "
+      
+      - name: Commit and push if version changed
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git add calins/src/version.py
+          git diff --quiet && git diff --staged --quiet || (git commit -m "chore: update version" && git push)
