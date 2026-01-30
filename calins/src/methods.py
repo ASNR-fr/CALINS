@@ -926,7 +926,6 @@ def format_sensi_to_dataframe(
                 iso = int(line.split()[2])
                 if mcnp:
                     try:
-                        print(line.split()[0])
                         iso = int(line.split()[0].split(".")[0])
 
                     except:
@@ -937,11 +936,13 @@ def format_sensi_to_dataframe(
 
                     if reac == -2:
                         reac = 101
+                        warn(f"MCNP SDF format: Reaction ID -2 converted to 101 for isotope {line.split()[0]} ({iso}).")
                     if reac == -3:
                         reac = 2
+                        warn(f"MCNP SDF format: Reaction ID -3 converted to 2 for isotope {line.split()[0]} ({iso}).")
                     elif reac < 0:
                         warn(
-                            f"The sdf file from MCNP calculation has a the following reaction not taken into account : REAC ID {reac}, ISO ID {iso}."
+                            f"MCNP SDF format: the following reaction is not taken into account : reaction isotope {line.split()[1]} ({reac}), isotope {line.split()[0]} ({iso})."
                         )
                         break
 
