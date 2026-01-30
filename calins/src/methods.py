@@ -848,7 +848,7 @@ def format_sensi_to_dataframe(
 
     group_nb = int(lines_sensi[1].split()[0])
 
-    mcnp_reac_exceptions = ["-2"]
+    mcnp_reac_exceptions = ["-2", "-3"]
 
     if lines_sensi[3].split()[1] == "+/-":
         formatting = "TSUNAMI-B"
@@ -863,11 +863,21 @@ def format_sensi_to_dataframe(
 
     def detect_header(i):
 
+        only_zeros = False
+        if len(lines_sensi[i].split()) == headers_length:
+            try:
+                abs_sum = sum([abs(float(char)) for char in lines_sensi[i].split()])
+                if abs_sum == 0.0:
+                    only_zeros = True
+            except:
+                only_zeros = False
+
         if not (
             len(lines_sensi[i].split()) == headers_length
             and i > (4 + ceil((group_nb + 1) / 5))
             and i < len(lines_sensi) - block_length
-            and lines_sensi[i].split()[3].replace("-", "").isdigit()
+            and lines_sensi[i].split()[-1].replace("-", "").isdigit()
+            and not only_zeros
         ):
             return False
 
@@ -916,14 +926,19 @@ def format_sensi_to_dataframe(
                 iso = int(line.split()[2])
                 if mcnp:
                     try:
+                        print(line.split()[0])
                         iso = int(line.split()[0].split(".")[0])
+
                     except:
-                        if line.split()[0].split(".")[0] in ["h-ch2", "h-ch2"]:
-                            iso = 1001
-                        else:
-                            raise errors.SensInputError(f"The isotope {line.split()[0]} wasn't able to be identified.")
+                        None
+
+                    if line.split()[0].split(".")[0] in ["h-ch2", "h-ch2"]:
+                        iso = 1001
+
                     if reac == -2:
                         reac = 101
+                    if reac == -3:
+                        reac = 2
                     elif reac < 0:
                         warn(
                             f"The sdf file from MCNP calculation has a the following reaction not taken into account : REAC ID {reac}, ISO ID {iso}."
