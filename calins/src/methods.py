@@ -316,7 +316,7 @@ def format_gendf_to_dataframe(input_path: Path):
 @log_exec()
 def format_scale_corr_to_dataframe(input_path: str, output_path: str = None):
     """
-    Function to parse the SCALE correlation matrix text file and extract the correlation values into a DataFrame, that can be passes to other functions.
+    UNMAINTAINED/UNUSED : Function to parse the SCALE correlation matrix text file and extract the correlation values into a DataFrame, that can be passes to other functions.
 
     Parameters
     ----------
@@ -565,13 +565,15 @@ def format_scale_txt_to_dataframe(input_path: str):
     dikt_cov["STD"].append(e_bins)
 
     for i, line in enumerate(lines_cov):
-        if i > 2 and len(line.split()) == 5:
+
+        line_split = line.split()
+        if i > 2 and len(line_split) == 5:
             cov_val = []
-            if line.split()[1] != "1" and line.split()[3] != "1" and line.split()[1].upper() in reac_trad and line.split()[3].upper() in reac_trad:
-                dikt_cov["ISO_H"].append(int(line.split()[0]))
-                dikt_cov["REAC_H"].append(int(line.split()[1]))
-                dikt_cov["ISO_V"].append(int(line.split()[2]))
-                dikt_cov["REAC_V"].append(int(line.split()[3]))
+            if line_split[1] != "1" and line_split[3] != "1" and line_split[1].upper() in reac_trad and line_split[3].upper() in reac_trad:
+                dikt_cov["ISO_H"].append(int(line_split[0]))
+                dikt_cov["REAC_H"].append(int(line_split[1]))
+                dikt_cov["ISO_V"].append(int(line_split[2]))
+                dikt_cov["REAC_V"].append(int(line_split[3]))
 
                 std_nb = 0
                 j = 0
@@ -738,13 +740,23 @@ def condense_sdf(input_sdf_path: str, output_ebins: list, output_sdf_path: str):
                 Output ebin {o_ebin} not in input ebins {energy_bins}"
             )
 
-    def detect_header(i):
+    def detect_header(line_split, i):
+
+        only_zeros = False
+        if len(line_split) == headers_length:
+            try:
+                abs_sum = sum([abs(float(char)) for char in line_split])
+                if abs_sum == 0.0:
+                    only_zeros = True
+            except:
+                only_zeros = False
 
         if not (
-            len(lines_sensi[i].split()) == headers_length
+            len(line_split) == headers_length
             and i > (4 + ceil((group_nb + 1) / 5))
             and i < len(lines_sensi) - block_length
-            and lines_sensi[i].split()[3].replace("-", "").isdigit()
+            and line_split[-1].replace("-", "").isdigit()
+            and not only_zeros
         ):
             return False
 
@@ -752,7 +764,7 @@ def condense_sdf(input_sdf_path: str, output_ebins: list, output_sdf_path: str):
             if not len(lines_sensi[i + 1].split()) == 2 and len(lines_sensi[i + 2].split()) == 4:
                 return False
         elif formatting == "TSUNAMI-A":
-            if not len(lines_sensi[i + 1]) == 3:
+            if not len(lines_sensi[i + 1].split()) == 3:
                 return False
 
         return True
@@ -848,7 +860,9 @@ def format_sensi_to_dataframe(
 
     group_nb = int(lines_sensi[1].split()[0])
 
-    mcnp_reac_exceptions = ["-2", "-3"]
+    mcnp_reac_except = {-2: 101, -3: 2}
+    mcnp_reac_except_str = [str(x) for x in mcnp_reac_except.keys()]
+    mcnp_iso_sab = {"h-ch2": 1001, "h-h2o": 1001}
 
     if lines_sensi[3].split()[1] == "+/-":
         formatting = "TSUNAMI-B"
@@ -861,22 +875,22 @@ def format_sensi_to_dataframe(
         headers_line_nb = 2
         block_length = headers_line_nb - 1 + ceil(group_nb / 5)
 
-    def detect_header(i):
+    def detect_header(line_split, i):
 
         only_zeros = False
-        if len(lines_sensi[i].split()) == headers_length:
+        if len(line_split) == headers_length:
             try:
-                abs_sum = sum([abs(float(char)) for char in lines_sensi[i].split()])
+                abs_sum = sum([abs(float(char)) for char in line_split])
                 if abs_sum == 0.0:
                     only_zeros = True
             except:
                 only_zeros = False
 
         if not (
-            len(lines_sensi[i].split()) == headers_length
+            len(line_split) == headers_length
             and i > (4 + ceil((group_nb + 1) / 5))
             and i < len(lines_sensi) - block_length
-            and lines_sensi[i].split()[-1].replace("-", "").isdigit()
+            and line_split[-1].replace("-", "").isdigit()
             and not only_zeros
         ):
             return False
@@ -885,7 +899,7 @@ def format_sensi_to_dataframe(
             if not len(lines_sensi[i + 1].split()) == 2 and len(lines_sensi[i + 2].split()) == 4:
                 return False
         elif formatting == "TSUNAMI-A":
-            if not len(lines_sensi[i + 1]) == 3:
+            if not len(lines_sensi[i + 1].split()) == 3:
                 return False
 
         return True
@@ -900,14 +914,16 @@ def format_sensi_to_dataframe(
             pass_line -= 1
             continue
 
-        if detect_header(i):
+        line_split = line.split()
+
+        if detect_header(line_split, i):
 
             pass_line = block_length
             count_sensi_profiles += 1
 
             if (
-                (formatting == "TSUNAMI-B" and lines_sensi[i + 1].split()[0] == "0") or (formatting == "TSUNAMI-A" and line.split()[-2] == "0")
-            ) and line.split()[3] in list(reac_trad.keys()) + mcnp_reac_exceptions:
+                (formatting == "TSUNAMI-B" and lines_sensi[i + 1].split()[0] == "0") or (formatting == "TSUNAMI-A" and line_split[-2] == "0")
+            ) and line_split[3] in list(reac_trad.keys()) + mcnp_reac_except_str:
 
                 # Let's read the block of sensitivities values in one go and then pass all the lines until the next block (with the help of pass_line)
                 sensi = [float(x) for x in "".join(lines_sensi[i + headers_line_nb : i + headers_line_nb + ceil(group_nb / 5)]).split()]
@@ -922,27 +938,25 @@ def format_sensi_to_dataframe(
                 # sensi_integ_abs = float( lines_sensi[i+3].split()[2] )
                 sensi_integ_abs = np.sum(np.abs(sensi))
 
-                reac = int(line.split()[3])
-                iso = int(line.split()[2])
+                reac = int(line_split[3])
+                iso = int(line_split[2])
                 if mcnp:
                     try:
-                        iso = int(line.split()[0].split(".")[0])
+                        iso = int(line_split[0].split(".")[0])
 
                     except:
                         None
 
-                    if line.split()[0].split(".")[0] in ["h-ch2", "h-ch2"]:
-                        iso = 1001
+                    if line_split[0].split(".")[0] in mcnp_iso_sab.keys():
+                        warn(f"MCNP SDF format: Isotope {line_split[0]} with S-ab included converted to {mcnp_iso_sab[line_split[0].split(".")[0]]}.")
+                        iso = mcnp_iso_sab[line_split[0].split(".")[0]]
 
-                    if reac == -2:
-                        reac = 101
-                        warn(f"MCNP SDF format: Reaction ID -2 converted to 101 for isotope {line.split()[0]} ({iso}).")
-                    if reac == -3:
-                        reac = 2
-                        warn(f"MCNP SDF format: Reaction ID -3 converted to 2 for isotope {line.split()[0]} ({iso}).")
+                    if reac in mcnp_reac_except.keys():
+                        warn(f"MCNP SDF format: Reaction ID {reac} converted to {mcnp_reac_except[reac]} for isotope {line_split[0]} ({iso}).")
+                        reac = mcnp_reac_except[reac]
                     elif reac < 0:
                         warn(
-                            f"MCNP SDF format: the following reaction is not taken into account : reaction isotope {line.split()[1]} ({reac}), isotope {line.split()[0]} ({iso})."
+                            f"MCNP SDF format: the following reaction is not taken into account : reaction isotope {line_split[1]} ({reac}), isotope {line_split[0]} ({iso})."
                         )
                         break
 
@@ -968,7 +982,7 @@ def format_sensi_to_dataframe(
                                     dikt_sensi["SENSI_STD"][occurrence_idx].append(sensi_std)
 
                         warn(
-                            f"The sensitivities for the isotope {line.split()[0]} / {iso} and the reaction {line.split()[1]} / {reac} is being sum up with its previous encounter.{' But the current values are zeros anyway' if sensi_integ_abs == 0.0 else ''}"
+                            f"The sensitivities for the isotope {line_split[0]} / {iso} and the reaction {line_split[1]} / {reac} is being sum up with its previous encounter.{' But the current values are zeros anyway' if sensi_integ_abs == 0.0 else ''}"
                         )
 
                     elif occurrences_rule == "last":
@@ -982,12 +996,12 @@ def format_sensi_to_dataframe(
                         dikt_sensi["REAC"][occurrence_idx] = reac
 
                         warn(
-                            f"The previous encounter for the sensitivities of the isotope {line.split()[0]} / {iso} and the reaction {line.split()[1]} / {reac} is being ignored. New values have just been found (arg occurrences_rule:'last').{' But be carefull because its all zeros !' if sensi_integ_abs == 0.0 else ''}"
+                            f"The previous encounter for the sensitivities of the isotope {line_split[0]} / {iso} and the reaction {line_split[1]} / {reac} is being ignored. New values have just been found (arg occurrences_rule:'last').{' But be carefull because its all zeros !' if sensi_integ_abs == 0.0 else ''}"
                         )
 
                     elif occurrences_rule == "first":
                         warn(
-                            f"The sensitivities for the isotope {line.split()[0]} / {iso} and the reaction {line.split()[1]} / {reac} is being ignored. Its first encounter has already been stored (arg occurrences_rule:'first').{' But the current values are zeros anyway' if sensi_integ_abs == 0.0 else ''}"
+                            f"The sensitivities for the isotope {line_split[0]} / {iso} and the reaction {line_split[1]} / {reac} is being ignored. Its first encounter has already been stored (arg occurrences_rule:'first').{' But the current values are zeros anyway' if sensi_integ_abs == 0.0 else ''}"
                         )
 
                 else:
@@ -1001,26 +1015,28 @@ def format_sensi_to_dataframe(
                     dikt_sensi["REAC"].append(reac)
 
                     if sensi_integ_abs == 0.0:
-                        warn(
-                            f"The sensitivities for the isotope {line.split()[0]} / {iso} and the reaction {line.split()[1]} / {reac} are all zeros."
-                        )
+                        warn(f"The sensitivities for the isotope {line_split[0]} / {iso} and the reaction {line_split[1]} / {reac} are all zeros.")
 
-            elif line.split()[3] in list(reac_trad.keys()) + mcnp_reac_exceptions:
-                reac = int(line.split()[3])
-                iso = int(line.split()[2])
+            elif line_split[3] in list(reac_trad.keys()) + mcnp_reac_except_str:
+                reac = int(line_split[3])
+                iso = int(line_split[2])
                 if mcnp:
                     try:
-                        iso = int(line.split()[0].split(".")[0])
+                        iso = int(line_split[0].split(".")[0])
+
                     except:
-                        if line.split()[0].split(".")[0] in ["h-ch2", "h-ch2"]:
-                            iso = 1001
-                        else:
-                            raise errors.SensInputError(f"The isotope {line.split()[0]} wasn't able to be identified.")
-                    if reac == -2:
-                        reac = 101
+                        None
+
+                    if line_split[0].split(".")[0] in mcnp_iso_sab.keys():
+                        warn(f"MCNP SDF format: Isotope {line_split[0]} with S-ab included converted to {mcnp_iso_sab[line_split[0].split(".")[0]]}.")
+                        iso = mcnp_iso_sab[line_split[0].split(".")[0]]
+
+                    if reac in mcnp_reac_except.keys():
+                        warn(f"MCNP SDF format: Reaction ID {reac} converted to {mcnp_reac_except[reac]} for isotope {line_split[0]} ({iso}).")
+                        reac = mcnp_reac_except[reac]
                     elif reac < 0:
                         warn(
-                            f"The sdf file from MCNP calculation has a the following reaction not taken into account : REAC ID {reac}, ISO ID {iso}."
+                            f"MCNP SDF format: the following reaction is not taken into account : reaction isotope {line_split[1]} ({reac}), isotope {line_split[0]} ({iso})."
                         )
                         break
 
