@@ -948,7 +948,7 @@ def format_sensi_to_dataframe(
                         None
 
                     if line_split[0].split(".")[0] in mcnp_iso_sab.keys():
-                        warn(f"MCNP SDF format: Isotope {line_split[0]} with S-ab included converted to {mcnp_iso_sab[line_split[0].split(".")[0]]}.")
+                        warn(f"MCNP SDF format: Isotope {line_split[0]} with S-ab included converted to {mcnp_iso_sab[line_split[0].split('.')[0]]}.")
                         iso = mcnp_iso_sab[line_split[0].split(".")[0]]
 
                     if reac in mcnp_reac_except.keys():
