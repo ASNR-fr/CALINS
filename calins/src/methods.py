@@ -777,7 +777,9 @@ def condense_sdf(input_sdf_path: str, output_ebins: list, output_sdf_path: str):
             pass_line -= 1
             continue
 
-        if detect_header(i):
+        line_split = line.split()
+
+        if detect_header(line_split, i):
 
             pass_line = block_length
 
