@@ -1427,10 +1427,12 @@ class Assimilation:
         bench_biases = self.bench_sensi_mat @ self.delta_mu
 
         bench_EC_post = []
+        idx_present = 0
         for b in range(len(self.bench_list)):
             bench = self.bench_cases[b]
             if self.bench_list["REMOVED"][b] == False:
-                bench_EC_post.append(round((bench.resp_expe - (bench.resp_calc + bench_biases[b] * bench.resp_calc)) * 1e5))
+                bench_EC_post.append(round((bench.resp_expe - (bench.resp_calc + bench_biases[idx_present] * bench.resp_calc)) * 1e5))
+                idx_present += 1
             else:
                 bench_EC_post.append("Not calculated")
 
@@ -1454,10 +1456,12 @@ class Assimilation:
         SexpW1SexpT = self.bench_sensi_mat @ W1SexpT
 
         bench_unc_post = []
+        idx_present = 0
         for b in range(len(self.bench_list)):
             bench = self.bench_cases[b]
             if self.bench_list["REMOVED"][b] == False:
-                bench_unc_post.append((bench.resp_calc * sqrt(SexpW1SexpT[b, b])) * 1e5)
+                bench_unc_post.append((bench.resp_calc * sqrt(SexpW1SexpT[idx_present, idx_present])) * 1e5)
+                idx_present += 1
             else:
                 bench_unc_post.append("Not calculated")
         self.bench_list["UNC_POST (pcm)"] = bench_unc_post
