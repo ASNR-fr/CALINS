@@ -30,8 +30,9 @@ global plot_height
 global plot_width
 global block_margin
 global font_size
+global plotly_template
 
-plot_height, plot_width, block_margin, font_size = 500, 1200, 20, 10
+plot_height, plot_width, block_margin, font_size, plotly_template = 500, 1200, 20, 10, "plotly_white"
 
 
 __pkg_name__ = methods.__package__.split(".")[0]
@@ -311,7 +312,13 @@ class Case:
             yaxis_title=f"Sensitivity ({unit_str}/%[ND] - group-wise integral)",
         )
         trace_sensi_integrals.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         case_vec_per_unit_lethargy = []
@@ -330,7 +337,13 @@ class Case:
             yaxis_title=f"Sensitivity ({unit_str}/%[ND])",
         )
         trace_sensi_profiles.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         trace_sensi_profiles_lethargy = plots.plot_profiles_per_iso_reac(
@@ -343,7 +356,13 @@ class Case:
             yaxis_title=f"Sensitivity ({unit_str}/%[ND] per unit lethargy)",
         )
         trace_sensi_profiles_lethargy.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         with open(output_html_path, "a", encoding="utf-8") as f:
@@ -1621,7 +1640,95 @@ class Assimilation:
         trace_bias.update_yaxes(title_text="E - C (pcm) (3 sigma=sqrt(expe²+ND²))")
         trace_bias.update_traces(marker_size=8, error_y_thickness=0.5)
         trace_bias.update_xaxes(tickvals=bench_list_custom["PATH"], ticktext=[os.path.basename(path) for path in bench_list_custom["PATH"]])
-        trace_bias.update_layout({"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"})
+        trace_bias.update_layout(
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
+        )
+
+        trace_sim = px.scatter(
+            bench_list_included,
+            x="Ck",
+            y="E - C_PRIOR (pcm)",
+            error_y=3
+            * np.sqrt((bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5) ** 2 + bench_list_included["UNC_PRIOR (pcm)"].astype(float) ** 2),
+            hover_name="PATH",
+            title="Benchmark cases similarity with study case (Ck) vs bias (E-C)",
+        )
+
+        x_data = bench_list_included["Ck"].values
+        y_data = bench_list_included["E - C_PRIOR (pcm)"].values
+
+        coeffs = np.polyfit(x_data, y_data, 1)
+        y_extrapolated = coeffs[0] * 1.0 + coeffs[1]
+
+        x_trendline = np.linspace(min(x_data), 1.0, 100)
+        y_trendline = coeffs[0] * x_trendline + coeffs[1]
+        trace_sim.add_scatter(
+            x=x_trendline, y=y_trendline, mode="lines", line=dict(dash="dash", color="gray"), name="Linear extrapolation", showlegend=True
+        )
+
+        trace_sim.add_scatter(
+            x=[1.0],
+            y=[y_extrapolated],
+            mode="markers+text",
+            marker=dict(size=10, color="gray", symbol="star"),
+            text=[f"{y_extrapolated:.0f} pcm"],
+            textposition="top center",
+            name="Extrapolated bias to Ck=1",
+            showlegend=True,
+        )
+
+        x_data_3s = x_data
+        y_data_3s = (
+            y_data
+            + 3
+            * np.sqrt(
+                (bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5) ** 2 + bench_list_included["UNC_PRIOR (pcm)"].astype(float) ** 2
+            ).values
+        )
+
+        coeffs_3s = np.polyfit(x_data_3s, y_data_3s, 1)
+        y_extrapolated_3s = coeffs_3s[0] * 1.0 + coeffs_3s[1]
+
+        x_trendline_3s = np.linspace(min(x_data_3s), 1.0, 100)
+        y_trendline_3s = coeffs_3s[0] * x_trendline_3s + coeffs_3s[1]
+
+        trace_sim.add_scatter(
+            x=x_trendline_3s,
+            y=y_trendline_3s,
+            mode="lines",
+            line=dict(dash="dash", color="green"),
+            name="Conservative linear extrapolation of bias + 3*sigma",
+            showlegend=True,
+        )
+
+        trace_sim.add_scatter(
+            x=[1.0],
+            y=[y_extrapolated_3s],
+            mode="markers+text",
+            marker=dict(size=10, color="green", symbol="star"),
+            text=[f"{y_extrapolated_3s:.1f} pcm"],
+            textposition="bottom center",
+            name="Conservative extrapolated bias+3*sigma to Ck=1",
+            showlegend=True,
+        )
+
+        trace_sim.update_yaxes(title_text="E - C (pcm) (3 sigma=sqrt(expe²+ND²))")
+        trace_sim.update_traces(marker_size=8, error_y_thickness=0.5)
+        trace_sim.update_layout(
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
+        )
 
         headers = [
             "Benchmark cases",
@@ -1678,7 +1785,13 @@ class Assimilation:
                 yaxis_title=f"Sensitivity ({unit_str}/%[ND] - group-wise integral)",
             )
             trace_case_sensi_integrals.update_layout(
-                {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+                {
+                    "height": plot_height,
+                    "width": plot_width,
+                    "font_size": font_size,
+                    "template": plotly_template,
+                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+                }
             )
 
             trace_case_sensi_profiles = plots.plot_profiles_per_iso_reac(
@@ -1690,7 +1803,13 @@ class Assimilation:
                 yaxis_title=f"Sensitivity ({unit_str}/%[ND])",
             )
             trace_case_sensi_profiles.update_layout(
-                {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+                {
+                    "height": plot_height,
+                    "width": plot_width,
+                    "font_size": font_size,
+                    "template": plotly_template,
+                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+                }
             )
 
             case_vec_per_unit_lethargy = []
@@ -1710,7 +1829,13 @@ class Assimilation:
                 yaxis_title=f"Sensitivity ({unit_str}/%[ND] per unit lethargy)",
             )
             trace_case_sensi_profiles_lethargy.update_layout(
-                {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+                {
+                    "height": plot_height,
+                    "width": plot_width,
+                    "font_size": font_size,
+                    "template": plotly_template,
+                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+                }
             )
 
             # --------------------------------
@@ -1724,7 +1849,13 @@ class Assimilation:
             )
 
             dec_prior_trace_integ.update_layout(
-                {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+                {
+                    "height": plot_height,
+                    "width": plot_width,
+                    "font_size": font_size,
+                    "template": plotly_template,
+                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+                }
             )
 
             dec_prior_trace = plots.plot_profiles_per_iso_reac(
@@ -1736,7 +1867,13 @@ class Assimilation:
                 yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
             )
             dec_prior_trace.update_layout(
-                {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+                {
+                    "height": plot_height,
+                    "width": plot_width,
+                    "font_size": font_size,
+                    "template": plotly_template,
+                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+                }
             )
 
             # --------------------------------
@@ -1750,7 +1887,13 @@ class Assimilation:
             )
 
             dec_post_trace_integ.update_layout(
-                {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+                {
+                    "height": plot_height,
+                    "width": plot_width,
+                    "font_size": font_size,
+                    "template": plotly_template,
+                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+                }
             )
 
             dec_post_trace = plots.plot_profiles_per_iso_reac(
@@ -1762,7 +1905,13 @@ class Assimilation:
                 yaxis_title=f"Unc² ({unit_str}²)",
             )
             dec_post_trace.update_layout(
-                {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+                {
+                    "height": plot_height,
+                    "width": plot_width,
+                    "font_size": font_size,
+                    "template": plotly_template,
+                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+                }
             )
 
             # --------------------------------
@@ -1775,7 +1924,13 @@ class Assimilation:
                 yaxis_title=f"Bias ({unit_str})",
             )
             dec_bias_trace_integ.update_layout(
-                {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+                {
+                    "height": plot_height,
+                    "width": plot_width,
+                    "font_size": font_size,
+                    "template": plotly_template,
+                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+                }
             )
 
             dec_bias_trace = plots.plot_profiles_per_iso_reac(
@@ -1787,7 +1942,13 @@ class Assimilation:
                 yaxis_title=f"Bias ({unit_str})",
             )
             dec_bias_trace.update_layout(
-                {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+                {
+                    "height": plot_height,
+                    "width": plot_width,
+                    "font_size": font_size,
+                    "template": plotly_template,
+                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+                }
             )
 
         # --------------------------------
@@ -1799,7 +1960,13 @@ class Assimilation:
             yaxis_title="Unc(%)² (group-wise integral - covariances included)",
         )
         trace_cov_prior_integrals.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         matrix_diag = np.diag(self.cov_mat.toarray())
@@ -1811,7 +1978,13 @@ class Assimilation:
             yaxis_title="Unc(%)²",
         )
         trace_matrix_profiles.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         matrix_prof_covar = [np.sum(x) for x in self.cov_mat]
@@ -1823,7 +1996,13 @@ class Assimilation:
             yaxis_title="Unc(%)² (covariances included)",
         )
         trace_matrix_profiles_cov.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         trace_cov_delta_integrals = plots.plot_matrix_integrals_per_iso_reac(
@@ -1834,7 +2013,13 @@ class Assimilation:
             yaxis_title="Variance & Covariance (group-wise integral - covariances included)",
         )
         trace_cov_delta_integrals.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         matrix_delta_diag = np.diag(-1 * self.cov_mat_delta.toarray())
@@ -1846,7 +2031,13 @@ class Assimilation:
             yaxis_title="Unc(%)²",
         )
         trace_matrix_delta_profiles.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         matrix_delta_prof_covar = [np.sum(x) for x in -1 * self.cov_mat_delta]
@@ -1858,7 +2049,13 @@ class Assimilation:
             yaxis_title="Unc(%)² (covariances included)",
         )
         trace_matrix_delta_profiles_cov.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         delta_mu_integrals = plots.plot_integrals_per_iso_reac(
@@ -1869,14 +2066,26 @@ class Assimilation:
             yaxis_title=f"Delta mu (group-wise integral) - Delta[ND]/ND",
         )
         delta_mu_integrals.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         delta_mu_profiles = plots.plot_profiles_per_iso_reac(
             vector=self.delta_mu, iso_reac_list=self.iso_reac_list, e_bins=self.e_bins, title="Delta mu", yaxis_title=f"Delta mu - Delta[ND]/ND"
         )
         delta_mu_profiles.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
         # --------------------------------
         case_iso_reac = []
@@ -1968,6 +2177,7 @@ class Assimilation:
             f.write('<div id="Benchmark list" class="tabcontent">\n')
             f.write(f'<section style="background:linear-gradient(#d2978e, white) ; padding: 14px 100px">\n' + "<br>\n")
             f.write(trace_bias.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
+            f.write(trace_sim.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
             f.write(table_bench_fig)
             f.write("</section>\n")
             f.write("</div>\n")
@@ -2040,7 +2250,13 @@ class Assimilation:
                     if trace_cov_prior_submat != None:
                         write_div = True
                         trace_cov_prior_submat.update_layout(
-                            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+                            {
+                                "height": plot_height,
+                                "width": plot_width,
+                                "font_size": font_size,
+                                "template": plotly_template,
+                                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+                            }
                         )
                         html_plot = trace_cov_prior_submat.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include)
                         f.write(f'<section style="border: 4px solid #4B0082; border-radius: 25px ; margin:{block_margin}; padding:10">\n')
@@ -2048,7 +2264,13 @@ class Assimilation:
 
                     if trace_cov_delta_submat != None:
                         trace_cov_delta_submat.update_layout(
-                            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+                            {
+                                "height": plot_height,
+                                "width": plot_width,
+                                "font_size": font_size,
+                                "template": plotly_template,
+                                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+                            }
                         )
 
                         html_plot = trace_cov_delta_submat.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include)
@@ -2275,7 +2497,13 @@ class Uncertainty:
             yaxis_title=f"Sensitivity ({unit_str}/%[ND] - group-wise integral)",
         )
         trace_case_sensi_integrals.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         trace_case_sensi_profiles = plots.plot_profiles_per_iso_reac(
@@ -2287,7 +2515,13 @@ class Uncertainty:
             yaxis_title=f"Sensitivity ({unit_str}/%[ND])",
         )
         trace_case_sensi_profiles.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         case_vec_per_unit_lethargy = []
@@ -2307,7 +2541,13 @@ class Uncertainty:
             yaxis_title=f"Sensitivity ({unit_str}/%[ND] per unit lethargy)",
         )
         trace_case_sensi_profiles_lethargy.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         # --------------------------------
@@ -2321,7 +2561,13 @@ class Uncertainty:
         )
 
         dec_trace_integ.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         dec_trace = plots.plot_profiles_per_iso_reac(
@@ -2332,7 +2578,15 @@ class Uncertainty:
             title="Contribution to relative uncertainy² (covariances included)",
             yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
         )
-        dec_trace.update_layout({"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"})
+        dec_trace.update_layout(
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
+        )
         # --------------------------------
         trace_cov_integrals = plots.plot_matrix_integrals_per_iso_reac(
             cov_mat=self.__cov_mat,
@@ -2342,7 +2596,13 @@ class Uncertainty:
             yaxis_title="Unc(%)² (group-wise integral - covariances included)",
         )
         trace_cov_integrals.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         matrix_diag = np.diag(self.__cov_mat.toarray())
@@ -2354,7 +2614,13 @@ class Uncertainty:
             yaxis_title="Unc(%)²",
         )
         trace_matrix_profiles.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
 
         matrix_prof_covar = [np.sum(x) for x in self.__cov_mat]
@@ -2366,7 +2632,13 @@ class Uncertainty:
             yaxis_title="Unc(%)² (covariances included)",
         )
         trace_matrix_profiles_cov.update_layout(
-            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+            {
+                "height": plot_height,
+                "width": plot_width,
+                "font_size": font_size,
+                "template": plotly_template,
+                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+            }
         )
         # --------------------------------
         case_iso = [iso for iso, reac in self.study_case.iso_reac_list if reac != 1]
@@ -2466,7 +2738,13 @@ class Uncertainty:
 
                     if trace_cov_submat != None:
                         trace_cov_submat.update_layout(
-                            {"height": plot_height, "width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.8)"}
+                            {
+                                "height": plot_height,
+                                "width": plot_width,
+                                "font_size": font_size,
+                                "template": plotly_template,
+                                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+                            }
                         )
                         f.write(trace_cov_submat.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
 
