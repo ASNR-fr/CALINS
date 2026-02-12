@@ -115,20 +115,20 @@ def plot_matrix_integrals_per_iso_reac(cov_mat, iso_reac_list, group_nb, title, 
     if np.shape(cov_mat) != (group_nb * len(iso_reac_list), group_nb * len(iso_reac_list)):
         raise errors.DimError("The dimmensions of the covar matrix, the isotope/reaction list and the number of groups is not consistent to plot")
 
-    dikt = {"isotope": [], "reaction": [], "var_and_covar_integral": []}
-    for i, (iso, reac) in enumerate(iso_reac_list):
+    # Sum along axis 0, reshape by group_nb, then sum along axis 1
+    if hasattr(cov_mat, "sum"):
+        var_ints = np.asarray(cov_mat.sum(axis=0)).flatten()
+    else:
+        var_ints = np.sum(cov_mat, axis=0)
+    var_ints = np.sum(var_ints.reshape(len(iso_reac_list), group_nb), axis=1)
 
-        current_iso = methods.convert_iso_id_to_string(iso)
-        current_reac = methods.reac_trad[str(reac)]
-        var_int = np.sum(cov_mat[:, i * group_nb : (i + 1) * group_nb])
+    iso_strings = [methods.convert_iso_id_to_string(iso) for iso, _ in iso_reac_list]
+    reac_strings = [methods.reac_trad.get(str(reac), f"REAC_{reac}") for _, reac in iso_reac_list]
 
-        dikt["isotope"].append(current_iso)
-        dikt["reaction"].append(current_reac)
-        dikt["var_and_covar_integral"].append(var_int)
+    dikt = {"isotope": iso_strings, "reaction": reac_strings, "var_and_covar_integral": var_ints.tolist()}
 
     df = pd.DataFrame(dikt)
 
-    # title = title + " - Var-covar profile (integral on every var-covar involved for each Isotope/Reaction)"
     title = title
 
     fig = px.bar(

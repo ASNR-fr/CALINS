@@ -288,7 +288,8 @@ def format_gendf_to_dataframe(input_path: Path):
 
                     vals = []
 
-                    if len(lines[i_line + 1].split()) < 3 or lines[i_line + 1].split()[2] == "0":
+                    next_line_split = lines[i_line + 1].split()
+                    if len(next_line_split) < 3 or next_line_split[2] == "0":
 
                         if not sum(np.array(sub_mat[:]).flatten()) == 0.0:
 
@@ -637,29 +638,28 @@ def condense_binning(values, i_ebins, o_ebins, std=False):
 
     o_ebins = sorted(o_ebins, reverse=reverse_sort)
 
-    output_values = []
-
-    boundaries_idx = []
-    for o_ebin in o_ebins:
+    def find_boundary_idx(o_ebin, i_ebins):
         try:
-            boundaries_idx.append(i_ebins.index(o_ebin))
-        except:
-            found = False
+            return i_ebins.index(o_ebin)
+        except ValueError:
             for i, ebin in enumerate(i_ebins):
                 if abs(o_ebin - ebin) / o_ebin < 0.0001:
-                    boundaries_idx.append(i)
-                    found = True
-                    break
-            if not found:
-                raise errors.UserInputError(
-                    f"The two energy binings are not compatibles for compression\n\
-                    Output ebin {o_ebin} not in input ebins {i_ebins}"
-                )
-    for k in range(0, len(boundaries_idx) - 1):
-        if std == False:
-            output_values.append(sum(values[boundaries_idx[k] : boundaries_idx[k + 1]]))
-        else:
-            output_values.append(np.sqrt(sum(np.array(values[boundaries_idx[k] : boundaries_idx[k + 1]]) ** 2)))
+                    return i
+            raise errors.UserInputError(
+                f"The two energy binings are not compatibles for compression\n\
+                Output ebin {o_ebin} not in input ebins {i_ebins}"
+            )
+
+    boundaries_idx = [find_boundary_idx(o_ebin, i_ebins) for o_ebin in o_ebins]
+
+    output_values = [
+        (
+            sum(values[boundaries_idx[k] : boundaries_idx[k + 1]])
+            if std == False
+            else np.sqrt(sum(np.array(values[boundaries_idx[k] : boundaries_idx[k + 1]]) ** 2))
+        )
+        for k in range(len(boundaries_idx) - 1)
+    ]
 
     return output_values
 
@@ -1251,12 +1251,10 @@ def get_common_iso_reac_list(
             if not isinstance(reac, int):
                 raise errors.UserInputError(f"The reaction '{reac}' should be an integer.")
 
-    iso_reac_lists = []
-    for sensi_case in cases_list:
-        iso_reac_lists.append(sensi_case.iso_reac_list)
+    iso_reac_lists = [sensi_case.iso_reac_list for sensi_case in cases_list]
 
     if len(cases_list) == 1:
-        common_list = sensi_case.iso_reac_list
+        common_list = cases_list[0].iso_reac_list
     elif operation == "intersection":
         common_list = list(set(iso_reac_lists[0]).intersection(*iso_reac_lists))
     elif operation == "union":
@@ -2128,12 +2126,11 @@ def check_dimmensions(casename, sensi_vec, cov_mat, iso_reac_list):
 
 def check_correspondences(sensi_vec, cov_mat, iso_reac_list, group_nb):
 
-    dikt = {"iso-reac": [], "sensi-integral-abs": [], "cov-integral": []}
-    for i, iso_reac in enumerate(iso_reac_list):
-        dikt["iso-reac"].append(iso_reac)
-        dikt["sensi-integral-abs"].append(np.sum(np.abs(sensi_vec[i * group_nb : (i + 1) * group_nb])))
-        dikt["cov-integral"].append(np.sum(cov_mat[i * group_nb : (i + 1) * group_nb, i * group_nb : (i + 1) * group_nb]))
-
+    dikt = {
+        "iso-reac": list(iso_reac_list),
+        "sensi-integral-abs": [np.sum(np.abs(sensi_vec[i * group_nb : (i + 1) * group_nb])) for i in range(len(iso_reac_list))],
+        "cov-integral": [np.sum(cov_mat[i * group_nb : (i + 1) * group_nb, i * group_nb : (i + 1) * group_nb]) for i in range(len(iso_reac_list))],
+    }
     df = pd.DataFrame(dikt)
     df = df.sort_values(by="sensi-integral-abs", ascending=False, key=lambda col: abs(col))
 

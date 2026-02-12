@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
+from scipy.stats import norm, nct
 from tabulate import tabulate
 import os, copy, re, warnings
 import plotly.offline as po
@@ -276,9 +277,13 @@ class Case:
             raise errors.UserInputError("Unit must be either 'relative' or 'pcm'")
 
         # --------------------------------
+        logo_path = os.path.join(os.path.dirname(__file__), "html_outputfile", "Logo.PNG")
         text_intro = ""
-        text_intro += f"<h1><center>{pkg_fullname}</center></h1>"
-        text_intro += f"<h2>Study case : {self.casename}</h2>"
+        text_intro += (
+            f'<div style="display:flex; align-items:center; justify-content:center; gap:20px;"><img src="{logo_path}" width="110" height="110"></div>'
+        )
+        text_intro += f"<h3><center>{pkg_fullname}</center></h3>"
+        text_intro += f"<h3>Study case : {self.casename}</h3>"
 
         # --------------------------------
         headers = [
@@ -1047,13 +1052,12 @@ class Assimilation:
         self.filtering_chi2_method = filtering_chi2_method
 
         self.bench_list = pd.DataFrame({"PATH": [bench_case.sdf_path for bench_case in self.bench_cases]})
-        bench_resp_expe, bench_sigma_expe, bench_resp_calc, bench_sigma_calc, bench_EC_prior = [], [], [], [], []
-        for bench in self.bench_cases:
-            bench_resp_expe.append(bench.resp_expe)
-            bench_sigma_expe.append(bench.sigma_resp_expe)
-            bench_resp_calc.append(bench.resp_calc)
-            bench_sigma_calc.append(bench.sigma_resp_calc)
-            bench_EC_prior.append(round((bench.resp_expe - bench.resp_calc) * 1e5))
+
+        bench_resp_expe = [bench.resp_expe for bench in self.bench_cases]
+        bench_sigma_expe = [bench.sigma_resp_expe for bench in self.bench_cases]
+        bench_resp_calc = [bench.resp_calc for bench in self.bench_cases]
+        bench_sigma_calc = [bench.sigma_resp_calc for bench in self.bench_cases]
+        bench_EC_prior = [round((bench.resp_expe - bench.resp_calc) * 1e5) for bench in self.bench_cases]
 
         (
             self.bench_list["RESP EXPE"],
@@ -1373,14 +1377,15 @@ class Assimilation:
         self.bench_list["REMOVED"] = [False for i in range(len(self.bench_cases))]
 
         # Compute Ck similarity coefficients between the study case and the benchmark cases
-        Ck_bench = []
         norm_sensi_case = self.case_vec @ self.cov_mat @ self.case_vec
-        for i in range(len(self.bench_cases)):
-            norm_sensi_bench = SexpW0SexpT[i, i]
-            if norm_sensi_case == 0 or norm_sensi_bench == 0:
-                Ck_bench.append(0)
-            else:
-                Ck_bench.append(sqrt(abs((self.case_vec @ self.cov_mat @ self.bench_sensi_mat[i, :]) ** 2 / (norm_sensi_case * norm_sensi_bench))))
+        norm_sensi_bench_vector = np.diag(SexpW0SexpT)
+        # Compute dot products for all benchmark cases at once
+        case_cov_products = np.array([self.case_vec @ self.cov_mat @ self.bench_sensi_mat[i, :] for i in range(len(self.bench_cases))])
+        Ck_bench = np.where(
+            (norm_sensi_case == 0) | (norm_sensi_bench_vector == 0),
+            0,
+            np.sqrt(np.abs(case_cov_products**2 / (norm_sensi_case * norm_sensi_bench_vector))),
+        ).tolist()
 
         self.bench_list["Ck"] = Ck_bench
 
@@ -1509,6 +1514,21 @@ class Assimilation:
             )
             return self.prior_uncertainty
 
+    def K_95_95(self):
+        p = 0.95
+        gamma = 0.95
+        dof = len([i for i in self.bench_list["REMOVED"] if i == False])
+
+        nu = dof - 1
+        z_p = norm.ppf(p)
+        delta = z_p * np.sqrt(dof)
+        t_gamma = nct.ppf(gamma, df=nu, nc=delta)
+
+        # coverage factor
+        K = t_gamma / np.sqrt(dof)
+
+        return K
+
     def plot_study_case_sensi(self, output_html_path: str = None, show=False):
         """
         Plot the sensitivity of the study case.
@@ -1548,13 +1568,17 @@ class Assimilation:
             isotopes_to_detail = [isotopes_to_detail]
 
         # --------------------------------
+        logo_path = os.path.join(os.path.dirname(__file__), "html_outputfile", "Logo.PNG")
         text_intro = ""
-        text_intro += f"<h1><center>{pkg_fullname}</center></h1>"
-        text_intro += f"<h1>GLLSM assimilation results</h1>"
+        text_intro += (
+            f'<div style="display:flex; align-items:center; justify-content:center; gap:20px;"><img src="{logo_path}" width="110" height="110"></div>'
+        )
+        text_intro += f"<h3><center>{pkg_fullname}</center></h3>"
+        text_intro += f"<h2><center><u>Generalized Linear Least-squares method results</u></center></h2>"
         if self.study_case != None:
-            text_intro += f"<h2>Study case : {self.study_case.casename}</h2>"
+            text_intro += f"<h3>Study case : {self.study_case.casename}</h3>"
         else:
-            text_intro += f"<h2>No study case</h2>"
+            text_intro += f"<h3>No study case</h3>"
 
         # --------------------------------
         headers = [
@@ -1594,6 +1618,17 @@ class Assimilation:
 
         table_res = plots.create_html_table(headers=[], lines=[headers_b, results])
         write_and_print("\n" + tabulate(np.array([["Casename", *headers], [self.study_case.casename, *results]]).T))
+
+        resp_threshold_9595 = self.study_case.resp_calc + (self.bias.value / 1e5) + (self.K_95_95() * self.post_uncertainty.value / 1e5)
+        resp_threshold_2 = self.study_case.resp_calc + (self.bias.value / 1e5) + (2 * self.post_uncertainty.value / 1e5)
+        C3_str = '<hr width="60%" /><div style="display: block; font-size:14px; padding-left: 80px; padding-right: 80px;">'
+        if self.post_chi2 < 1.2:
+            C3_str += f"The adjustment shows an <u>acceptale consistency</u> among the adjusted benchmark biases (Chi2 a posteriori : {self.post_chi2:.2f} < 1.2).<br>"
+            C3_str += f"With a coverage parameter K<sub>95/95</sub> of {self.K_95_95():.2f} (95% quantile of noncentral t-distribution), there is <u>95% confidence that at least 95% of the population of the application responses satisfy: \n<b>RESPONSE < {resp_threshold_9595:.5f} </b></u><br>\n\
+                For a conservative coverage parameter K of 2: RESPONSE < {resp_threshold_2:.5f}\n"
+        else:
+            C3_str = f"The adjustment shows a poor consistency among the adjusted benchmark biases (Chi2 a posteriori : {self.post_chi2:.2f} > 1.2).<br>Consider checking your covariance data, or increasing your targetted chi2 threshold to remove more inconsistent benchmarks from the assimilation process.\n"
+        C3_str += "</div><hr width='60%' />"
 
         # --------------------------------
         bench_list_included = self.bench_list[self.bench_list["REMOVED"] == False]
@@ -2103,18 +2138,15 @@ class Assimilation:
         # Get iso_reac_list from cov_data
         cov_iso_reac = self.cov_data.iso_reac_list
 
-        iso_str, reac_str, case_present, benchs_present, cov_present, calc_present = [], [], [], [], [], []
-        for iso, reac in common_iso_reac:
-            iso_str.append(methods.convert_iso_id_to_string(iso))
-            reac_str.append(methods.reac_trad.get(str(reac), f"REAC_{reac}"))
-            case_present.append(True if (iso, reac) in case_iso_reac else False)
-            benchs_present.append(True if (iso, reac) in benchs_iso_reac else False)
-            cov_present.append(
-                "added*"
-                if (iso, reac) in self.iso_reac_list and (iso, reac) not in cov_iso_reac
-                else True if (iso, reac) in self.iso_reac_list else False
-            )
-            calc_present.append(True if (iso, reac) in self.iso_reac_list else False)
+        iso_str = [methods.convert_iso_id_to_string(iso) for iso, reac in common_iso_reac]
+        reac_str = [methods.reac_trad.get(str(reac), f"REAC_{reac}") for iso, reac in common_iso_reac]
+        case_present = [(iso, reac) in case_iso_reac for iso, reac in common_iso_reac]
+        benchs_present = [(iso, reac) in benchs_iso_reac for iso, reac in common_iso_reac]
+        cov_present = [
+            "added*" if (iso, reac) in self.iso_reac_list and (iso, reac) not in cov_iso_reac else (iso, reac) in self.iso_reac_list
+            for iso, reac in common_iso_reac
+        ]
+        calc_present = [(iso, reac) in self.iso_reac_list for iso, reac in common_iso_reac]
 
         iso_reac_df = {
             "Isotope": iso_str,
@@ -2158,6 +2190,7 @@ class Assimilation:
             f.writelines(HTML_intro)
             f.write(text_intro)
             f.write(table_res)
+            f.write(C3_str)
 
             if self.study_case != None:
                 f.write(
@@ -2459,10 +2492,14 @@ class Uncertainty:
             isotopes_to_detail = [isotopes_to_detail]
 
         # --------------------------------
+        logo_path = os.path.join(os.path.dirname(__file__), "html_outputfile", "Logo.PNG")
         text_intro = ""
-        text_intro += f"<h1><center>{pkg_fullname}</center></h1>"
-        text_intro += f"<h1>Sandwich formula results</h1>"
-        text_intro += f"<h2>Study case : {self.study_case.casename}</h2>"
+        text_intro += (
+            f'<div style="display:flex; align-items:center; justify-content:center; gap:20px;"><img src="{logo_path}" width="110" height="110"></div>'
+        )
+        text_intro += f"<h3><center>{pkg_fullname}</center></h3>"
+        text_intro += f"<h2><center><u>Sandwich formula results</u></center></h2>"
+        text_intro += f"<h3>Study case : {self.study_case.casename}</h3>"
 
         # --------------------------------
         headers = [
