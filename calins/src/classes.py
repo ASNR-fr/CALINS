@@ -2097,8 +2097,8 @@ class Assimilation:
             vector=self.delta_mu,
             iso_reac_list=self.iso_reac_list,
             group_nb=self.group_nb,
-            title="Delta mu (group-wise integrals)",
-            yaxis_title=f"Delta mu (group-wise integral) - Delta[ND]/ND",
+            title="Relative change in ND (group-wise integrals)",
+            yaxis_title=f"Relative change in ND (group-wise integral) - Delta[ND]/ND",
         )
         delta_mu_integrals.update_layout(
             {
@@ -2111,7 +2111,11 @@ class Assimilation:
         )
 
         delta_mu_profiles = plots.plot_profiles_per_iso_reac(
-            vector=self.delta_mu, iso_reac_list=self.iso_reac_list, e_bins=self.e_bins, title="Delta mu", yaxis_title=f"Delta mu - Delta[ND]/ND"
+            vector=self.delta_mu,
+            iso_reac_list=self.iso_reac_list,
+            e_bins=self.e_bins,
+            title="Relative change in ND",
+            yaxis_title=f"Relative change in ND - Delta[ND]/ND",
         )
         delta_mu_profiles.update_layout(
             {
@@ -2801,7 +2805,7 @@ class Uncertainty:
 class Bias:
     """
     Class to calculate the bias of a response based on the sensitivity vector and delta m (global nuclear data variation due to assimilation).
-    The delta mu and sensitivity vectors are previously constructed and aligned when calling the function calcul_bias() (inside the class Assimilation).
+    The relative change in ND and sensitivity vectors are previously constructed and aligned when calling the function calcul_bias() (inside the class Assimilation).
     This class is the output of the function calcul_bias().
     It contains the bias value and the decomposition of the bias into contributions from isotopes and reactions.
 
