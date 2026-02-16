@@ -102,7 +102,7 @@ $$ \Delta \text{resp}^{\text{post}} = \lambda_{B} \cdot (- \Delta k_{C/E \text{ 
 
 **Application bias population standard deviation**
 
-$$ \sigma_{\text{bias}}^{\text{pop, appl}} = \sqrt{ \sum_{j}^{}\lambda_{j}^2 \cdot (\sigma_{\text{exp}}^{\text{j}}² + \sigma_{\text{resp}}^{\text{ND prior, appl}})}$
+$$ \sigma_{\text{bias}}^{\text{pop, appl}} = \sqrt{ \sum_{j}^{}\lambda_{j}^2 \cdot ({\sigma_{\text{resp}}^{\text{expe, j}}}^2 + {\sigma_{\text{resp}}^{\text{ND prior, j}}}^2)} $$
 
 **A priori uncertainty** (unit: %, value relative to the calculated response):
 
