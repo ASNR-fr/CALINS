@@ -9,7 +9,7 @@ The GLLSM method consists in assimilating experiences (also called "benchmark" c
 ---
 
 This assimilation method yields:
-1. **Global nuclear data variation vector** ($\Delta\mu_{XS}$): Derived from assimilated benchmarks, enabling posterior bias prediction Δresp<sup>post</sup> for a study case whose response is not known experimentally (vector $S_{\text{cas}}$)
+1. **Global nuclear data variation vector** ($\Delta\mu_{ND}$): Derived from assimilated benchmarks, enabling posterior bias prediction Δresp<sup>post</sup> for a study case whose response is not known experimentally (vector $S_{\text{cas}}$)
 2. **Adjusted covariance matrix** ($Cov'$): Enabling posterior uncertainty calculation σ<sub>resp</sub><sup>ND post</sup> for a study case ($S_{\text{cas}}$) using the sandwich formula
 
 The validity domain of this method is defined by several hypotheses:
@@ -77,9 +77,9 @@ ${S_{ref}}$: reference sensitivity vector  ${S_{comp}}$: comparison sensitivity 
 
 ***
 
-**Global nuclear data variation vector (from assimilated benchmarks) $\Delta\mu_{XS}$:**
+**Global nuclear data variation vector (from assimilated benchmarks) $\Delta\mu_{ND}$:**
 
-$$ \Delta\mu_{XS} = - Cov \cdot S_{\text{bench}}^t \cdot  (C_{\text{bench}}+S_{\text{bench}} \cdot Cov \cdot S_{\text{bench}}^t)^{-1} \cdot \Delta k_{C/E \text{ bench}} $$
+$$ \Delta\mu_{ND} = - Cov \cdot S_{\text{bench}}^t \cdot  (C_{\text{bench}}+S_{\text{bench}} \cdot Cov \cdot S_{\text{bench}}^t)^{-1} \cdot \Delta k_{C/E \text{ bench}} $$
 
 **Adjusted covariance matrix $Cov'$:**
 
@@ -93,7 +93,7 @@ The required inversion is not always mathematically possible. The impact of inve
 
 **A posteriori bias Δresp<sup>post</sup>**, deviation $(k_{eff}^{expe}-k_{eff}^{calc}) \over k_{eff}^{calc}$ (unit: %, value relative to the calculated response):
 
-$$ \Delta \text{resp}^{\text{post}} = S_{\text{cas}} \cdot \Delta\mu_{XS} $$
+$$ \Delta \text{resp}^{\text{post}} = S_{\text{cas}} \cdot \Delta\mu_{ND} $$
 
 **A priori uncertainty** (unit: %, value relative to the calculated response):
 
