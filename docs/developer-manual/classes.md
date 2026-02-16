@@ -1,9 +1,9 @@
 # Developer Manual - classes.py
 
 ## Case
-The *Case* object allows building a study case (or benchmark case) from a sensitivity file (*.sdf*) and storing the relevant data associated with the Case. Using an object makes this information easily accessible. The available attributes are as follows:
+The *Case* object allows building an application case (or benchmark case) from a sensitivity file (*.sdf*) and storing the relevant data associated with the Case. Using an object makes this information easily accessible. The available attributes are as follows:
 - *Case.sdf_path*: path to the case;
-- *Case.casename*: name of the study case (initialized as the base name of the *.sdf* file path);
+- *Case.casename*: name of the application case (initialized as the base name of the *.sdf* file path);
 - *Case.group_nb*: number of energy groups in the used mesh;
 - *Case.e_bins*: energy group boundaries of the used mesh;
 - *Case.iso_reac_list*: list of isotope-reaction pairs for which data are available in the sensitivity file, in the form of isotope and reaction ID numbers;
@@ -33,7 +33,7 @@ For detailed usage examples, see the [Loading Covariance Data](../usage-examples
 
 ## Uncertainty
 The *Uncertainty* object allows calculating an (absolute) uncertainty using the Sandwich formula and storing several properties related to this calculation. This object takes as input a sensitivity vector and a covariance matrix, already built as Numpy arrays, as well as the number of energy groups and the isotope-reaction list describing the construction of the vector and matrix. The available attributes are:
-- *Uncertainty.resp_calc*: calculated response value of the study case;
+- *Uncertainty.resp_calc*: calculated response value of the application case;
 - *Uncertainty.value*: calculated absolute uncertainty, in pcm;
 - *Uncertainty.group_nb*: number of energy groups in the used mesh;
 - *Uncertainty.e_bins*: energy group boundaries of the used mesh;
@@ -65,7 +65,7 @@ The *Uncertainty* object has a function to display and/or save several analysis 
   - the uncertainty;
   - the calculated response value and its calculation-scheme uncertainty;
   - the number of energy groups;
-  - the sensitivity vector of the study case;
+  - the sensitivity vector of the application case;
   - decomposition of uncertainty by isotope-reaction pair;
   - histograms of the covariance matrix integrals per isotope-reaction pair;
   - sub-matrices of covariances for user-selected isotope-reaction pairs.
@@ -74,7 +74,7 @@ Finally, the *Uncertainty* object is invoked in the *calcul_uncertainty(...)* fu
 
 ## Bias
 The *Bias* object is similar to the *Uncertainty* object. It allows computing the posterior bias \(\Delta resp^{post}\) using the bias formula (see chapter *THEORY*) and stores the same attributes as the *Uncertainty* object regarding the calculation. This object takes as input a sensitivity vector and the global nuclear data variation vector \(\Delta\mu_{XS}\) (after assimilation), already built as Numpy arrays, as well as the number of energy groups and isotope-reaction list describing the construction of the vectors. The available attributes are:
-- *Bias.resp_calc*: calculated response value of the study case;
+- *Bias.resp_calc*: calculated response value of the application case;
 - *Bias.value*: calculated absolute bias, in pcm;
 - *Bias.group_nb*: number of energy groups in the used mesh;
 - *Bias.e_bins*: energy group boundaries of the used mesh;
@@ -106,11 +106,11 @@ Finally, the *Bias* object is only invoked as a property of the *Assimilation* o
 ---
 
 ## Assimilation
-The *Assimilation* object performs GLLSM based on a list of benchmark cases, a study case, and a covariance matrix. Benchmark cases and the study case can be either paths to *SDF* files or *Case* objects. The covariance data must be provided as an *NDCovariances* object or an *Assimilation* object. This class uses functions from *methods*, *plots*, and *errors* to format the data, build vector/matrix objects, performs assimilation through GLLSM, and display useful data as plots.
+The *Assimilation* object performs GLLSM based on a list of benchmark cases, an application case, and a covariance matrix. Benchmark cases and the application case can be either paths to *SDF* files or *Case* objects. The covariance data must be provided as an *NDCovariances* object or an *Assimilation* object. This class uses functions from *methods*, *plots*, and *errors* to format the data, build vector/matrix objects, performs assimilation through GLLSM, and display useful data as plots.
 
 Initialization of an *Assimilation* object consists of several main steps:
-1. Formatting sensitivity data (benchmarks and study case) into a DataFrame;
-2. Constructing the benchmark sensitivity matrix, the study case sensitivity vector, and the covariance matrix, following the same isotope-reaction order;
+1. Formatting sensitivity data (benchmarks and application case) into a DataFrame;
+2. Constructing the benchmark sensitivity matrix, the application case sensitivity vector, and the covariance matrix, following the same isotope-reaction order;
 3. Constructing the benchmark response uncertainty matrix and the benchmark C/E vector, following the same benchmark case order;
 4. *self.check_dimensions()* & *check_correspondences()*: verifying consistency of all vector/matrix dimensions and generating warnings for high sensitivities lacking variance-covariance data;
 5. *self.calcul_prior_uncertainty()*: calculation and creation of an *Uncertainty* object;
@@ -119,14 +119,14 @@ Initialization of an *Assimilation* object consists of several main steps:
 8. *self.calcul_post_uncertainty()*: calculation and creation of an *Uncertainty* object.
 
 The *Assimilation* object has two functions to display and/or save several analysis elements in *.html* format:
-- the sensitivity vector of the study case;
+- the sensitivity vector of the application case;
 - an output file including all assimilation parameters:
   - prior and posterior uncertainties, as well as bias;
   - initial and final \(\chi^2\) values;
   - number of removed benchmark cases;
   - number of energy groups;
-  - list of benchmark cases with paths, calculated and experimental response values, ND prior and posterior uncertainty and bias, individual \(\chi^2\), similarity coefficients Ck with the study case, and a red background for excluded cases;
-  - sensitivity vector of the study case;
+  - list of benchmark cases with paths, calculated and experimental response values, ND prior and posterior uncertainty and bias, individual \(\chi^2\), similarity coefficients Ck with the application case, and a red background for excluded cases;
+  - sensitivity vector of the application case;
   - decomposition by isotope-reaction pair for the two uncertainties and bias;
   - histograms of covariance matrix integrals per isotope-reaction pair, and of \(\Delta Cov_{assim}\) for comparison;
   - sub-matrices of covariances and \(\Delta Cov_{assim}\) for user-selected isotope-reaction pairs.

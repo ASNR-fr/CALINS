@@ -14,7 +14,7 @@ sensi_file_path = 'path/to/sensitivity.sdf'
 
 # Calculate a priori uncertainty
 uncertainty = cl.calcul_uncertainty(
-    study_case=sensi_file_path,  # Can also be a Case object
+    appl_case=sensi_file_path,  # Can also be a Case object
     cov_data=cov_data,  # NDCovariances object
     reac_list=[2, 4, 16, 18, 101, 452, 1018],
     output_html_path='uncertainty_report.html'

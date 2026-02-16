@@ -121,7 +121,7 @@ cov_data = cl.NDCovariances(input_path='scale_44g', format='auto')
 
 # Calculate uncertainty
 uncertainty = cl.calcul_uncertainty(
-    study_case='path/to/case.sdf',
+    appl_case='path/to/case.sdf',
     cov_data=cov_data,  # Use NDCovariances object directly
     reac_list=[2, 4, 16, 18, 101, 452, 1018]
 )
@@ -133,7 +133,7 @@ Ck = cl.calcul_Ck(case1, case2, cov_data)
 
 # Perform data assimilation
 assimilation = cl.Assimilation(
-    study_case='path/to/study.sdf',
+    appl_case='path/to/appl.sdf',
     benchmarks_list=['bench1.sdf', 'bench2.sdf'],
     cov_data=cov_data,  # NDCovariances object (recommended)
     reac_list=[2, 4, 16, 18, 101, 452, 1018]

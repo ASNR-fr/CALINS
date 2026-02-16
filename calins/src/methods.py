@@ -1574,7 +1574,7 @@ def calcul_E(
 
 @log_exec()
 def calcul_SSR(
-    study_case,
+    appl_case,
     bench_case,
     return_iso_reac_list=False,
     return_decomposition=False,
@@ -1589,7 +1589,7 @@ def calcul_SSR(
 
     Parameters
     ----------
-    study_case : str, Path, or Case object
+    appl_case : str, Path, or Case object
         The first case for which the SSR is calculated.
     bench_case : str, Path, or Case object
         The second case for which the SSR is calculated.
@@ -1619,12 +1619,12 @@ def calcul_SSR(
     dict={"total_value":float, "partial":pd.DataFrame)
         If return_partial is True, returns a dict with the SSR total value and the partial SSR values as a pd.DataFrame with columns : "ISO", "REAC", "ISO_NAME", "REAC_NAME",  "SIMILARITY_NUMERATOR", "SIMILARITY_DENOMINATOR".
     """
-    if isinstance(study_case, (Path, str)):
+    if isinstance(appl_case, (Path, str)):
 
-        study_case = classes.Case(sdf_path=study_case)
+        appl_case = classes.Case(sdf_path=appl_case)
 
-    elif not isinstance(study_case, classes.Case):
-        raise TypeError(f"Wrong sensitivity type for {study_case}- Choose case object, Path, or string")
+    elif not isinstance(appl_case, classes.Case):
+        raise TypeError(f"Wrong sensitivity type for {appl_case}- Choose case object, Path, or string")
 
     if isinstance(bench_case, (Path, str)):
 
@@ -1638,8 +1638,8 @@ def calcul_SSR(
             if not isinstance(pair, tuple):
                 raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
 
-    [study_vec, bench_vec], iso_reac_list = make_sensi_vectors(
-        cases_list=[study_case, bench_case],
+    [appl_vec, bench_vec], iso_reac_list = make_sensi_vectors(
+        cases_list=[appl_case, bench_case],
         operation="first",
         iso_reac_list=iso_reac_list,
         reac_list=reac_list,
@@ -1649,28 +1649,28 @@ def calcul_SSR(
     )
 
     decomp = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY_NUMERATOR": [], "SIMILARITY_DENOMINATOR": []}
-    group_nb = study_case.group_nb
+    group_nb = appl_case.group_nb
 
-    integ_abs_study_case = 0
+    integ_abs_appl_case = 0
     SS_sum = 0
     for i, (iso, reac) in enumerate(iso_reac_list):
 
-        integ_abs_study_case_dec = 0
+        integ_abs_appl_case_dec = 0
         SS_sum_dec = 0
         for g in range(group_nb):
 
-            val_study = study_vec[i * group_nb + g]
+            val_appl = appl_vec[i * group_nb + g]
             val_bench = bench_vec[i * group_nb + g]
 
-            abs_val_study = abs(val_study)
+            abs_val_appl = abs(val_appl)
             abs_val_bench = abs(val_bench)
 
-            integ_abs_study_case += abs_val_study
-            integ_abs_study_case_dec += abs_val_study
+            integ_abs_appl_case += abs_val_appl
+            integ_abs_appl_case_dec += abs_val_appl
 
-            if val_study * val_bench > 0:
-                SS_sum += min([abs_val_study, abs_val_bench])
-                SS_sum_dec += min([abs_val_study, abs_val_bench])
+            if val_appl * val_bench > 0:
+                SS_sum += min([abs_val_appl, abs_val_bench])
+                SS_sum_dec += min([abs_val_appl, abs_val_bench])
 
         if return_decomposition:
             decomp["ISO"].append(iso)
@@ -1678,12 +1678,12 @@ def calcul_SSR(
             decomp["ISO_NAME"].append(convert_iso_id_to_string(iso))
             decomp["REAC_NAME"].append(reac_trad.get(str(reac), f"REAC_{reac}"))
             decomp["SIMILARITY_NUMERATOR"].append(SS_sum_dec)
-            decomp["SIMILARITY_DENOMINATOR"].append(integ_abs_study_case_dec)
+            decomp["SIMILARITY_DENOMINATOR"].append(integ_abs_appl_case_dec)
 
-    if integ_abs_study_case == 0:
+    if integ_abs_appl_case == 0:
         SS_tot = 0
     else:
-        SS_tot = SS_sum / integ_abs_study_case
+        SS_tot = SS_sum / integ_abs_appl_case
 
     if return_decomposition:
         decomp = pd.DataFrame(decomp)
@@ -1699,7 +1699,7 @@ def calcul_SSR(
 
 @log_exec()
 def calcul_G(
-    study_case,
+    appl_case,
     bench_case,
     return_iso_reac_list=False,
     return_decomposition=False,
@@ -1714,7 +1714,7 @@ def calcul_G(
 
     Parameters
     ----------
-    study_case : str, Path, or Case object
+    appl_case : str, Path, or Case object
         The first case for which the G is calculated.
     bench_case : str, Path, or Case object
         The second case for which the G is calculated.
@@ -1744,12 +1744,12 @@ def calcul_G(
     dict={"total_value":float, "partial":pd.DataFrame)
         If return_partial is True, returns a dict with the G total value and the partial G values as a pd.DataFrame with columns : "ISO", "REAC", "ISO_NAME", "REAC_NAME", "SIMILARITY_NUMERATOR", "SIMILARITY_DENOMINATOR".
     """
-    if isinstance(study_case, (Path, str)):
+    if isinstance(appl_case, (Path, str)):
 
-        study_case = classes.Case(sdf_path=study_case)
+        appl_case = classes.Case(sdf_path=appl_case)
 
-    elif not isinstance(study_case, classes.Case):
-        raise TypeError(f"Wrong sensitivity type for {study_case}- Choose case object, Path, or string")
+    elif not isinstance(appl_case, classes.Case):
+        raise TypeError(f"Wrong sensitivity type for {appl_case}- Choose case object, Path, or string")
 
     if isinstance(bench_case, (Path, str)):
 
@@ -1763,8 +1763,8 @@ def calcul_G(
             if not isinstance(pair, tuple):
                 raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
 
-    [study_vec, bench_vec], iso_reac_list = make_sensi_vectors(
-        cases_list=[study_case, bench_case],
+    [appl_vec, bench_vec], iso_reac_list = make_sensi_vectors(
+        cases_list=[appl_case, bench_case],
         operation="first",
         iso_reac_list=iso_reac_list,
         reac_list=reac_list,
@@ -1774,42 +1774,42 @@ def calcul_G(
     )
 
     decomp = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY_NUMERATOR": [], "SIMILARITY_DENOMINATOR": []}
-    group_nb = study_case.group_nb
+    group_nb = appl_case.group_nb
 
-    integ_study_case = 0
+    integ_appl_case = 0
     G_sum = 0
     for i, (iso, reac) in enumerate(iso_reac_list):
 
-        integ_study_case_dec = 0
+        integ_appl_case_dec = 0
         G_sum_dec = 0
         for g in range(group_nb):
 
-            val_study = study_vec[i * group_nb + g]
+            val_appl = appl_vec[i * group_nb + g]
             val_bench = bench_vec[i * group_nb + g]
 
-            integ_study_case += val_study
-            integ_study_case_dec += val_study
+            integ_appl_case += val_appl
+            integ_appl_case_dec += val_appl
 
-            if val_study * val_bench > 0:
-                if abs(val_study) >= abs(val_bench):
-                    G_sum += val_study - val_bench
-                    G_sum_dec += val_study - val_bench
+            if val_appl * val_bench > 0:
+                if abs(val_appl) >= abs(val_bench):
+                    G_sum += val_appl - val_bench
+                    G_sum_dec += val_appl - val_bench
             else:
-                G_sum += val_study
-                G_sum_dec += val_study
+                G_sum += val_appl
+                G_sum_dec += val_appl
 
         if return_decomposition:
             decomp["ISO"].append(iso)
             decomp["REAC"].append(reac)
             decomp["ISO_NAME"].append(convert_iso_id_to_string(iso))
             decomp["REAC_NAME"].append(reac_trad.get(str(reac), f"REAC_{reac}"))
-            decomp["SIMILARITY_NUMERATOR"].append(integ_study_case_dec - G_sum_dec)
-            decomp["SIMILARITY_DENOMINATOR"].append(integ_study_case_dec)
+            decomp["SIMILARITY_NUMERATOR"].append(integ_appl_case_dec - G_sum_dec)
+            decomp["SIMILARITY_DENOMINATOR"].append(integ_appl_case_dec)
 
-    if integ_study_case == 0:
+    if integ_appl_case == 0:
         G_tot = 0
     else:
-        G_tot = 1 - (G_sum / integ_study_case)
+        G_tot = 1 - (G_sum / integ_appl_case)
 
     if return_decomposition:
         decomp = pd.DataFrame(decomp)
@@ -1970,7 +1970,7 @@ def calcul_Ck(
 
 @log_exec()
 def calcul_uncertainty(
-    study_case,
+    appl_case,
     cov_data,
     iso_reac_list=None,
     reac_list: list = None,
@@ -1981,12 +1981,12 @@ def calcul_uncertainty(
     isotopes_to_detail=[],
 ):
     """
-    Calculate the uncertainty of a study case using a covariances Dataframe.
+    Calculate the uncertainty of an application case using a covariances Dataframe.
 
     Parameters
     ----------
-    study_case : str, Path, or Case object
-        The study case for which the uncertainty is calculated.
+    appl_case : str, Path, or Case object
+        The application case for which the uncertainty is calculated.
     cov_data : NDCovariances or Assimilation
         The covariance data as NDCovariances object or Assimilation object.
     iso_reac_list : list of tuples (int ISO, int REAC), optional
@@ -2007,15 +2007,15 @@ def calcul_uncertainty(
     Uncertainty object
         The uncertainty object containing the uncertainty value, decomposition, and a function to store the results inside a HTML file.
     """
-    if isinstance(study_case, (Path, str)):
+    if isinstance(appl_case, (Path, str)):
 
-        study_case = classes.Case(sdf_path=study_case)
+        appl_case = classes.Case(sdf_path=appl_case)
 
-    elif isinstance(study_case, classes.Case):
-        study_case = study_case
+    elif isinstance(appl_case, classes.Case):
+        appl_case = appl_case
 
     else:
-        raise TypeError(f"Wrong sensitivity type for {study_case}- Choose case, Path, or string")
+        raise TypeError(f"Wrong sensitivity type for {appl_case}- Choose case, Path, or string")
 
     if iso_reac_list != None:
         for i, pair in enumerate(iso_reac_list):
@@ -2025,7 +2025,7 @@ def calcul_uncertainty(
     if isinstance(cov_data, classes.NDCovariances):
 
         [sensi_vec], cov_mat, iso_reac_list = make_sensi_vectors_and_cov_matrix(
-            cases_list=[study_case],
+            cases_list=[appl_case],
             cov_data=cov_data,
             iso_reac_list=iso_reac_list,
             reac_list=reac_list,
@@ -2043,21 +2043,21 @@ def calcul_uncertainty(
 
         iso_reac_list = cov_data.iso_reac_list
 
-        [sensi_vec], dump = make_sensi_vectors(cases_list=[study_case], iso_reac_list=iso_reac_list)
+        [sensi_vec], dump = make_sensi_vectors(cases_list=[appl_case], iso_reac_list=iso_reac_list)
 
         cov_mat = np.subtract(cov_data.cov_mat, cov_data.cov_mat_delta)
 
     else:
         raise TypeError(f"cov_data must be NDCovariances or Assimilation object. Got {type(cov_data)}")
 
-    check_dimmensions(casename=study_case.casename, sensi_vec=sensi_vec, cov_mat=cov_mat, iso_reac_list=iso_reac_list)
-    check_correspondences(sensi_vec=sensi_vec, cov_mat=cov_mat, iso_reac_list=iso_reac_list, group_nb=study_case.group_nb)
+    check_dimmensions(casename=appl_case.casename, sensi_vec=sensi_vec, cov_mat=cov_mat, iso_reac_list=iso_reac_list)
+    check_correspondences(sensi_vec=sensi_vec, cov_mat=cov_mat, iso_reac_list=iso_reac_list, group_nb=appl_case.group_nb)
 
     unc = classes.Uncertainty(
-        study_case=study_case,
+        appl_case=appl_case,
         cov_data=cov_data,
         sensi_vec=sensi_vec,
-        resp_calc=study_case.resp_calc,
+        resp_calc=appl_case.resp_calc,
         cov_mat=cov_mat,
         iso_reac_list=iso_reac_list,
         output_html_path=output_html_path,
@@ -2068,14 +2068,14 @@ def calcul_uncertainty(
 
 
 @log_exec()
-def calcul_bias(study_case, assimilation):
+def calcul_bias(appl_case, assimilation):
     """
-    Calculate the bias of a study case using an Assimilation object.
+    Calculate the bias of an application case using an Assimilation object.
 
     Parameters
     ----------
-    study_case : str, Path, or Case object
-        The study case for which the bias is calculated.
+    appl_case : str, Path, or Case object
+        The application case for which the bias is calculated.
     assimilation : Assimilation object
         The assimilation object containing the covariance matrix and other parameters.
 
@@ -2089,24 +2089,24 @@ def calcul_bias(study_case, assimilation):
 
         raise TypeError(f"Wrong Assimilation object type")
 
-    if isinstance(study_case, (Path, str)):
+    if isinstance(appl_case, (Path, str)):
 
-        study_case = classes.Case(sdf_path=study_case)
+        appl_case = classes.Case(sdf_path=appl_case)
 
-    elif isinstance(study_case, classes.Case):
-        study_case = study_case
+    elif isinstance(appl_case, classes.Case):
+        appl_case = appl_case
 
     else:
-        raise TypeError(f"Wrong sensitivity type for {study_case}- Choose case, Path, or string")
+        raise TypeError(f"Wrong sensitivity type for {appl_case}- Choose case, Path, or string")
 
-    [sensi_vec], dump = make_sensi_vectors(cases_list=[study_case], iso_reac_list=assimilation.iso_reac_list)
+    [sensi_vec], dump = make_sensi_vectors(cases_list=[appl_case], iso_reac_list=assimilation.iso_reac_list)
 
     check_correspondences(sensi_vec=sensi_vec, cov_mat=assimilation.cov_mat, iso_reac_list=assimilation.iso_reac_list, group_nb=assimilation.group_nb)
 
     bias_post = classes.Bias(
-        study_case=study_case,
+        appl_case=appl_case,
         sensi_vec=sensi_vec,
-        resp_calc=study_case.resp_calc,
+        resp_calc=appl_case.resp_calc,
         delta_mu=assimilation.delta_mu,
         iso_reac_list=assimilation.iso_reac_list,
     )
@@ -2118,9 +2118,9 @@ def check_dimmensions(casename, sensi_vec, cov_mat, iso_reac_list):
 
     if len(sensi_vec) != np.shape(cov_mat)[0]:
         raise errors.DimError(
-            f"The energy group number of your study case is not equal to the covariance matrix group number - Check your sdf file {casename}, and you covariance file\n\
-            DIMENSIONS : Cov Mat {np.shape(cov_mat)} (should be square matrix) | Study Case Vec {len(sensi_vec)}\n\
-            GROUP NB : Cov Mat {int(np.shape(cov_mat)[0]/len(iso_reac_list))} (should be square matrix) | Study Case Vec {int(len(sensi_vec)/len(iso_reac_list))}"
+            f"The energy group number of your application case is not equal to the covariance matrix group number - Check your sdf file {casename}, and you covariance file\n\
+            DIMENSIONS : Cov Mat {np.shape(cov_mat)} (should be square matrix) | Application Case Vec {len(sensi_vec)}\n\
+            GROUP NB : Cov Mat {int(np.shape(cov_mat)[0]/len(iso_reac_list))} (should be square matrix) | Application Case Vec {int(len(sensi_vec)/len(iso_reac_list))}"
         )
 
 

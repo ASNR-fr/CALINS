@@ -283,11 +283,11 @@ class Case:
             f'<div style="display:flex; align-items:center; justify-content:center; gap:20px;"><img src="{logo_path}" width="110" height="110"></div>'
         )
         text_intro += f"<h3><center>{pkg_fullname}</center></h3>"
-        text_intro += f"<h3>Study case : {self.casename}</h3>"
+        text_intro += f"<h3>Application case : {self.casename}</h3>"
 
         # --------------------------------
         headers = [
-            "Calculated response of study case",
+            "Calculated response of application case",
             "Energy groups number",
         ]
         headers = ["<b>" + h + ":</b>" for h in headers]
@@ -376,9 +376,9 @@ class Case:
             f.writelines(HTML_intro)
             f.write(text_intro)
             f.write(table_res)
-            f.write(plots.create_html_tabs(["Study case sensitivities"]))
+            f.write(plots.create_html_tabs(["Application case sensitivities"]))
 
-            f.write('<div id="Study case sensitivities" class="tabcontent">\n')
+            f.write('<div id="Application case sensitivities" class="tabcontent">\n')
             f.write(f'<section style="background:linear-gradient(#a8b0af, white)">\n' + "<br>\n")
             f.write(trace_sensi_integrals.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
             f.write(trace_sensi_profiles.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "\n<br>\n")
@@ -906,16 +906,16 @@ class Assimilation:
         List of benchmark cases.
     bench_list : DataFrame
         DataFrame containing calculated data of the benchmark cases, after assimilation.
-    study_case : Case
-        Study case.
+    appl_case : Case
+        Application case.
     cov_data : NDCovariances
         Covariance data object.
     bias : Bias
-        Bias object of the study case, after assimilation process.
+        Bias object of the application case, after assimilation process.
     prior_uncertainty : Uncertainty
-        A priori uncertainty of the study case (as an Unceratinty object), before assimilation.
+        A priori uncertainty of the application case (as an Unceratinty object), before assimilation.
     post_uncertainty : Uncertainty
-        A posteriori uncertainty of the study case (as an Unceratinty object), after assimilation.
+        A posteriori uncertainty of the application case (as an Unceratinty object), after assimilation.
     output_html_path : str
         Path to save the output HTML file.
     plotting_unit : str
@@ -944,8 +944,8 @@ class Assimilation:
     --------
     export_to_html(output_html_path, plotting_unit="pcm", isotopes_to_detail=[]):
         Exports the results of the assimilation process to an HTML file with interactive plots.
-    plot_study_case_sensi(output_html_path, show=False):
-        Plots the sensitivity data for the study case in HTML.
+    plot_appl_case_sensi(output_html_path, show=False):
+        Plots the sensitivity data for the application case in HTML.
     [+ explicit internal methods...]
     """
 
@@ -954,7 +954,7 @@ class Assimilation:
         self,
         benchmarks_list,
         cov_data,
-        study_case=None,
+        appl_case=None,
         iso_reac_list: list = None,
         reac_list: list = None,
         iso_list: list = None,
@@ -974,8 +974,8 @@ class Assimilation:
         -----------
         benchmarks_list : list
             [Required] List of benchmark cases or sdf paths.
-        study_case : Case or sdf path
-            [Required] Study case.
+        appl_case : Case or sdf path
+            [Required] Application case.
         cov_data : NDCovariances
             [Required] Covariance data object.
         output_html_path : str
@@ -1025,15 +1025,15 @@ class Assimilation:
                     f"The case {self.bench_cases[i].casename} is used as a experimental benchmark case but doesn't have an experimental response value/sigma - Check you sdf file or your case construction (arguments)"
                 )
 
-        if isinstance(study_case, (Path, str)):
-            study_case = Case(sdf_path=study_case)
+        if isinstance(appl_case, (Path, str)):
+            appl_case = Case(sdf_path=appl_case)
 
-        elif isinstance(study_case, Case):
-            study_case = study_case
-        elif study_case == None:
+        elif isinstance(appl_case, Case):
+            appl_case = appl_case
+        elif appl_case == None:
             None
         else:
-            raise errors.SensInputError("Wrong sensitivity type for study case data - Choose case, Path, or string")
+            raise errors.SensInputError("Wrong sensitivity type for application case data - Choose case, Path, or string")
 
         if iso_reac_list != None:
             for i, pair in enumerate(iso_reac_list):
@@ -1067,7 +1067,7 @@ class Assimilation:
             self.bench_list["E - C_PRIOR (pcm)"],
         ) = (bench_resp_expe, bench_sigma_expe, bench_resp_calc, bench_sigma_calc, bench_EC_prior)
 
-        self.study_case = study_case
+        self.appl_case = appl_case
 
         self.make_sensimat_covmat_casevec_expemat_and_deltaCE(
             iso_reac_list=iso_reac_list,
@@ -1081,8 +1081,8 @@ class Assimilation:
 
         methods.check_correspondences(sensi_vec=self.case_vec, cov_mat=self.cov_mat, iso_reac_list=self.iso_reac_list, group_nb=self.group_nb)
 
-        if self.study_case != None:
-            self.e_bins = self.study_case.e_bins
+        if self.appl_case != None:
+            self.e_bins = self.appl_case.e_bins
         else:
             self.e_bins = self.bench_cases[0].e_bins
 
@@ -1091,6 +1091,7 @@ class Assimilation:
         self.calcul_bias()
         self.calcul_post_chi2()
         self.calcul_post_uncertainty()
+        self.calcul_bias_std()
         self.export_to_html(output_html_path=self.output_html_path, plotting_unit=plotting_unit, isotopes_to_detail=isotopes_to_detail)
 
     def make_sensimat_covmat_casevec_expemat_and_deltaCE(
@@ -1112,9 +1113,9 @@ class Assimilation:
             List of reactions to exclude
         """
         # Construct the sensitivity vectors and covariances matrix from the iso_reac_list given or the union of every case's iso_reac_list
-        if self.study_case != None:
+        if self.appl_case != None:
             sensi_vecs, cov_mat, iso_reac_list = methods.make_sensi_vectors_and_cov_matrix(
-                cases_list=[*self.bench_cases, self.study_case],
+                cases_list=[*self.bench_cases, self.appl_case],
                 cov_data=self.cov_data,
                 operation="union",
                 iso_reac_list=iso_reac_list,
@@ -1174,28 +1175,28 @@ class Assimilation:
 
             raise errors.DimError("The vertical dimension of the benchmarks matrix is not equal to the length of the benchmark list")
 
-        if self.study_case != None:
+        if self.appl_case != None:
             if not np.shape(self.cov_mat)[0] == np.shape(self.cov_mat)[1] == len(self.case_vec) == np.shape(self.bench_sensi_mat)[1]:
 
                 raise errors.DimError(
                     f"The sensitivities and uncertainties data doesn't have the same dimensions - Check your energy groups number - (or internal iso-reac variable error)\n\
-                    DIMENSIONS : Cov Mat {np.shape(self.cov_mat)[0]} (should be square matrix) | Study Case Vec {len(self.case_vec)} | Bench Mat (vertical axe) {np.shape(self.bench_sensi_mat)[1]}"
+                    DIMENSIONS : Cov Mat {np.shape(self.cov_mat)[0]} (should be square matrix) | Application Case Vec {len(self.case_vec)} | Bench Mat (vertical axe) {np.shape(self.bench_sensi_mat)[1]}"
                 )
 
-            if self.study_case.group_nb != int(np.shape(self.cov_mat)[0] / len(self.iso_reac_list)):
+            if self.appl_case.group_nb != int(np.shape(self.cov_mat)[0] / len(self.iso_reac_list)):
                 raise errors.DimError(
-                    f"The energy group number of your study case is not equal to the covariance matrix group number - Check your sdf file {self.study_case.casename}, and you covariance file"
+                    f"The energy group number of your application case is not equal to the covariance matrix group number - Check your sdf file {self.appl_case.casename}, and you covariance file"
                 )
         else:
             if not np.shape(self.cov_mat)[0] == np.shape(self.cov_mat)[1] == np.shape(self.bench_sensi_mat)[1]:
 
                 raise errors.DimError(
                     f"The sensitivities and uncertainties data doesn't have the same dimensions - Check your energy groups number - (or internal iso-reac variable error)\n\
-                    DIMENSIONS : Cov Mat {np.shape(self.cov_mat)[0]} (should be square matrix) | Study Case Vec {len(self.case_vec)} | Bench Mat (vertical axe) {np.shape(self.bench_sensi_mat)[1]}"
+                    DIMENSIONS : Cov Mat {np.shape(self.cov_mat)[0]} (should be square matrix) | Application Case Vec {len(self.case_vec)} | Bench Mat (vertical axe) {np.shape(self.bench_sensi_mat)[1]}"
                 )
 
-        if self.study_case != None:
-            self.group_nb = self.study_case.group_nb
+        if self.appl_case != None:
+            self.group_nb = self.appl_case.group_nb
         else:
             self.group_nb = self.bench_cases[0].group_nb
 
@@ -1297,9 +1298,11 @@ class Assimilation:
             self.expe_mat = C_i
             self.delta_CE_vec = delta_CE_i
 
-            self.delta_mu = -1 * W0SexpT_i @ (C_SexpW0SexpT_inv_i @ self.delta_CE_vec)
+            self.B_mat = W0SexpT_i @ C_SexpW0SexpT_inv_i
 
-            self.cov_mat_delta = csr_matrix((W0SexpT_i @ C_SexpW0SexpT_inv_i) @ (self.bench_sensi_mat @ self.cov_mat))
+            self.delta_mu = -1 * self.B_mat @ self.delta_CE_vec
+
+            self.cov_mat_delta = csr_matrix(self.B_mat @ (self.bench_sensi_mat @ self.cov_mat))
 
         # Function to filter out experiments with low Ck similarity coefficients
         def filter_Ck():
@@ -1340,9 +1343,11 @@ class Assimilation:
             cholesky = np.linalg.inv(np.linalg.cholesky(C_SexpW0SexpT))
             C_SexpW0SexpT_inv = cholesky.T @ cholesky
 
-            self.delta_mu = -1 * W0SexpT @ (C_SexpW0SexpT_inv @ self.delta_CE_vec)
+            self.B_mat = W0SexpT @ C_SexpW0SexpT_inv
 
-            self.cov_mat_delta = csr_matrix((W0SexpT @ C_SexpW0SexpT_inv) @ (self.bench_sensi_mat @ self.cov_mat))
+            self.delta_mu = -1 * self.B_mat @ self.delta_CE_vec
+
+            self.cov_mat_delta = csr_matrix(self.B_mat @ (self.bench_sensi_mat @ self.cov_mat))
 
         # Beginning of the assimilation process
         W0SexpT = self.cov_mat @ self.bench_sensi_mat.T
@@ -1376,7 +1381,7 @@ class Assimilation:
         self.bench_list["INDIVIDUAL CHI2"] = [None for i in range(len(self.bench_cases))]
         self.bench_list["REMOVED"] = [False for i in range(len(self.bench_cases))]
 
-        # Compute Ck similarity coefficients between the study case and the benchmark cases
+        # Compute Ck similarity coefficients between the application case and the benchmark cases
         norm_sensi_case = self.case_vec @ self.cov_mat @ self.case_vec
         norm_sensi_bench_vector = np.diag(SexpW0SexpT)
         # Compute dot products for all benchmark cases at once
@@ -1398,9 +1403,13 @@ class Assimilation:
 
         if self.Ck_threshold == None and self.targetted_chi2 == None:
 
-            self.delta_mu = -1 * W0SexpT @ (C_SexpW0SexpT_inv @ self.delta_CE_vec)
+            self.B_mat = W0SexpT @ C_SexpW0SexpT_inv
 
-            self.cov_mat_delta = csr_matrix((W0SexpT @ C_SexpW0SexpT_inv) @ (self.bench_sensi_mat @ self.cov_mat))
+            self.delta_mu = -1 * self.B_mat @ self.delta_CE_vec
+
+            self.cov_mat_delta = csr_matrix(self.B_mat @ (self.bench_sensi_mat @ self.cov_mat))
+
+        self.appl_to_bench_weights = self.case_vec @ self.B_mat
 
         self.cov_mat_post = np.subtract(self.cov_mat, self.cov_mat_delta)
 
@@ -1462,11 +1471,11 @@ class Assimilation:
 
         self.bench_list["E - C_POST (pcm)"] = bench_EC_post
 
-        if self.study_case != None:
+        if self.appl_case != None:
             self.bias = Bias(
-                study_case=self.study_case,
+                appl_case=self.appl_case,
                 sensi_vec=self.case_vec,
-                resp_calc=self.study_case.resp_calc,
+                resp_calc=self.appl_case.resp_calc,
                 delta_mu=self.delta_mu,
                 iso_reac_list=self.iso_reac_list,
             )
@@ -1490,12 +1499,12 @@ class Assimilation:
                 bench_unc_post.append("Not calculated")
         self.bench_list["UNC_POST (pcm)"] = bench_unc_post
 
-        if self.study_case != None:
+        if self.appl_case != None:
             self.post_uncertainty = Uncertainty(
-                study_case=self.study_case,
+                appl_case=self.appl_case,
                 cov_data=self.cov_data,
                 sensi_vec=self.case_vec,
-                resp_calc=self.study_case.resp_calc,
+                resp_calc=self.appl_case.resp_calc,
                 cov_mat=self.cov_mat_post,
                 iso_reac_list=self.iso_reac_list,
             )
@@ -1503,16 +1512,28 @@ class Assimilation:
 
     @log_exec()
     def calcul_prior_uncertainty(self):
-        if self.study_case != None:
+        if self.appl_case != None:
             self.prior_uncertainty = Uncertainty(
-                study_case=self.study_case,
+                appl_case=self.appl_case,
                 cov_data=self.cov_data,
                 sensi_vec=self.case_vec,
-                resp_calc=self.study_case.resp_calc,
+                resp_calc=self.appl_case.resp_calc,
                 cov_mat=self.cov_mat,
                 iso_reac_list=self.iso_reac_list,
             )
             return self.prior_uncertainty
+
+    def calcul_bias_std(self):
+        self.bias_std = None
+
+        if self.appl_case != None:
+            bench_vari = [
+                (row["UNC_PRIOR (pcm)"] / (1e5 * row["RESP CALC"])) ** 2 + (row["SIGMA RESP EXPE"] / row["RESP CALC"]) ** 2
+                for i, row in self.bench_list.iterrows()
+                if row["REMOVED"] == False
+            ]
+            appl_to_bench_weights_squared = self.appl_to_bench_weights**2
+            self.bias_std = np.sqrt(appl_to_bench_weights_squared @ bench_vari)
 
     def K_95_95(self):
         p = 0.95
@@ -1529,9 +1550,9 @@ class Assimilation:
 
         return K
 
-    def plot_study_case_sensi(self, output_html_path: str = None, show=False):
+    def plot_appl_case_sensi(self, output_html_path: str = None, show=False):
         """
-        Plot the sensitivity of the study case.
+        Plot the sensitivity of the application case.
 
         Parameters
         -----------
@@ -1540,7 +1561,7 @@ class Assimilation:
         show : bool, optional
             Flag to display the plot. Defaults to False.
         """
-        self.study_case.export_to_html(output_html_path=output_html_path, show=show)
+        self.appl_case.export_to_html(output_html_path=output_html_path, show=show)
 
     @log_exec()
     def export_to_html(self, output_html_path: str, plotting_unit="pcm", isotopes_to_detail=[]):
@@ -1575,17 +1596,18 @@ class Assimilation:
         )
         text_intro += f"<h3><center>{pkg_fullname}</center></h3>"
         text_intro += f"<h2><center><u>Generalized Linear Least-squares method results</u></center></h2>"
-        if self.study_case != None:
-            text_intro += f"<h3>Study case : {self.study_case.casename}</h3>"
+        if self.appl_case != None:
+            text_intro += f"<h3>Application case : {self.appl_case.casename}</h3>"
         else:
-            text_intro += f"<h3>No study case</h3>"
+            text_intro += f"<h3>No application case</h3>"
 
         # --------------------------------
         headers = [
-            "Calculated response of study case",
-            "Uncertainty a priori",
-            "Uncertainty a posteriori",
-            "Evaluated bias from GLLSM (C<sub>post</sub> - C<sub>prior</sub>)",
+            "Calculated response of application case",
+            "ND Uncertainty a priori",
+            "ND Uncertainty a posteriori",
+            "Application bias population std",
+            "Estimated application bias (C<sub>post</sub> - C<sub>prior</sub>)",
             "Chi2 a priori ",
             "Chi2 a posteriori",
             "Nb of benchmark cases removed",
@@ -1593,11 +1615,12 @@ class Assimilation:
         ]
         headers_b = ["<b>" + h + ":</b>" for h in headers]
 
-        if self.study_case != None:
+        if self.appl_case != None:
             results = [
-                f"{self.study_case.resp_calc} +/- {self.study_case.sigma_resp_calc}",
+                f"{self.appl_case.resp_calc} +/- {self.appl_case.sigma_resp_calc}",
                 f"{int(round(self.prior_uncertainty.value))} pcm",
                 f"{int(round(self.post_uncertainty.value))} pcm",
+                f"{int(round(self.bias_std*self.appl_case.resp_calc*1e5))} pcm",
                 f"{int(round(self.bias.value))} pcm ",
                 round(self.prior_chi2, 5),
                 round(self.post_chi2, 5),
@@ -1617,14 +1640,14 @@ class Assimilation:
             ]
 
         table_res = plots.create_html_table(headers=[], lines=[headers_b, results])
-        write_and_print("\n" + tabulate(np.array([["Casename", *headers], [self.study_case.casename, *results]]).T))
+        write_and_print("\n" + tabulate(np.array([["Casename", *headers], [self.appl_case.casename, *results]]).T))
 
-        resp_threshold_9595 = self.study_case.resp_calc + (self.bias.value / 1e5) + (self.K_95_95() * self.post_uncertainty.value / 1e5)
-        resp_threshold_2 = self.study_case.resp_calc + (self.bias.value / 1e5) + (2 * self.post_uncertainty.value / 1e5)
+        resp_threshold_9595 = self.appl_case.resp_calc + (self.bias.value / 1e5) + (self.K_95_95() * self.bias_std)
+        resp_threshold_2 = self.appl_case.resp_calc + (self.bias.value / 1e5) + (2 * self.bias_std)
         C3_str = '<hr width="60%" /><div style="display: block; font-size:14px; padding-left: 80px; padding-right: 80px;">'
         if self.post_chi2 < 1.2:
             C3_str += f"The adjustment shows an <u>acceptale consistency</u> among the adjusted benchmark biases (Chi2 a posteriori : {self.post_chi2:.2f} < 1.2).<br>"
-            C3_str += f"With a coverage parameter K<sub>95/95</sub> of {self.K_95_95():.2f} (95% quantile of noncentral t-distribution), there is <u>95% confidence that at least 95% of the population of the application responses satisfy: \n<b>RESPONSE < {resp_threshold_9595:.5f} </b></u><br>\n\
+            C3_str += f"With a coverage parameter K<sub>95/95</sub> of {self.K_95_95():.2f} (95% quantile of noncentral t-distribution), there is <u>95% confidence that at least 95% of the population of the application responses satisfy: \n<b>RESPONSE < Resp<sup>calc</sup> + Bias + K<sub>95/95</sub> x σ<sub>bias</sub><sup>appl, pop</sup> = {resp_threshold_9595:.5f} </b></u> ()<br>\n\
                 For a conservative coverage parameter K of 2: RESPONSE < {resp_threshold_2:.5f}\n"
         else:
             C3_str = f"The adjustment shows a poor consistency among the adjusted benchmark biases (Chi2 a posteriori : {self.post_chi2:.2f} > 1.2).<br>Consider checking your covariance data, or increasing your targetted chi2 threshold to remove more inconsistent benchmarks from the assimilation process.\n"
@@ -1692,7 +1715,7 @@ class Assimilation:
             error_y=3
             * np.sqrt((bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5) ** 2 + bench_list_included["UNC_PRIOR (pcm)"].astype(float) ** 2),
             hover_name="PATH",
-            title="Benchmark cases similarity with study case (Ck) vs bias (E-C)",
+            title="Benchmark cases similarity with application case (Ck) vs bias (E-C)",
         )
 
         x_data = bench_list_included["Ck"].values
@@ -1806,17 +1829,17 @@ class Assimilation:
             val_factor = 1.0
             unit_str = "%[resp]"
         elif plotting_unit == "pcm":
-            val_factor = self.study_case.resp_calc * 1e5
+            val_factor = self.appl_case.resp_calc * 1e5
             unit_str = "pcm"
 
-        if self.study_case != None:
+        if self.appl_case != None:
 
             trace_case_sensi_integrals = plots.plot_integrals_per_iso_reac(
                 vector=self.case_vec,
                 iso_reac_list=self.iso_reac_list,
                 group_nb=self.group_nb,
                 factor=val_factor,
-                title="Study case sensitivities (integrals)",
+                title="Application case sensitivities (integrals)",
                 yaxis_title=f"Sensitivity ({unit_str}/%[ND] - group-wise integral)",
             )
             trace_case_sensi_integrals.update_layout(
@@ -1834,7 +1857,7 @@ class Assimilation:
                 iso_reac_list=self.iso_reac_list,
                 e_bins=self.e_bins,
                 factor=val_factor,
-                title="Study case sensitivities",
+                title="Application case sensitivities",
                 yaxis_title=f"Sensitivity ({unit_str}/%[ND])",
             )
             trace_case_sensi_profiles.update_layout(
@@ -1849,8 +1872,8 @@ class Assimilation:
 
             case_vec_per_unit_lethargy = []
             for iso, reac in self.iso_reac_list:
-                if (iso, reac) in self.study_case.iso_reac_list:
-                    case_vec_per_unit_lethargy += self.study_case.get_normalized_lethargy_sensitivity(iso, reac)
+                if (iso, reac) in self.appl_case.iso_reac_list:
+                    case_vec_per_unit_lethargy += self.appl_case.get_normalized_lethargy_sensitivity(iso, reac)
                 else:
                     case_vec_per_unit_lethargy += [0 for i in range(self.group_nb)]
             case_vec_per_unit_lethargy = np.array(case_vec_per_unit_lethargy)
@@ -2128,8 +2151,8 @@ class Assimilation:
         )
         # --------------------------------
         case_iso_reac = []
-        if self.study_case != None:
-            case_iso_reac = [(iso, reac) for iso, reac in self.study_case.iso_reac_list if reac != 1]
+        if self.appl_case != None:
+            case_iso_reac = [(iso, reac) for iso, reac in self.appl_case.iso_reac_list if reac != 1]
         benchs_iso_reac = [
             (iso, reac)
             for b in range(len(self.bench_cases))
@@ -2157,7 +2180,7 @@ class Assimilation:
             "Reaction": reac_str,
             "Iso_ID": [iso for iso, reac in common_iso_reac],
             "Reac_ID": [reac for iso, reac in common_iso_reac],
-            "Study_case": case_present,
+            "Appl_case": case_present,
             "Benchmark_cases": benchs_present,
             "Covariance_data": cov_present,
             "Used_in_calculation": calc_present,
@@ -2171,7 +2194,7 @@ class Assimilation:
             "white",
             "white",
             "white",
-            ["green" if p else "red" for p in iso_reac_df["Study_case"]],
+            ["green" if p else "red" for p in iso_reac_df["Appl_case"]],
             ["green" if p else "red" for p in iso_reac_df["Benchmark_cases"]],
             ["orange" if p == "added*" else "green" if p == True else "red" for p in iso_reac_df["Covariance_data"]],
             ["green" if p else "red" for p in iso_reac_df["Used_in_calculation"]],
@@ -2196,12 +2219,12 @@ class Assimilation:
             f.write(table_res)
             f.write(C3_str)
 
-            if self.study_case != None:
+            if self.appl_case != None:
                 f.write(
                     plots.create_html_tabs(
                         [
                             "Benchmark list",
-                            "Study case sensitivities",
+                            "Application case sensitivities",
                             "Uncertainty/Bias decomposition",
                             "Covariances matrix",
                             "Isotopes and reactions",
@@ -2219,8 +2242,8 @@ class Assimilation:
             f.write("</section>\n")
             f.write("</div>\n")
 
-            if self.study_case != None:
-                f.write('<div id="Study case sensitivities" class="tabcontent">\n')
+            if self.appl_case != None:
+                f.write('<div id="Application case sensitivities" class="tabcontent">\n')
                 f.write(f'<section style="background:linear-gradient(#a8b0af, white)">\n' + "<br>\n")
                 f.write(trace_case_sensi_integrals.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
                 f.write(trace_case_sensi_profiles.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
@@ -2347,14 +2370,14 @@ class Uncertainty:
         The calculated uncertainty value in pcm.
     decomposition : pd.DataFrame
         A DataFrame containing the decomposition of the uncertainty into contributions from isotopes and reactions.
-    study_case : Case
-        The study case object containing the response and sensitivity data.
+    appl_case : Case
+        The application case object containing the response and sensitivity data.
     cov_data : NDCovariances or Assimilation
         Covariance data object (NDCovariances or Assimilation object).
     __sensi_vec : np.ndarray
         The sensitivity vector.
     resp_calc : float
-        The calculated response of the study case.
+        The calculated response of the application case.
     __cov_mat : np.ndarray
         The covariance matrix.
     decomp_vec : list
@@ -2379,21 +2402,21 @@ class Uncertainty:
     """
 
     def __init__(
-        self, study_case, cov_data, sensi_vec, resp_calc, cov_mat, iso_reac_list, output_html_path=None, plotting_unit="pcm", isotopes_to_detail=[]
+        self, appl_case, cov_data, sensi_vec, resp_calc, cov_mat, iso_reac_list, output_html_path=None, plotting_unit="pcm", isotopes_to_detail=[]
     ) -> None:
         """
         Initialize the Uncertainty class.
 
         Parameters
         -----------
-        study_case : Case
-            The study case object containing the response and sensitivity data.
+        appl_case : Case
+            The application case object containing the response and sensitivity data.
         cov_data : NDCovariances or Assimilation
             Covariance data as NDCovariances object or Assimilation object.
         sensi_vec : np.ndarray
             The sensitivity vector.
         resp_calc : float
-            The calculated response of the study case.
+            The calculated response of the application case.
         cov_mat : np.ndarray
             The covariance matrix.
         iso_reac_list : list
@@ -2405,14 +2428,14 @@ class Uncertainty:
         isotopes_to_detail : list, optional
             List of isotopes (ID) to provide detailed variances-covariances (as heatmaps) in the HTML outputfile.
         """
-        self.study_case = study_case
+        self.appl_case = appl_case
         self.cov_data = cov_data
         self.iso_reac_list = iso_reac_list
         self.iso_list = list(set([iso for iso, reac in iso_reac_list]))
         self.reac_list = list(set([reac for iso, reac in iso_reac_list]))
         self.resp_calc = resp_calc
-        self.e_bins = study_case.e_bins
-        self.group_nb = self.study_case.group_nb
+        self.e_bins = appl_case.e_bins
+        self.group_nb = self.appl_case.group_nb
         self.output_html_path = output_html_path
 
         dikt = {
@@ -2441,7 +2464,7 @@ class Uncertainty:
 
             sum += unc_partial_covar
 
-            sensi_df = study_case.sensitivities
+            sensi_df = appl_case.sensitivities
 
             row = sensi_df[(sensi_df["ISO"] == iso) & (sensi_df["REAC"] == reac)]
             if len(row) != 0:
@@ -2503,18 +2526,18 @@ class Uncertainty:
         )
         text_intro += f"<h3><center>{pkg_fullname}</center></h3>"
         text_intro += f"<h2><center><u>Sandwich formula results</u></center></h2>"
-        text_intro += f"<h3>Study case : {self.study_case.casename}</h3>"
+        text_intro += f"<h3>Application case : {self.appl_case.casename}</h3>"
 
         # --------------------------------
         headers = [
-            "Calculated response of study case",
+            "Calculated response of application case",
             "Uncertainty a priori",
             "Energy groups number",
         ]
         headers = ["<b>" + h + ":</b>" for h in headers]
 
         results = [
-            f"{self.resp_calc} +/- {self.study_case.sigma_resp_calc}",
+            f"{self.resp_calc} +/- {self.appl_case.sigma_resp_calc}",
             f"{int(round(self.value))} pcm",
             self.group_nb,
         ]
@@ -2534,7 +2557,7 @@ class Uncertainty:
             iso_reac_list=self.iso_reac_list,
             group_nb=self.group_nb,
             factor=val_factor,
-            title="Study case sensitivities (integrals)",
+            title="Application case sensitivities (integrals)",
             yaxis_title=f"Sensitivity ({unit_str}/%[ND] - group-wise integral)",
         )
         trace_case_sensi_integrals.update_layout(
@@ -2552,7 +2575,7 @@ class Uncertainty:
             iso_reac_list=self.iso_reac_list,
             e_bins=self.e_bins,
             factor=val_factor,
-            title="Study case sensitivities",
+            title="Application case sensitivities",
             yaxis_title=f"Sensitivity ({unit_str}/%[ND])",
         )
         trace_case_sensi_profiles.update_layout(
@@ -2568,7 +2591,7 @@ class Uncertainty:
         case_vec_per_unit_lethargy = []
         for iso, reac in self.iso_reac_list:
             try:
-                case_vec_per_unit_lethargy += self.study_case.get_normalized_lethargy_sensitivity(iso, reac)
+                case_vec_per_unit_lethargy += self.appl_case.get_normalized_lethargy_sensitivity(iso, reac)
             except errors.MissingDataError:
                 case_vec_per_unit_lethargy += [0 for i in range(self.group_nb)]
         case_vec_per_unit_lethargy = np.array(case_vec_per_unit_lethargy)
@@ -2682,8 +2705,8 @@ class Uncertainty:
             }
         )
         # --------------------------------
-        case_iso = [iso for iso, reac in self.study_case.iso_reac_list if reac != 1]
-        case_reac = [reac for iso, reac in self.study_case.iso_reac_list if reac != 1]
+        case_iso = [iso for iso, reac in self.appl_case.iso_reac_list if reac != 1]
+        case_reac = [reac for iso, reac in self.appl_case.iso_reac_list if reac != 1]
         case_iso_str = [methods.convert_iso_id_to_string(iso) for iso in case_iso]
         case_reac_str = [methods.reac_trad.get(str(reac), f"REAC_{reac}") for reac in case_reac]
 
@@ -2732,9 +2755,13 @@ class Uncertainty:
             f.writelines(HTML_intro)
             f.write(text_intro)
             f.write(table_res)
-            f.write(plots.create_html_tabs(["Study case sensitivities", "Uncertainty decomposition", "Covariances matrix", "Isotopes and reactions"]))
+            f.write(
+                plots.create_html_tabs(
+                    ["Application case sensitivities", "Uncertainty decomposition", "Covariances matrix", "Isotopes and reactions"]
+                )
+            )
 
-            f.write('<div id="Study case sensitivities" class="tabcontent">\n')
+            f.write('<div id="Application case sensitivities" class="tabcontent">\n')
             f.write(f'<section style="background:linear-gradient(#a8b0af, white)">\n' + "<br>\n")
             f.write(trace_case_sensi_integrals.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
             f.write(trace_case_sensi_profiles.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "\n<br>\n")
@@ -2794,7 +2821,7 @@ class Uncertainty:
 
             f.write('<div id="Isotopes and reactions" class="tabcontent">\n')
             f.write(f'<section style="background:linear-gradient(#809684, white)">\n' + "<br>\n")
-            f.write(f'<h2 style="text-align: center;">Isotopes and reactions in study case :</h2>')
+            f.write(f'<h2 style="text-align: center;">Isotopes and reactions in application case :</h2>')
             f.write(table_iso_reac.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
             f.write("</section>\n")
             f.write("</div>\n")
@@ -2817,10 +2844,10 @@ class Bias:
         DataFrame containing the decomposition of the bias into contributions from isotopes and reactions.
     decomp_vec : list
         List of contributions to the bias from every isotopes, reactions and energy group (last step of vectors multiplication, before summing).
-    study_case : Case
-        The study case object containing the response and sensitivity data.
+    appl_case : Case
+        The application case object containing the response and sensitivity data.
     resp_calc : float
-        The calculated response of the study case.
+        The calculated response of the application case.
     iso_reac_list : list
         List of isotopes and reactions taken into account.
     iso_list : list
@@ -2835,15 +2862,15 @@ class Bias:
         Path to save the output HTML file.
     """
 
-    def __init__(self, study_case, sensi_vec, resp_calc, delta_mu, iso_reac_list) -> None:
+    def __init__(self, appl_case, sensi_vec, resp_calc, delta_mu, iso_reac_list) -> None:
 
-        self.study_case = study_case
+        self.appl_case = appl_case
         self.iso_reac_list = iso_reac_list
         self.iso_list = list(set([iso for iso, reac in iso_reac_list]))
         self.reac_list = list(set([reac for iso, reac in iso_reac_list]))
         self.resp_calc = resp_calc
-        self.e_bins = study_case.e_bins
-        self.group_nb = self.study_case.group_nb
+        self.e_bins = appl_case.e_bins
+        self.group_nb = self.appl_case.group_nb
 
         dikt = {
             "ISO": [],
@@ -2869,7 +2896,7 @@ class Bias:
 
             sum += bias_partial
 
-            sensi_df = study_case.sensitivities
+            sensi_df = appl_case.sensitivities
 
             row = sensi_df[(sensi_df["ISO"] == iso) & (sensi_df["REAC"] == reac)]
             if len(row) != 0:

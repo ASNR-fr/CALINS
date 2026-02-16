@@ -5,8 +5,8 @@ Assimilate experimental benchmark data using GLLSM:
 ```python
 import calins as cl
 
-# Define study case
-study_case = cl.Case('path/to/study_case.sdf')
+# Define application case
+appl_case = cl.Case('path/to/appl_case.sdf')
 
 # Define benchmark cases
 benchmarks = [
@@ -20,7 +20,7 @@ cov_data = cl.NDCovariances(input_path='path/to/covariance', format='auto')  # a
 
 # Perform assimilation
 assimilation = cl.Assimilation(
-    study_case=study_case,
+    appl_case=appl_case,
     benchmarks_list=benchmarks,
     cov_data=cov_data,  # NDCovariances object
     reac_list=[2, 4, 16, 18, 101, 452, 1018],

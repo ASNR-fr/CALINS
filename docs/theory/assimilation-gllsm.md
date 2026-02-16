@@ -9,20 +9,20 @@ The GLLSM method consists in assimilating experiences (also called "benchmark" c
 ---
 
 This assimilation method yields:
-1. **Global nuclear data variation vector** ($\Delta\mu_{ND}$): Derived from assimilated benchmarks, enabling posterior bias prediction Δresp<sup>post</sup> for a study case whose response is not known experimentally (vector $S_{\text{cas}}$)
-2. **Adjusted covariance matrix** ($Cov'$): Enabling posterior uncertainty calculation σ<sub>resp</sub><sup>ND post</sup> for a study case ($S_{\text{cas}}$) using the sandwich formula
+1. **Global nuclear data variation vector** ($\Delta\mu_{ND}$): Derived from assimilated benchmarks, enabling posterior bias prediction Δresp<sup>post</sup> for an application case whose response is not known experimentally (vector $S_{\text{cas}}$)
+2. **Adjusted covariance matrix** ($Cov'$): Enabling posterior uncertainty calculation σ<sub>resp</sub><sup>ND post</sup> for an application case ($S_{\text{cas}}$) using the sandwich formula
 
 The validity domain of this method is defined by several hypotheses:
 - The total calculation bias is mostly composed of Δ<sub>resp</sub><sup>ND</sup> (verified especially for pointwise Monte Carlo calculations)
 - The response variation caused by small variations in nuclear data is reasonably linear
-- The study case is similar in sensitivity to the assimilated benchmarks (similarity is discussed below)
+- The application case is similar in sensitivity to the assimilated benchmarks (similarity is discussed below)
 
 ## Pre-sorting of benchmark cases to assimilate
 
-The impact of benchmarks on posterior uncertainty σ<sub>resp</sub><sup>ND post</sup> depends on similarity to the study case (fissile material, moderator, spectrum).
-It is possible to pre-sort experiments to assimilate based on these physical criteria. For example, ICSBEP classifications already help pre-select benchmark cases similar to you study case.
+The impact of benchmarks on posterior uncertainty σ<sub>resp</sub><sup>ND post</sup> depends on similarity to the application case (fissile material, moderator, spectrum).
+It is possible to pre-sort experiments to assimilate based on these physical criteria. For example, ICSBEP classifications already help pre-select benchmark cases similar to your application case.
 
-Similarity indicators (E, Ck, G, SSR, etc.) can also be computed between sensitivity vectors. They help pre-sort benchmarks, which, once assimilated, will best impact the posterior uncertainty of the study case.
+Similarity indicators (E, Ck, G, SSR, etc.) can also be computed between sensitivity vectors. They help pre-sort benchmarks, which, once assimilated, will best impact the posterior uncertainty of the application case.
 
 These indicators should be calculated for each benchmark to add to the assimilation list.
 
@@ -73,13 +73,17 @@ ${S_{ref}}$: reference sensitivity vector  ${S_{comp}}$: comparison sensitivity 
 - the "benchmark sensitivity matrix" $S_{\text{bench}} = ..|S_{\text{bench}}^j | S_{\text{bench}}^{j+1} | ..$ built from the sensitivity vectors $S_{\text{bench}}^j$ (j: benchmark index)
 ![](../images/Image_maker/Diapositive7.PNG)
 
-⚠️Note that the $Cov$ matrix depends on the benchmarks used. It is defined by the union of isotope-reaction pairs present in the benchmarks and the case under study.
+⚠️Note that the $Cov$ matrix depends on the benchmarks used. It is defined by the union of isotope-reaction pairs present in the benchmarks and the application case.
 
 ***
 
 **Global nuclear data variation vector (from assimilated benchmarks) $\Delta\mu_{ND}$:**
 
-$$ \Delta\mu_{ND} = - Cov \cdot S_{\text{bench}}^t \cdot  (C_{\text{bench}}+S_{\text{bench}} \cdot Cov \cdot S_{\text{bench}}^t)^{-1} \cdot \Delta k_{C/E \text{ bench}} $$
+$$ \Delta\mu_{ND} = Cov \cdot S_{\text{bench}}^t \cdot  (C_{\text{bench}}+S_{\text{bench}} \cdot Cov \cdot S_{\text{bench}}^t)^{-1} \cdot (- \Delta k_{C/E \text{ bench}}) $$
+
+**Application case to experiments weighting vector:** dimmesion: J = number of experiments
+
+$$ \lambda_{J} =  S_{\text{cas}} \cdot Cov \cdot S_{\text{bench}}^t \cdot  (C_{\text{bench}}+S_{\text{bench}} \cdot Cov \cdot S_{\text{bench}}^t)^{-1} $$
 
 **Adjusted covariance matrix $Cov'$:**
 
@@ -94,13 +98,18 @@ The required inversion is not always mathematically possible. The impact of inve
 **A posteriori bias Δresp<sup>post</sup>**, deviation $(k_{eff}^{expe}-k_{eff}^{calc}) \over k_{eff}^{calc}$ (unit: %, value relative to the calculated response):
 
 $$ \Delta \text{resp}^{\text{post}} = S_{\text{cas}} \cdot \Delta\mu_{ND} $$
+$$ \Delta \text{resp}^{\text{post}} = \lambda_{B} \cdot (- \Delta k_{C/E \text{ bench}}) $$
+
+**Application case bias population standard deviation**
+
+$$ \sigma_{\text{bias}}^{\text{pop, appl}} = \sqrt{ \sum_{j}^{}\lambda_{j}^2 \cdot (\sigma_{\text{exp}}^{\text{j}}² + \sigma_{\text{resp}}^{\text{ND prior, appl}})}$
 
 **A priori uncertainty** (unit: %, value relative to the calculated response):
 
-$$ \sigma_{\text{resp}}^{\text{ND prior}} = \sqrt{S_{\text{cas}} \cdot Cov \cdot S_{\text{cas}}^t} $$
+$$ \sigma_{\text{resp}}^{\text{ND prior, appl}} = \sqrt{S_{\text{cas}} \cdot Cov \cdot S_{\text{cas}}^t} $$
 
 **A posteriori uncertainty** (unit: %, value relative to the calculated response):
 
-$$ \sigma_{\text{resp}}^{\text{ND post}} = \sqrt{S_{\text{cas}} \cdot Cov' \cdot S_{\text{cas}}^t} $$
+$$ \sigma_{\text{resp}}^{\text{ND post, appl}} = \sqrt{S_{\text{cas}} \cdot Cov' \cdot S_{\text{cas}}^t} $$
 
 ***

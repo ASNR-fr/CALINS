@@ -1,6 +1,6 @@
 # Creating a Case Object
 
-A `Case` object represents a study case or benchmark with sensitivity data:
+A `Case` object represents a application case or benchmark with sensitivity data:
 
 ```python
 import calins as cl

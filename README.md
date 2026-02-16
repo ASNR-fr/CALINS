@@ -145,7 +145,7 @@ This section provides practical examples for common CALINS operations. For compr
 
 ## Creating a Case Object
 
-A `Case` object represents a study case or benchmark with sensitivity data:
+A `Case` object represents an application case or benchmark with sensitivity data:
 
 ```python
 import calins as cl
@@ -189,7 +189,7 @@ sensi_file_path = 'path/to/sensitivity.sdf'
 
 # Calculate a priori uncertainty
 uncertainty = cl.calcul_uncertainty(
-    study_case=sensi_file_path,  # Can also be a Case object
+    appl_case=sensi_file_path,  # Can also be a Case object
     cov_data=cov_data,
     reac_list=[2, 4, 16, 18, 102, 103, 452, 1018],
     output_html_path='uncertainty_report.html'
@@ -229,7 +229,7 @@ Ck_index = cl.calcul_Ck(case1, case2, cov_data, reac_list=[2, 4, 16, 18, 102, 10
 print(f"C_k similarity index: {Ck_index}")
 
 # Calculate SSR index (Shared Sensitivity Ratio)
-SSR_index = cl.calcul_SSR(study_case=case1, bench_case=case2, reference=case1, reac_list=[2, 4, 16, 18, 102, 103, 452, 1018])
+SSR_index = cl.calcul_SSR(appl_case=case1, bench_case=case2, reference=case1, reac_list=[2, 4, 16, 18, 102, 103, 452, 1018])
 print(f"SSR index: {SSR_index}")
 ```
 
@@ -240,8 +240,8 @@ Assimilate experimental benchmark data using GLLSM:
 ```python
 import calins as cl
 
-# Define study case
-study_case = cl.Case('path/to/study_case.sdf')
+# Define application case
+appl_case = cl.Case('path/to/appl_case.sdf')
 
 # Define benchmark cases
 benchmarks = [
@@ -255,7 +255,7 @@ cov_data = cl.NDCovariances(input_path='path/to/covariance', format='auto')
 
 # Perform assimilation
 assimilation = cl.Assimilation(
-    study_case=study_case,
+    appl_case=appl_case,
     benchmarks_list=benchmarks,
     cov_data=cov_data,
     chi2_threshold=1.5,  # Optional: chi-squared filtering threshold
@@ -430,19 +430,19 @@ The GLLSM method consists in assimilating experiences (also called "benchmark" c
 
 ---
 This assimilation method yields:
-1. **Global nuclear data variation vector** ($\Delta\mu_{XS}$): Derived from assimilated benchmarks, enabling posterior bias prediction Δresp<sup>post</sup> for a study case whose response is not known experimentally (vector $S_{cas}$)
-2. **Adjusted covariance matrix** ($Cov'$): Enabling posterior uncertainty calculation σ<sub>resp</sub><sup>ND post</sup> for a study case ($S_{cas}$) using the sandwich formula
+1. **Global nuclear data variation vector** ($\Delta\mu_{XS}$): Derived from assimilated benchmarks, enabling posterior bias prediction Δresp<sup>post</sup> for an application case whose response is not known experimentally (vector $S_{cas}$)
+2. **Adjusted covariance matrix** ($Cov'$): Enabling posterior uncertainty calculation σ<sub>resp</sub><sup>ND post</sup> for an application case ($S_{cas}$) using the sandwich formula
 
 The validity domain of this method is defined by several hypotheses:
 - The total calculation bias is mostly composed of Δ<sub>resp</sub><sup>ND</sup> (verified especially for pointwise Monte Carlo calculations)
 - The response variation caused by small variations in nuclear data is reasonably linear
-- The study case is similar in sensitivity to the assimilated benchmarks (similarity is discussed below)
+- The application case is similar in sensitivity to the assimilated benchmarks (similarity is discussed below)
 
 ### **Pre-sorting of benchmark cases to assimilate**
-The impact of benchmarks on posterior uncertainty σ<sub>resp</sub><sup>ND post</sup> depends on similarity to the study case (fissile material, moderator, spectrum).
-It is possible to pre-sort experiments to assimilate based on these physical criteria. For example, ICSBEP classifications already help pre-select benchmark cases similar to you study case.
+The impact of benchmarks on posterior uncertainty σ<sub>resp</sub><sup>ND post</sup> depends on similarity to the application case (fissile material, moderator, spectrum).
+It is possible to pre-sort experiments to assimilate based on these physical criteria. For example, ICSBEP classifications already help pre-select benchmark cases similar to you application case.
 
-Similarity indicators (E, Ck, G, SSR, etc.) can also be computed between sensitivity vectors. They help pre-sort benchmarks, which, once assimilated, will best impact the posterior uncertainty of the study case.
+Similarity indicators (E, Ck, G, SSR, etc.) can also be computed between sensitivity vectors. They help pre-sort benchmarks, which, once assimilated, will best impact the posterior uncertainty of the application case.
 
 These indicators should be calculated for each benchmark to add to the assimilation list.
 
@@ -489,7 +489,7 @@ ${S_{ref}}$: reference sensitivity vector  ${S_{comp}}$: comparison sensitiv
 - the "benchmark sensitivity matrix" $S_{bench} = ..|S_{bench}^j | S_{bench}^{j+1} | ..$ built from the sensitivity vectors $S_{bench}^j$ (j: benchmark index)
 ![](./docs/images/Image_maker/Diapositive7.PNG)
 
-⚠️Note that the $Cov$ matrix depends on the benchmarks used. It is defined by the union of isotope-reaction pairs present in the benchmarks and the case under study.
+⚠️Note that the $Cov$ matrix depends on the benchmarks used. It is defined by the union of isotope-reaction pairs present in the benchmarks and the case under application.
 
 ***
 
@@ -519,7 +519,7 @@ $$ {σ_{resp}}^{ND~ post} = \sqrt{{S_{cas}} \space · \space Cov' \space · \spa
 ***
 
 ## **Reflections on experimental correlations**
-Given the methodology presented above, setting experimental correlations to zero has several consequences. It has been observed that an assimilation including multiple instances of the exact same benchmark case yields a lower posterior uncertainty and a different bias than an assimilation including that benchmark only once. This effect arises from the assumption that these multiple experiments are uncorrelated. In reality, the fact that the same experiment was conducted several times and that all realizations are assimilated should not impact the uncertainty calculation for the study case, since no new information is truly added apart from the repetition itself—a fact that should not affect the study case, except if one deliberately intends to give more weight to an experiment repeated more often than another.
+Given the methodology presented above, setting experimental correlations to zero has several consequences. It has been observed that an assimilation including multiple instances of the exact same benchmark case yields a lower posterior uncertainty and a different bias than an assimilation including that benchmark only once. This effect arises from the assumption that these multiple experiments are uncorrelated. In reality, the fact that the same experiment was conducted several times and that all realizations are assimilated should not impact the uncertainty calculation for the application case, since no new information is truly added apart from the repetition itself—a fact that should not affect the application case, except if one deliberately intends to give more weight to an experiment repeated more often than another.
 
 This raises the issue of similarity between assimilated benchmarks when the GLLS method is applied. If several experiments intrinsically share very similar sensitivities and responses (both experimental and calculated)—for instance, experiments from the same series—then neglecting correlations biases the assimilation process. This appears to result in an overestimation of posterior uncertainty and an inaccurate evaluation of the associated bias.
 
@@ -627,9 +627,9 @@ The *methods* module also contains various utility functions :
 ## **classes.py**
 
 ### **Case**
-The *Case* object allows building a study case (or benchmark case) from a sensitivity file (*.sdf*) and storing the relevant data associated with the case. Using an object makes this information easily accessible. The available attributes are as follows:
+The *Case* object allows building an application case (or benchmark case) from a sensitivity file (*.sdf*) and storing the relevant data associated with the case. Using an object makes this information easily accessible. The available attributes are as follows:
 - *case.sdf_path*: path to the case;
-- *case.casename*: name of the study case (initialized as the base name of the *.sdf* file path);
+- *case.casename*: name of the application case (initialized as the base name of the *.sdf* file path);
 - *case.group_nb*: number of energy groups in the used mesh;
 - *case.e_bins*: energy group boundaries of the used mesh;
 - *case.iso_reac_list*: list of isotope-reaction pairs for which data are available in the sensitivity file, in the form of isotope and reaction ID numbers;
@@ -655,7 +655,7 @@ The object supports automatic format detection and provides a `write_xlsx()` met
 
 ### **Uncertainty**
 The *Uncertainty* object allows calculating an (absolute) uncertainty using the Sandwich formula and storing several properties related to this calculation. This object takes as input a sensitivity vector and a covariance matrix, already built as Numpy arrays, as well as the number of energy groups and the isotope-reaction list describing the construction of the vector and matrix. The available attributes are:
-- *Uncertainty.resp_calc*: calculated response value of the study case;
+- *Uncertainty.resp_calc*: calculated response value of the application case;
 - *Uncertainty.value*: calculated absolute uncertainty, in pcm;
 - *Uncertainty.group_nb*: number of energy groups in the used mesh;
 - *Uncertainty.e_bins*: energy group boundaries of the used mesh;
@@ -685,7 +685,7 @@ The *Uncertainty* object has a function to display and/or save several analysis 
   - the uncertainty;
   - the calculated response value and its calculation-scheme uncertainty;
   - the number of energy groups;
-  - the sensitivity vector of the study case;
+  - the sensitivity vector of the application case;
   - decomposition of uncertainty by isotope-reaction pair;
   - histograms of the covariance matrix integrals per isotope-reaction pair;
   - sub-matrices of covariances for user-selected isotope-reaction pairs.
@@ -694,7 +694,7 @@ Finally, the *Uncertainty* object is invoked in the *calcul_uncertainty(...)* fu
 
 ### **Bias**
 The *Bias* object is similar to the *Uncertainty* object. It allows computing the posterior bias \(\Delta resp^{post}\) using the bias formula (see chapter *THEORY*) and stores the same attributes as the *Uncertainty* object regarding the calculation. This object takes as input a sensitivity vector and the global nuclear data variation vector \(\Delta\mu_{XS}\) (after assimilation), already built as Numpy arrays, as well as the number of energy groups and isotope-reaction list describing the construction of the vectors. The available attributes are:
-- *Bias.resp_calc*: calculated response value of the study case;
+- *Bias.resp_calc*: calculated response value of the application case;
 - *Bias.value*: calculated absolute bias, in pcm;
 - *Bias.group_nb*: number of energy groups in the used mesh;
 - *Bias.e_bins*: energy group boundaries of the used mesh;
@@ -724,11 +724,11 @@ Finally, the *Bias* object is only invoked as a property of the *Assimilation* o
 ---
 
 ### **Assimilation**
-The *Assimilation* object performs GLLSM based on a list of benchmark cases, a study case, and a covariance matrix. Benchmark cases and the study case can be either paths to *SDF* files or *Case* objects. The covariance data can be provided as an *NDCovariances* object (recommended), a *DataFrame* (alternative), or an *Assimilation* object. This class uses functions from *methods*, *plots*, and *errors* to format the data, build vector/matrix objects, performs assimilation through GLLSM, and display useful data as plots.
+The *Assimilation* object performs GLLSM based on a list of benchmark cases, an application case, and a covariance matrix. Benchmark cases and the application case can be either paths to *SDF* files or *Case* objects. The covariance data can be provided as an *NDCovariances* object (recommended), a *DataFrame* (alternative), or an *Assimilation* object. This class uses functions from *methods*, *plots*, and *errors* to format the data, build vector/matrix objects, performs assimilation through GLLSM, and display useful data as plots.
 
 Initialization of an *Assimilation* object consists of several main steps:
-1. Formatting sensitivity data (benchmarks and study case) into a DataFrame;
-2. Constructing the benchmark sensitivity matrix, the study case sensitivity vector, and the covariance matrix, following the same isotope-reaction order;
+1. Formatting sensitivity data (benchmarks and application case) into a DataFrame;
+2. Constructing the benchmark sensitivity matrix, the application case sensitivity vector, and the covariance matrix, following the same isotope-reaction order;
 3. Constructing the benchmark response uncertainty matrix and the benchmark C/E vector, following the same benchmark case order;
 4. *self.check_dimensions()* & *check_correspondences()*: verifying consistency of all vector/matrix dimensions and generating warnings for high sensitivities lacking variance-covariance data;
 5. *self.calcul_prior_uncertainty()*: calculation and creation of an *Uncertainty* object;
@@ -737,14 +737,14 @@ Initialization of an *Assimilation* object consists of several main steps:
 8. *self.calcul_post_uncertainty()*: calculation and creation of an *Uncertainty* object.
 
 The *Assimilation* object has two functions to display and/or save several analysis elements in *.html* format:
-- the sensitivity vector of the study case;
+- the sensitivity vector of the application case;
 - an output file including all assimilation parameters:
   - prior and posterior uncertainties, as well as bias;
   - initial and final \(\chi^2\) values;
   - number of removed benchmark cases;
   - number of energy groups;
-  - list of benchmark cases with paths, calculated and experimental response values, ND prior and posterior uncertainty and bias, individual \(\chi^2\), similarity coefficients Ck with the study case, and a red background for excluded cases;
-  - sensitivity vector of the study case;
+  - list of benchmark cases with paths, calculated and experimental response values, ND prior and posterior uncertainty and bias, individual \(\chi^2\), similarity coefficients Ck with the application case, and a red background for excluded cases;
+  - sensitivity vector of the application case;
   - decomposition by isotope-reaction pair for the two uncertainties and bias;
   - histograms of covariance matrix integrals per isotope-reaction pair, and of \(\Delta Cov_{assim}\) for comparison;
   - sub-matrices of covariances and \(\Delta Cov_{assim}\) for user-selected isotope-reaction pairs.
@@ -754,7 +754,7 @@ The *Assimilation* object has two functions to display and/or save several analy
 The functions use the *Plotly* visualization package (v5.14), especially its *plotly.express* module. This package is ergonomic and explicit, allowing manipulation of each graph as a batch of HTML data, enabling the combination of multiple graphs in a single *.html* file if needed.
 
 *Plots* functions are intended for use within objects but can also be used independently by users. Several functions are provided for different types of graphs:
-- histogram of sensitivities for a study case, for each isotope and isotopic reaction;
+- histogram of sensitivities for an application case, for each isotope and isotopic reaction;
 - histogram of integral covariances of a matrix for each isotope and isotopic reaction;
 - 2D colormap of a covariance sub-matrix for a given pair of (iso-reac)<sup>h</sup> - (iso-reac)<sup>v</sup>;
 - HTML table generated from data in list format.
