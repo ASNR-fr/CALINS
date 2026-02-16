@@ -9,8 +9,8 @@ The GLLSM method consists in assimilating experiences (also called "benchmark" c
 ---
 
 This assimilation method yields:
-1. **Global nuclear data variation vector** ($\Delta\mu_{ND}$): Derived from assimilated benchmarks, enabling posterior bias prediction Δresp<sup>post</sup> for an application case whose response is not known experimentally (vector $S_{\text{cas}}$)
-2. **Adjusted covariance matrix** ($Cov'$): Enabling posterior uncertainty calculation σ<sub>resp</sub><sup>ND post</sup> for an application case ($S_{\text{cas}}$) using the sandwich formula
+1. **Global nuclear data variation vector** ($\Delta\mu_{ND}$): Derived from assimilated benchmarks, enabling posterior bias prediction Δresp<sup>post</sup> for an application case whose response is not known experimentally (vector $S_{\text{appl}}$)
+2. **Adjusted covariance matrix** ($Cov'$): Enabling posterior uncertainty calculation σ<sub>resp</sub><sup>ND post</sup> for an application case ($S_{\text{appl}}$) using the sandwich formula
 
 The validity domain of this method is defined by several hypotheses:
 - The total calculation bias is mostly composed of Δ<sub>resp</sub><sup>ND</sup> (verified especially for pointwise Monte Carlo calculations)
@@ -83,7 +83,7 @@ $$ \Delta\mu_{ND} = Cov \cdot S_{\text{bench}}^t \cdot  (C_{\text{bench}}+S_{\te
 
 **Application case to experiments weighting vector:** dimmesion: J = number of experiments
 
-$$ \lambda_{J} =  S_{\text{cas}} \cdot Cov \cdot S_{\text{bench}}^t \cdot  (C_{\text{bench}}+S_{\text{bench}} \cdot Cov \cdot S_{\text{bench}}^t)^{-1} $$
+$$ \lambda_{J} =  S_{\text{appl}} \cdot Cov \cdot S_{\text{bench}}^t \cdot  (C_{\text{bench}}+S_{\text{bench}} \cdot Cov \cdot S_{\text{bench}}^t)^{-1} $$
 
 **Adjusted covariance matrix $Cov'$:**
 
@@ -97,19 +97,19 @@ The required inversion is not always mathematically possible. The impact of inve
 
 **A posteriori bias Δresp<sup>post</sup>**, deviation $(k_{eff}^{expe}-k_{eff}^{calc}) \over k_{eff}^{calc}$ (unit: %, value relative to the calculated response):
 
-$$ \Delta \text{resp}^{\text{post}} = S_{\text{cas}} \cdot \Delta\mu_{ND} $$
+$$ \Delta \text{resp}^{\text{post}} = S_{\text{appl}} \cdot \Delta\mu_{ND} $$
 $$ \Delta \text{resp}^{\text{post}} = \lambda_{B} \cdot (- \Delta k_{C/E \text{ bench}}) $$
 
-**Application case bias population standard deviation**
+**Application bias population standard deviation**
 
 $$ \sigma_{\text{bias}}^{\text{pop, appl}} = \sqrt{ \sum_{j}^{}\lambda_{j}^2 \cdot (\sigma_{\text{exp}}^{\text{j}}² + \sigma_{\text{resp}}^{\text{ND prior, appl}})}$
 
 **A priori uncertainty** (unit: %, value relative to the calculated response):
 
-$$ \sigma_{\text{resp}}^{\text{ND prior, appl}} = \sqrt{S_{\text{cas}} \cdot Cov \cdot S_{\text{cas}}^t} $$
+$$ \sigma_{\text{resp}}^{\text{ND prior, appl}} = \sqrt{S_{\text{appl}} \cdot Cov \cdot S_{\text{appl}}^t} $$
 
 **A posteriori uncertainty** (unit: %, value relative to the calculated response):
 
-$$ \sigma_{\text{resp}}^{\text{ND post, appl}} = \sqrt{S_{\text{cas}} \cdot Cov' \cdot S_{\text{cas}}^t} $$
+$$ \sigma_{\text{resp}}^{\text{ND post, appl}} = \sqrt{S_{\text{appl}} \cdot Cov' \cdot S_{\text{appl}}^t} $$
 
 ***

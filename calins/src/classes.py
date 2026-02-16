@@ -1741,41 +1741,6 @@ class Assimilation:
             showlegend=True,
         )
 
-        x_data_3s = x_data
-        y_data_3s = (
-            y_data
-            + 3
-            * np.sqrt(
-                (bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5) ** 2 + bench_list_included["UNC_PRIOR (pcm)"].astype(float) ** 2
-            ).values
-        )
-
-        coeffs_3s = np.polyfit(x_data_3s, y_data_3s, 1)
-        y_extrapolated_3s = coeffs_3s[0] * 1.0 + coeffs_3s[1]
-
-        x_trendline_3s = np.linspace(min(x_data_3s), 1.0, 100)
-        y_trendline_3s = coeffs_3s[0] * x_trendline_3s + coeffs_3s[1]
-
-        trace_sim.add_scatter(
-            x=x_trendline_3s,
-            y=y_trendline_3s,
-            mode="lines",
-            line=dict(dash="dash", color="green"),
-            name="Conservative linear extrapolation of bias + 3*sigma",
-            showlegend=True,
-        )
-
-        trace_sim.add_scatter(
-            x=[1.0],
-            y=[y_extrapolated_3s],
-            mode="markers+text",
-            marker=dict(size=10, color="green", symbol="star"),
-            text=[f"{y_extrapolated_3s:.1f} pcm"],
-            textposition="bottom center",
-            name="Conservative extrapolated bias+3*sigma to Ck=1",
-            showlegend=True,
-        )
-
         trace_sim.update_yaxes(title_text="E - C (pcm) (3 sigma=sqrt(expe²+ND²))")
         trace_sim.update_traces(marker_size=8, error_y_thickness=0.5)
         trace_sim.update_layout(
