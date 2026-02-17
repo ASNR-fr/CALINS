@@ -1664,7 +1664,7 @@ class Assimilation:
             C3_str += f"With a coverage parameter K<sub>95/95</sub> of {self.K_95_95():.2f} (95% quantile of noncentral t-distribution), there is <u>95% confidence that at least 95% of the population of the application responses satisfy:</u><br>\n<b>RESPONSE < Resp<sup>calc</sup> + Bias + K<sub>95/95</sub> x σ<sub>bias</sub><sup>appl, pop</sup> = {self.USL_95_95:.5f} </b><br>\n\
                 For a conservative coverage parameter K of 2: RESPONSE < {resp_threshold_2:.5f}\n"
         else:
-            C3_str = f"The adjustment shows a poor consistency among the adjusted benchmark biases (Χ² a posteriori : {self.post_chi2:.2f} > 1.2).<br>Consider checking your covariance data, or increasing your targetted chi2 threshold to remove more inconsistent benchmarks from the assimilation process.\n"
+            C3_str += f"The adjustment shows a poor consistency among the adjusted benchmark biases (Χ² a posteriori : {self.post_chi2:.2f} > 1.2).<br>Consider checking your covariance data, or increasing your targetted chi2 threshold to remove more inconsistent benchmarks from the assimilation process.\n"
         C3_str += "</div><hr width='60%' />"
 
         # --------------------------------
@@ -1722,6 +1722,7 @@ class Assimilation:
             }
         )
 
+        # --------------------------------
         trace_sim = px.scatter(
             bench_list_included,
             x="Ck",
@@ -1732,46 +1733,51 @@ class Assimilation:
             title="Benchmark cases similarity with application case (Ck) vs bias (E-C)",
         )
 
-        x_data = bench_list_included["Ck"].values
-        y_data = bench_list_included["E - C_PRIOR (pcm)"].values
-        y_unc = np.sqrt((bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5) ** 2 + bench_list_included["UNC_PRIOR (pcm)"].astype(float) ** 2)
-        unc_weights = 1.0 / (y_unc**2)
+        trace_sim = None
+        if len(bench_list_included) > 1:
+            x_data = bench_list_included["Ck"].values
+            y_data = bench_list_included["E - C_PRIOR (pcm)"].values
+            y_unc = np.sqrt(
+                (bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5) ** 2 + bench_list_included["UNC_PRIOR (pcm)"].astype(float) ** 2
+            )
+            unc_weights = 1.0 / (y_unc**2)
 
-        coeffs, cov = np.polyfit(x_data, y_data, 1, w=unc_weights, cov=True)
-        x_extrapolated = 1.0
-        y_extrapolated = coeffs[0] * x_extrapolated + coeffs[1]
-        sigma_y_extrap = np.sqrt((x_extrapolated**2 * cov[0, 0]) + (2 * x_extrapolated * cov[0, 1]) + cov[1, 1])
+            coeffs, cov = np.polyfit(x_data, y_data, 1, w=unc_weights, cov=True)
+            x_extrapolated = 1.0
+            y_extrapolated = coeffs[0] * x_extrapolated + coeffs[1]
+            sigma_y_extrap = np.sqrt((x_extrapolated**2 * cov[0, 0]) + (2 * x_extrapolated * cov[0, 1]) + cov[1, 1])
 
-        x_trendline = np.linspace(min(x_data), 1.0, 100)
-        y_trendline = coeffs[0] * x_trendline + coeffs[1]
-        trace_sim.add_scatter(
-            x=x_trendline, y=y_trendline, mode="lines", line=dict(dash="dash", color="gray"), name="Linear extrapolation", showlegend=True
-        )
+            x_trendline = np.linspace(min(x_data), 1.0, 100)
+            y_trendline = coeffs[0] * x_trendline + coeffs[1]
+            trace_sim.add_scatter(
+                x=x_trendline, y=y_trendline, mode="lines", line=dict(dash="dash", color="gray"), name="Linear extrapolation", showlegend=True
+            )
 
-        trace_sim.add_scatter(
-            x=[1.0],
-            y=[y_extrapolated],
-            error_y=dict(type="data", array=[3 * sigma_y_extrap], visible=True),
-            mode="markers+text",
-            marker=dict(size=10, color="gray", symbol="star"),
-            text=[f"{y_extrapolated:.0f} pcm"],
-            textposition="top center",
-            name="Extrapolated bias to Ck=1",
-            showlegend=True,
-        )
+            trace_sim.add_scatter(
+                x=[1.0],
+                y=[y_extrapolated],
+                error_y=dict(type="data", array=[3 * sigma_y_extrap], visible=True),
+                mode="markers+text",
+                marker=dict(size=10, color="gray", symbol="star"),
+                text=[f"{y_extrapolated:.0f} pcm"],
+                textposition="top center",
+                name="Extrapolated bias to Ck=1",
+                showlegend=True,
+            )
 
-        trace_sim.update_yaxes(title_text="E - C (pcm) (3 sigma=sqrt(expe²+ND²))")
-        trace_sim.update_traces(marker_size=8, error_y_thickness=0.5)
-        trace_sim.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+            trace_sim.update_yaxes(title_text="E - C (pcm) (3 sigma=sqrt(expe²+ND²))")
+            trace_sim.update_traces(marker_size=8, error_y_thickness=0.5)
+            trace_sim.update_layout(
+                {
+                    "height": plot_height,
+                    "width": plot_width,
+                    "font_size": font_size,
+                    "template": plotly_template,
+                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+                }
+            )
 
+        # --------------------------------
         headers = [
             "Benchmark cases",
             "Resp expe",
@@ -2146,7 +2152,6 @@ class Assimilation:
         benchs_iso_reac = list(set(benchs_iso_reac))
         common_iso_reac = list(set(case_iso_reac).union(benchs_iso_reac))
 
-        # Get iso_reac_list from cov_data
         cov_iso_reac = self.cov_data.iso_reac_list
 
         iso_str = [methods.convert_iso_id_to_string(iso) for iso, reac in common_iso_reac]
@@ -2196,6 +2201,7 @@ class Assimilation:
             {"width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.3)", "margin": dict(l=20, r=20, t=20, b=20)}
         )
 
+        # --------------------------------
         valid_gap_str = ""
         valid_gap_dict = {}
         iso_validation_gap = set(
@@ -2230,6 +2236,7 @@ class Assimilation:
         else:
             valid_gap_str = '<div style="display: block; font-size:14px; padding-left: 80px; padding-right: 80px;"><u>No validation gap:</u> it seems like all isotopes of the application case (included in the calculation) are covered by at least one benchmark case.<br><hr width="60%" /></div>'
 
+        # --------------------------------
         with open(output_html_path, "a", encoding="utf-8") as f:
             offline_control()
             f.writelines(HTML_intro)
@@ -2256,7 +2263,8 @@ class Assimilation:
             f.write('<div id="Benchmark list" class="tabcontent">\n')
             f.write(f'<section style="background:linear-gradient(#d2978e, white) ; padding: 14px 100px">\n' + "<br>\n")
             f.write(trace_bias.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-            f.write(trace_sim.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
+            if trace_sim is not None:
+                f.write(trace_sim.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
             f.write(table_bench_fig)
             f.write("</section>\n")
             f.write("</div>\n")
