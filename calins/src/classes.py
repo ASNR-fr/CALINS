@@ -1092,6 +1092,7 @@ class Assimilation:
         self.calcul_post_chi2()
         self.calcul_post_uncertainty()
         self.calcul_bias_std()
+        self.calcul_USL_95_95()
         self.export_to_html(output_html_path=self.output_html_path, plotting_unit=plotting_unit, isotopes_to_detail=isotopes_to_detail)
 
     def make_sensimat_covmat_casevec_expemat_and_deltaCE(
@@ -1253,7 +1254,7 @@ class Assimilation:
 
                 if len(chi2_list) == 1:
                     raise errors.UserInputError(
-                        "Your Chi2 filtering threshold is leading to the removal of every benchmark case of your list. Please, choose other benchmark cases, or increasing your threshold."
+                        "Your Χ² filtering threshold is leading to the removal of every benchmark case of your list. Please, choose other benchmark cases, or increasing your threshold."
                     )
                 indiv_chi2_idx = chi2_list.index(max(chi2_list))
 
@@ -1261,7 +1262,7 @@ class Assimilation:
                 self.bench_list.at[self.bench_list.index[self.bench_list["INDIVIDUAL CHI2"] == max(chi2_list)][0], "REMOVED"] = True
 
                 write_and_print(
-                    f"{2*'    '}Assimilation - Removing benchmark {os.path.basename(bench_path_to_remove)} from assimilation ...\n - Indivudual Chi2 to remove : {max(chi2_list)}"
+                    f"{2*'    '}Assimilation - Removing benchmark {os.path.basename(bench_path_to_remove)} from assimilation ...\n - Indivudual Χ² to remove : {max(chi2_list)}"
                 )
 
                 C_i = np.delete(C_i, (indiv_chi2_idx), axis=0)
@@ -1290,9 +1291,10 @@ class Assimilation:
 
                 if chi2 < self.targetted_chi2:
                     self.prior_chi2 = chi2
+                    write_and_print(f"{2*'    '}Assimilation - Χ² removal {i+1} result : {chi2}")
                     break
 
-                write_and_print(f"{2*'    '}Assimilation - Chi2 removal {i+1} result : {chi2}")
+                write_and_print(f"{2*'    '}Assimilation - Χ² removal {i+1} result : {chi2}")
 
             self.bench_sensi_mat = Sexp_i
             self.expe_mat = C_i
@@ -1376,7 +1378,7 @@ class Assimilation:
         chi2 = chi2 / len(self.bench_cases)
         self.prior_chi2 = chi2
 
-        write_and_print(f"{2*'    '}Assimilation - initial Chi2 = {self.prior_chi2}")
+        write_and_print(f"{2*'    '}Assimilation - initial Χ² = {self.prior_chi2}")
 
         self.bench_list["INDIVIDUAL CHI2"] = [None for i in range(len(self.bench_cases))]
         self.bench_list["REMOVED"] = [False for i in range(len(self.bench_cases))]
@@ -1454,6 +1456,8 @@ class Assimilation:
         chi2 = chi2 / len_bench_cases
         self.post_chi2 = chi2
 
+        return self.post_chi2
+
     @log_exec()
     def calcul_bias(self):
 
@@ -1523,6 +1527,7 @@ class Assimilation:
             )
             return self.prior_uncertainty
 
+    @log_exec()
     def calcul_bias_std(self):
         self.bias_std = None
 
@@ -1534,6 +1539,8 @@ class Assimilation:
             ]
             appl_to_bench_weights_squared = self.appl_to_bench_weights**2
             self.bias_std = np.sqrt(appl_to_bench_weights_squared @ bench_vari)
+
+        return self.bias_std
 
     def K_95_95(self):
         p = 0.95
@@ -1549,6 +1556,13 @@ class Assimilation:
         K = t_gamma / np.sqrt(dof)
 
         return K
+
+    @log_exec()
+    def calcul_USL_95_95(self):
+        resp_threshold_9595 = self.appl_case.resp_calc + (self.bias.value / 1e5) + (self.K_95_95() * self.bias_std)
+        self.USL_95_95 = resp_threshold_9595
+
+        return self.USL_95_95
 
     def plot_appl_case_sensi(self, output_html_path: str = None, show=False):
         """
@@ -1608,8 +1622,8 @@ class Assimilation:
             "ND Uncertainty a posteriori",
             "Application bias population std",
             "Estimated application bias (C<sub>post</sub> - C<sub>prior</sub>)",
-            "Chi2 a priori ",
-            "Chi2 a posteriori",
+            "Χ² a priori ",
+            "Χ² a posteriori",
             "Nb of benchmark cases removed",
             "Energy groups number",
         ]
@@ -1633,6 +1647,7 @@ class Assimilation:
                 "None",
                 "None",
                 "None",
+                "None",
                 round(self.prior_chi2, 5),
                 round(self.post_chi2, 5),
                 list(self.bench_list["REMOVED"]).count(True),
@@ -1642,15 +1657,14 @@ class Assimilation:
         table_res = plots.create_html_table(headers=[], lines=[headers_b, results])
         write_and_print("\n" + tabulate(np.array([["Casename", *headers], [self.appl_case.casename, *results]]).T))
 
-        resp_threshold_9595 = self.appl_case.resp_calc + (self.bias.value / 1e5) + (self.K_95_95() * self.bias_std)
         resp_threshold_2 = self.appl_case.resp_calc + (self.bias.value / 1e5) + (2 * self.bias_std)
         C3_str = '<hr width="60%" /><div style="display: block; font-size:14px; padding-left: 80px; padding-right: 80px;">'
         if self.post_chi2 < 1.2:
-            C3_str += f"The adjustment shows an <u>acceptale consistency</u> among the adjusted benchmark biases (Chi2 a posteriori : {self.post_chi2:.2f} < 1.2).<br>"
-            C3_str += f"With a coverage parameter K<sub>95/95</sub> of {self.K_95_95():.2f} (95% quantile of noncentral t-distribution), there is <u>95% confidence that at least 95% of the population of the application responses satisfy: \n<b>RESPONSE < Resp<sup>calc</sup> + Bias + K<sub>95/95</sub> x σ<sub>bias</sub><sup>appl, pop</sup> = {resp_threshold_9595:.5f} </b></u> ()<br>\n\
+            C3_str += f"The adjustment shows an <u>acceptale consistency</u> among the adjusted benchmark biases (Χ² a posteriori : {self.post_chi2:.2f} < 1.2).<br>"
+            C3_str += f"With a coverage parameter K<sub>95/95</sub> of {self.K_95_95():.2f} (95% quantile of noncentral t-distribution), there is <u>95% confidence that at least 95% of the population of the application responses satisfy:</u><br>\n<b>RESPONSE < Resp<sup>calc</sup> + Bias + K<sub>95/95</sub> x σ<sub>bias</sub><sup>appl, pop</sup> = {self.USL_95_95:.5f} </b><br>\n\
                 For a conservative coverage parameter K of 2: RESPONSE < {resp_threshold_2:.5f}\n"
         else:
-            C3_str = f"The adjustment shows a poor consistency among the adjusted benchmark biases (Chi2 a posteriori : {self.post_chi2:.2f} > 1.2).<br>Consider checking your covariance data, or increasing your targetted chi2 threshold to remove more inconsistent benchmarks from the assimilation process.\n"
+            C3_str = f"The adjustment shows a poor consistency among the adjusted benchmark biases (Χ² a posteriori : {self.post_chi2:.2f} > 1.2).<br>Consider checking your covariance data, or increasing your targetted chi2 threshold to remove more inconsistent benchmarks from the assimilation process.\n"
         C3_str += "</div><hr width='60%' />"
 
         # --------------------------------
@@ -1700,7 +1714,7 @@ class Assimilation:
         trace_bias.update_xaxes(tickvals=bench_list_custom["PATH"], ticktext=[os.path.basename(path) for path in bench_list_custom["PATH"]])
         trace_bias.update_layout(
             {
-                "height": plot_height,
+                "height": plot_height + 300,
                 "width": plot_width,
                 "font_size": font_size,
                 "template": plotly_template,
@@ -1720,9 +1734,13 @@ class Assimilation:
 
         x_data = bench_list_included["Ck"].values
         y_data = bench_list_included["E - C_PRIOR (pcm)"].values
+        y_unc = np.sqrt((bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5) ** 2 + bench_list_included["UNC_PRIOR (pcm)"].astype(float) ** 2)
+        unc_weights = 1.0 / (y_unc**2)
 
-        coeffs = np.polyfit(x_data, y_data, 1)
-        y_extrapolated = coeffs[0] * 1.0 + coeffs[1]
+        coeffs, cov = np.polyfit(x_data, y_data, 1, w=unc_weights, cov=True)
+        x_extrapolated = 1.0
+        y_extrapolated = coeffs[0] * x_extrapolated + coeffs[1]
+        sigma_y_extrap = np.sqrt((x_extrapolated**2 * cov[0, 0]) + (2 * x_extrapolated * cov[0, 1]) + cov[1, 1])
 
         x_trendline = np.linspace(min(x_data), 1.0, 100)
         y_trendline = coeffs[0] * x_trendline + coeffs[1]
@@ -1733,6 +1751,7 @@ class Assimilation:
         trace_sim.add_scatter(
             x=[1.0],
             y=[y_extrapolated],
+            error_y=dict(type="data", array=[3 * sigma_y_extrap], visible=True),
             mode="markers+text",
             marker=dict(size=10, color="gray", symbol="star"),
             text=[f"{y_extrapolated:.0f} pcm"],
@@ -1762,7 +1781,7 @@ class Assimilation:
             "ND uncertainty (post) (pcm)",
             "E - C<sub>prior</sub> (pcm)",
             "E - C<sub>post</sub> (pcm)",
-            "Chi2 individual",
+            "Χ² individual",
             "Ck",
         ]
         lines = [
@@ -2145,7 +2164,7 @@ class Assimilation:
             "Reaction": reac_str,
             "Iso_ID": [iso for iso, reac in common_iso_reac],
             "Reac_ID": [reac for iso, reac in common_iso_reac],
-            "Appl_case": case_present,
+            "Application_case": case_present,
             "Benchmark_cases": benchs_present,
             "Covariance_data": cov_present,
             "Used_in_calculation": calc_present,
@@ -2159,7 +2178,7 @@ class Assimilation:
             "white",
             "white",
             "white",
-            ["green" if p else "red" for p in iso_reac_df["Appl_case"]],
+            ["green" if p else "red" for p in iso_reac_df["Application_case"]],
             ["green" if p else "red" for p in iso_reac_df["Benchmark_cases"]],
             ["orange" if p == "added*" else "green" if p == True else "red" for p in iso_reac_df["Covariance_data"]],
             ["green" if p else "red" for p in iso_reac_df["Used_in_calculation"]],
@@ -2177,12 +2196,47 @@ class Assimilation:
             {"width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.3)", "margin": dict(l=20, r=20, t=20, b=20)}
         )
 
+        valid_gap_str = ""
+        valid_gap_dict = {}
+        iso_validation_gap = set(
+            [iso for iso, reac in common_iso_reac if (iso, reac) in case_iso_reac and (iso, reac) not in benchs_iso_reac and iso in self.iso_list]
+        )
+        if len(iso_validation_gap) > 0:
+            unc_decomp_gap = self.prior_uncertainty.decomposition.copy()
+            unc_decomp_gap = unc_decomp_gap.groupby(["ISO"]).sum().reset_index()
+            unc_decomp_gap.sort_values(
+                by="CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)", inplace=True, ascending=False
+            )
+            for iso in iso_validation_gap:
+                contrib = unc_decomp_gap[unc_decomp_gap["ISO"] == iso][
+                    "CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)"
+                ].tolist()[0]
+                pos_neg = 1 if contrib >= 0 else -1
+                contrib = pos_neg * sqrt(abs(contrib)) * self.appl_case.resp_calc * 1e5
+                valid_gap_dict[iso] = contrib
+        if valid_gap_dict != {}:
+            valid_gap_dict = dict(sorted(valid_gap_dict.items(), key=lambda item: abs(item[1]), reverse=True))
+            valid_gap_tab = plots.create_html_table(
+                headers=["Isotope", "Isotope_ID", "Total uncertainty on the application"],
+                lines=[
+                    [methods.convert_iso_id_to_string(iso) for iso in valid_gap_dict.keys()],
+                    list(valid_gap_dict.keys()),
+                    [f"{v:.0f} pcm" for v in valid_gap_dict.values()],
+                ],
+            )
+            valid_gap_str = '<div style="display: block; font-size:14px; padding-left: 80px; padding-right: 80px;"><u>Validation gaps:</u> the following isotopes are missing from the benchmark cases.<br>'
+            valid_gap_str += valid_gap_tab
+            valid_gap_str += '<hr width="60%" /></div>'
+        else:
+            valid_gap_str = '<div style="display: block; font-size:14px; padding-left: 80px; padding-right: 80px;"><u>No validation gap:</u> it seems like all isotopes of the application case (included in the calculation) are covered by at least one benchmark case.<br><hr width="60%" /></div>'
+
         with open(output_html_path, "a", encoding="utf-8") as f:
             offline_control()
             f.writelines(HTML_intro)
             f.write(text_intro)
             f.write(table_res)
             f.write(C3_str)
+            f.write(valid_gap_str)
 
             if self.appl_case != None:
                 f.write(
@@ -2415,6 +2469,13 @@ class Uncertainty:
         }
         sum = 0
         decomp_vec = []
+
+        sensi_df = appl_case.sensitivities
+        sensi_lookup = {}
+        for idx, row in sensi_df.iterrows():
+            key = (row["ISO"], row["REAC"])
+            sensi_lookup[key] = row["SENSI_INTEGRAL"]
+
         for i, (iso, reac) in enumerate(iso_reac_list):
 
             sub_cov_mat = cov_mat[:, i * self.group_nb : (i + 1) * self.group_nb]
@@ -2422,20 +2483,14 @@ class Uncertainty:
             sub_sensi_vec = sensi_vec[i * self.group_nb : (i + 1) * self.group_nb]
 
             unc_partial_covar = sensi_vec @ sub_cov_mat
-            unc_partial_covar_detail = [x * y for x, y in zip(unc_partial_covar, sub_sensi_vec)]
-            decomp_vec += unc_partial_covar_detail
+            unc_partial_covar_detail = unc_partial_covar * sub_sensi_vec
+            decomp_vec.extend(unc_partial_covar_detail)
             unc_partial_covar = unc_partial_covar @ sub_sensi_vec
             unc_partial_var = sub_sensi_vec @ sub_cov_mat[i * self.group_nb : (i + 1) * self.group_nb, :] @ sub_sensi_vec
 
             sum += unc_partial_covar
 
-            sensi_df = appl_case.sensitivities
-
-            row = sensi_df[(sensi_df["ISO"] == iso) & (sensi_df["REAC"] == reac)]
-            if len(row) != 0:
-                integral = list(row["SENSI_INTEGRAL"])[0]
-            else:
-                integral = None
+            integral = sensi_lookup.get((iso, reac), None)
 
             dikt["ISO"].append(iso)
             dikt["REAC"].append(reac)

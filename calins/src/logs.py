@@ -60,7 +60,7 @@ def init_big_header(pkg_name):
 
 
 def write_in_log(msg, type=None):
-    with open(os.path.join(LOG_DIR, f'CALINS_{time.strftime("%Y-%m-%d")}.log'), "a") as f:
+    with open(os.path.join(LOG_DIR, f'CALINS_{time.strftime("%Y-%m-%d")}.log'), "a", encoding="utf-8") as f:
         f.write(f"{time.strftime('%H:%M:%S')} - {type+' : ' if type is not None else ''}{msg}\n")
 
 
