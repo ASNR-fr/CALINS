@@ -221,14 +221,14 @@ class Case:
             if lines_sensi[3].split()[1] == "+/-":
                 self.resp_calc = float(lines_sensi[3].split()[0])
                 self.sigma_resp_calc = float(lines_sensi[3].split()[2])
-            elif re.search("k-eff from the forward case", lines_sensi[3]):
+            elif re.search(" from the forward case", lines_sensi[3]):
                 self.resp_calc = float(lines_sensi[3].split()[0])
                 self.sigma_resp_calc = 0
 
             if self.resp_calc > 2 or self.resp_calc < 0 or self.sigma_resp_calc > 2 or self.sigma_resp_calc < 0:
                 raise errors.EmptyParsingError(
-                    f"The sdf case file {self.casename} doesn't have the right format for simulated resp values \n\
-                    The format should be on line nb 4 as : [resp calc] +/- [sigma resp calc] ..."
+                    f"The sdf case file {self.casename} doesn't have the right format for calculated response value \n\
+                    The format should be on line 4 as : [resp calc] +/- [sigma resp calc] [...] [response type] from the forward case"
                 )
         except:
             warn(f"No calculated response was extracted from the file {self.sdf_path}.")
@@ -239,7 +239,7 @@ class Case:
             lines_sensi = f.readlines()
 
         try:
-            if re.search("keff expe :", lines_sensi[0]):
+            if re.search(" expe :", lines_sensi[0]):
                 self.resp_expe = float(lines_sensi[0].split()[-3])
                 self.sigma_resp_expe = float(lines_sensi[0].split()[-1])
             elif len(lines_sensi[3].split()) in [5, 10]:
@@ -248,8 +248,8 @@ class Case:
 
             if self.resp_expe > 2 or self.resp_expe < 0 or self.sigma_resp_expe > 2 or self.sigma_resp_expe < 0:
                 raise errors.EmptyParsingError(
-                    f"The sdf case file {self.casename} doesn't have the right format for simulated resp values \n\
-                    The format should be on line nb 1 as : [resp calc] +/- [sigma resp calc]"
+                    f"The sdf case file {self.casename} doesn't have the right format for experimental response value \n\
+                    The format should be on line 1 as : [response type] expe : [resp expe] +/- [sigma response]"
                 )
         except:
             warn(f"No experimental response was extracted from the file {self.sdf_path}.")
