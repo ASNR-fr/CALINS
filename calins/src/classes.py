@@ -1403,7 +1403,7 @@ class Assimilation:
         if self.Ck_threshold != None:
             filter_Ck()
 
-        if self.Ck_threshold == None and self.targetted_chi2 == None:
+        if self.Ck_threshold == None and (self.targetted_chi2 == None or self.prior_chi2 <= self.targetted_chi2):
 
             self.B_mat = W0SexpT @ C_SexpW0SexpT_inv
 
@@ -1733,7 +1733,6 @@ class Assimilation:
             title="Benchmark cases similarity with application case (Ck) vs bias (E-C)",
         )
 
-        trace_sim = None
         if len(bench_list_included) > 1:
             x_data = bench_list_included["Ck"].values
             y_data = bench_list_included["E - C_PRIOR (pcm)"].values
