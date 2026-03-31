@@ -1204,27 +1204,81 @@ class Assimilation:
     def calcul_matrix_assimilation(self):
 
         # Function to filter out experiments with high contributions to a priori global Chi2
-        def filter_chi2(C_SexpW0SexpT_inv):
+        def filter_chi2(W0SexpT, C_SexpW0SexpT_inv):
 
-            individual_chi2 = []
+            if self.prior_chi2 > self.targetted_chi2:
 
-            if self.filtering_chi2_method == "delta":
+                individual_chi2 = []
+                if self.filtering_chi2_method == "delta":
+                    for i in range(len(self.bench_cases)):
+
+                        C_i = np.delete(self.expe_mat, (i), axis=0)
+                        C_i = np.delete(C_i, (i), axis=1)
+                        Sexp_i = np.delete(self.bench_sensi_mat, (i), axis=0)
+                        delta_CE_i = np.delete(self.delta_CE_vec, (i))
+
+                        W0SexpT_i = self.cov_mat @ Sexp_i.T
+                        SexpW0SexpT_i = Sexp_i @ W0SexpT_i
+                        C_SexpW0SexpT_i = np.add(C_i, SexpW0SexpT_i)
+
+                        # INVERSION
+                        try:
+                            cholesky = np.linalg.inv(np.linalg.cholesky(C_SexpW0SexpT_i))
+                            C_SexpW0SexpT_inv_i = cholesky.T @ cholesky
+
+                        except:
+                            write_and_print(
+                                "ERROR : The covarariances data you choose leads to an non-invertible matrix (singular matrix). The assimimlation process is not possible."
+                            )
+                            raise Exception(
+                                "ERROR : The covarariances data you choose leads to an non-invertible matrix (singular matrix). The assimimlation process is not possible."
+                            )
+
+                        individual_chi2.append(self.prior_chi2 * len(self.bench_cases) - delta_CE_i @ C_SexpW0SexpT_inv_i @ delta_CE_i.T)
+
+                elif self.filtering_chi2_method == "diagonal":
+                    for i in range(len(self.bench_cases)):
+
+                        individual_chi2.append((self.bench_cases[i].resp_calc - self.bench_cases[i].resp_expe) ** 2 * C_SexpW0SexpT_inv[i][i])
+
+                self.bench_list["INDIVIDUAL CHI2"] = individual_chi2
+
+                # --- Those arrays are changing over time, everytime a bench case is removed
+                C_SexpW0SexpT_inv_i = None
+                chi2_list, C_i, Sexp_i, delta_CE_i = (
+                    copy.deepcopy(individual_chi2),
+                    copy.deepcopy(self.expe_mat),
+                    copy.deepcopy(self.bench_sensi_mat),
+                    copy.deepcopy(self.delta_CE_vec),
+                )
                 for i in range(len(self.bench_cases)):
 
-                    C_i = np.delete(self.expe_mat, (i), axis=0)
-                    C_i = np.delete(C_i, (i), axis=1)
-                    Sexp_i = np.delete(self.bench_sensi_mat, (i), axis=0)
-                    delta_CE_i = np.delete(self.delta_CE_vec, (i))
+                    if len(chi2_list) == 1:
+                        raise errors.UserInputError(
+                            "Your Χ² filtering threshold is leading to the removal of every benchmark case of your list. Please, choose other benchmark cases, or increasing your threshold."
+                        )
+                    indiv_chi2_idx = chi2_list.index(max(chi2_list))
+
+                    bench_path_to_remove = list(self.bench_list[self.bench_list["INDIVIDUAL CHI2"] == max(chi2_list)]["PATH"])[0]
+                    self.bench_list.at[self.bench_list.index[self.bench_list["INDIVIDUAL CHI2"] == max(chi2_list)][0], "REMOVED"] = True
+
+                    write_and_print(
+                        f"{2*'    '}Assimilation - Removing benchmark {os.path.basename(bench_path_to_remove)} from assimilation ...\n - Indivudual Χ² to remove : {max(chi2_list)}"
+                    )
+
+                    C_i = np.delete(C_i, (indiv_chi2_idx), axis=0)
+                    C_i = np.delete(C_i, (indiv_chi2_idx), axis=1)
+                    Sexp_i = np.delete(Sexp_i, (indiv_chi2_idx), axis=0)
+                    delta_CE_i = np.delete(delta_CE_i, (indiv_chi2_idx))
+                    chi2_list.pop(indiv_chi2_idx)
 
                     W0SexpT_i = self.cov_mat @ Sexp_i.T
                     SexpW0SexpT_i = Sexp_i @ W0SexpT_i
                     C_SexpW0SexpT_i = np.add(C_i, SexpW0SexpT_i)
 
-                    # INVERSION
                     try:
                         cholesky = np.linalg.inv(np.linalg.cholesky(C_SexpW0SexpT_i))
                         C_SexpW0SexpT_inv_i = cholesky.T @ cholesky
-
                     except:
                         write_and_print(
                             "ERROR : The covarariances data you choose leads to an non-invertible matrix (singular matrix). The assimimlation process is not possible."
@@ -1233,78 +1287,32 @@ class Assimilation:
                             "ERROR : The covarariances data you choose leads to an non-invertible matrix (singular matrix). The assimimlation process is not possible."
                         )
 
-                    individual_chi2.append(self.prior_chi2 * len(self.bench_cases) - delta_CE_i @ C_SexpW0SexpT_inv_i @ delta_CE_i.T)
+                    chi2 = delta_CE_i @ C_SexpW0SexpT_inv_i @ delta_CE_i.T
+                    chi2 = chi2 / len(chi2_list)
 
-            elif self.filtering_chi2_method == "diagonal":
-                for i in range(len(self.bench_cases)):
+                    if chi2 < self.targetted_chi2:
+                        self.prior_chi2 = chi2
+                        write_and_print(f"{2*'    '}Assimilation - Χ² removal {i+1} result : {chi2}")
+                        break
 
-                    individual_chi2.append((self.bench_cases[i].resp_calc - self.bench_cases[i].resp_expe) ** 2 * C_SexpW0SexpT_inv[i][i])
-
-            self.bench_list["INDIVIDUAL CHI2"] = individual_chi2
-
-            # --- Those arrays are changing over time, everytime a bench case is removed
-            C_SexpW0SexpT_inv_i = None
-            chi2_list, C_i, Sexp_i, delta_CE_i = (
-                copy.deepcopy(individual_chi2),
-                copy.deepcopy(self.expe_mat),
-                copy.deepcopy(self.bench_sensi_mat),
-                copy.deepcopy(self.delta_CE_vec),
-            )
-            for i in range(len(self.bench_cases)):
-
-                if len(chi2_list) == 1:
-                    raise errors.UserInputError(
-                        "Your Χ² filtering threshold is leading to the removal of every benchmark case of your list. Please, choose other benchmark cases, or increasing your threshold."
-                    )
-                indiv_chi2_idx = chi2_list.index(max(chi2_list))
-
-                bench_path_to_remove = list(self.bench_list[self.bench_list["INDIVIDUAL CHI2"] == max(chi2_list)]["PATH"])[0]
-                self.bench_list.at[self.bench_list.index[self.bench_list["INDIVIDUAL CHI2"] == max(chi2_list)][0], "REMOVED"] = True
-
-                write_and_print(
-                    f"{2*'    '}Assimilation - Removing benchmark {os.path.basename(bench_path_to_remove)} from assimilation ...\n - Indivudual Χ² to remove : {max(chi2_list)}"
-                )
-
-                C_i = np.delete(C_i, (indiv_chi2_idx), axis=0)
-                C_i = np.delete(C_i, (indiv_chi2_idx), axis=1)
-                Sexp_i = np.delete(Sexp_i, (indiv_chi2_idx), axis=0)
-                delta_CE_i = np.delete(delta_CE_i, (indiv_chi2_idx))
-                chi2_list.pop(indiv_chi2_idx)
-
-                W0SexpT_i = self.cov_mat @ Sexp_i.T
-                SexpW0SexpT_i = Sexp_i @ W0SexpT_i
-                C_SexpW0SexpT_i = np.add(C_i, SexpW0SexpT_i)
-
-                try:
-                    cholesky = np.linalg.inv(np.linalg.cholesky(C_SexpW0SexpT_i))
-                    C_SexpW0SexpT_inv_i = cholesky.T @ cholesky
-                except:
-                    write_and_print(
-                        "ERROR : The covarariances data you choose leads to an non-invertible matrix (singular matrix). The assimimlation process is not possible."
-                    )
-                    raise Exception(
-                        "ERROR : The covarariances data you choose leads to an non-invertible matrix (singular matrix). The assimimlation process is not possible."
-                    )
-
-                chi2 = delta_CE_i @ C_SexpW0SexpT_inv_i @ delta_CE_i.T
-                chi2 = chi2 / len(chi2_list)
-
-                if chi2 < self.targetted_chi2:
-                    self.prior_chi2 = chi2
                     write_and_print(f"{2*'    '}Assimilation - Χ² removal {i+1} result : {chi2}")
-                    break
 
-                write_and_print(f"{2*'    '}Assimilation - Χ² removal {i+1} result : {chi2}")
+                self.bench_sensi_mat = Sexp_i
+                self.expe_mat = C_i
+                self.delta_CE_vec = delta_CE_i
 
-            self.bench_sensi_mat = Sexp_i
-            self.expe_mat = C_i
-            self.delta_CE_vec = delta_CE_i
+                self.B_mat = W0SexpT_i @ C_SexpW0SexpT_inv_i
 
-            self.B_mat = W0SexpT_i @ C_SexpW0SexpT_inv_i
+                self.delta_mu = -1 * self.B_mat @ self.delta_CE_vec
 
-            self.delta_mu = -1 * self.B_mat @ self.delta_CE_vec
+                self.cov_mat_delta = csr_matrix(self.B_mat @ (self.bench_sensi_mat @ self.cov_mat))
 
-            self.cov_mat_delta = csr_matrix(self.B_mat @ (self.bench_sensi_mat @ self.cov_mat))
+            else:
+                self.B_mat = W0SexpT @ C_SexpW0SexpT_inv
+
+                self.delta_mu = -1 * self.B_mat @ self.delta_CE_vec
+
+                self.cov_mat_delta = csr_matrix(self.B_mat @ (self.bench_sensi_mat @ self.cov_mat))
 
         # Function to filter out experiments with low Ck similarity coefficients
         def filter_Ck():
@@ -1397,13 +1405,14 @@ class Assimilation:
         self.bench_list["Ck"] = Ck_bench
 
         # Filtering on chi2 and Ck if needed
-        if self.targetted_chi2 != None and self.prior_chi2 > self.targetted_chi2:
-            filter_chi2(C_SexpW0SexpT_inv=C_SexpW0SexpT_inv)
+        # Filter on chi2 before filter on Ck because Ck changes W0SexpT and C_SexpW0SexpT_inv
+        if self.targetted_chi2 != None:
+            filter_chi2(W0SexpT=W0SexpT, C_SexpW0SexpT_inv=C_SexpW0SexpT_inv)
 
         if self.Ck_threshold != None:
             filter_Ck()
 
-        if self.Ck_threshold == None and (self.targetted_chi2 == None or self.prior_chi2 <= self.targetted_chi2):
+        if self.Ck_threshold == None and self.targetted_chi2 == None:
 
             self.B_mat = W0SexpT @ C_SexpW0SexpT_inv
 
