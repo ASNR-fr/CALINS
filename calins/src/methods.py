@@ -393,9 +393,9 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
         str : Header of the file.
     """
 
-    big_endian = ""
+    big_endian_str = ""
     if big_endian:
-        big_endian = ">"
+        big_endian_str = ">"
 
     single_word = 6  # Byte-size for words
     single_number = 4  # Byte-size for float and integer
@@ -409,14 +409,11 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
         # Read the file identification
         hname = input_file.read(single_word).decode("ascii")
         huse = input_file.read(2 * single_word).decode("ascii")
-        ivers = struct.unpack(f"{big_endian}i", input_file.read(single_number))[0]
+        ivers = struct.unpack(f"{big_endian_str}i", input_file.read(single_number))[0]
         input_file.read(2 * single_number)
 
         # Read the file control
-        (ngroup, nngrup, nggrup, ntype, nmmp, nmtrix, nholl) = struct.unpack(f"{big_endian}7i", input_file.read(7 * single_number))
-
-        header = f"{hname} {huse} {ivers} {desc}\n"
-        header += f"{ngroup: >12}{ntype: >12}{nmtrix: >12}{nmmp: >12}\n"
+        (ngroup, nngrup, nggrup, ntype, nmmp, nmtrix, nholl) = struct.unpack(f"{big_endian_str}7i", input_file.read(7 * single_number))
 
         input_file.read(2 * single_number)
 
@@ -425,11 +422,14 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
 
         input_file.read(2 * single_number)
 
+        header = f"{hname} {huse} {ivers} {desc}\n"
+        header += f"{ngroup: >12}{ntype: >12}{nmtrix: >12}{nmmp: >12}\n"
+
         # Read the neutron group boundaries
         e_bins = []
         for i in range((nngrup + 1)):
 
-            e_bins.append(struct.unpack(f"{big_endian}f", input_file.read(single_number))[0])
+            e_bins.append(struct.unpack(f"{big_endian_str}f", input_file.read(single_number))[0])
 
         dikt_cov["ISO_H"].append(0)
         dikt_cov["REAC_H"].append(0)
@@ -443,7 +443,7 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
         input_file.read(2 * single_number)
 
         for i in range(nmmp):
-            matid, mtid, mwgt = struct.unpack(f"{big_endian}3i", input_file.read(3 * single_number))
+            matid, mtid, mwgt = struct.unpack(f"{big_endian_str}3i", input_file.read(3 * single_number))
 
             if matid == 1801:
                 matid = 8001001
@@ -460,10 +460,10 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
             input_file.read(2 * single_number)
 
             for j in range(ngroup):
-                err_micro = struct.unpack(f"{big_endian}f", input_file.read(single_number))[0]
+                err_micro = struct.unpack(f"{big_endian_str}f", input_file.read(single_number))[0]
                 err.append(err_micro)
             for j in range(ngroup):
-                xs_micro = struct.unpack(f"{big_endian}f", input_file.read(single_number))[0]
+                xs_micro = struct.unpack(f"{big_endian_str}f", input_file.read(single_number))[0]
                 xs.append(xs_micro)
 
             iso_reac["xs"].append(xs)
@@ -476,7 +476,7 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
 
             input_file.read(2 * single_number)
 
-            mat1, mt1, mat2, mt2, nblock = struct.unpack(f"{big_endian}5i", input_file.read(5 * single_number))
+            mat1, mt1, mat2, mt2, nblock = struct.unpack(f"{big_endian_str}5i", input_file.read(5 * single_number))
 
             if mat1 == 1801:
                 mat1 = 8001001
@@ -491,12 +491,12 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
 
             jband, ijj, lgpr = [], [], []
             for j in range(ngroup):
-                jband_micro, ijj_micro = struct.unpack(f"{big_endian}2i", input_file.read(2 * single_number))
+                jband_micro, ijj_micro = struct.unpack(f"{big_endian_str}2i", input_file.read(2 * single_number))
                 jband.append(jband_micro)
                 ijj.append(ijj_micro)
 
             for j in range(nblock):
-                lgpr_micro = struct.unpack(f"{big_endian}i", input_file.read(single_number))[0]
+                lgpr_micro = struct.unpack(f"{big_endian_str}i", input_file.read(single_number))[0]
                 lgpr.append(lgpr_micro)
 
             input_file.read(2 * single_number)
@@ -506,7 +506,7 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
 
                 i = 1 + j - ijj[j]
                 while i < jband[j] + 1 + j - ijj[j]:
-                    cov[j][i] = struct.unpack(f"{big_endian}f", input_file.read(single_number))[0]
+                    cov[j][i] = struct.unpack(f"{big_endian_str}f", input_file.read(single_number))[0]
                     i += 1
 
             if np.sum(cov) == 0.0:

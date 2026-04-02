@@ -772,8 +772,9 @@ class NDCovariances:
         input_path : str
             [Required] Path to the covariance file.
         format : str
-            Format of the covariance file. Can be "auto", "coverx", "coverx_text", "comac", "gendf", or "xlsx".
+            Format of the covariance file. Can be "auto", "coverx", "coverx_old", "coverx_text", "comac", "gendf", or "xlsx".
             Defaults to "auto".
+            "coverx_old" indicates if the binary file has integers and floats in big-endian format. Can be useful for old COVERX files like the 44 energy groups covariances.
             The "xlsx" format allows re-importing Excel files previously exported with write_xlsx().
             String representations of lists in the Excel file are automatically converted back to lists of floats.
         """
@@ -782,8 +783,11 @@ class NDCovariances:
 
         if self.format == "auto":
             self.format = self._detect_format()
+            write_and_print(f"Format of ND covariances file {input_path} detected as {self.format}.")
         if self.format == "coverx":
             self.cov_dataf, self.e_bins, self.group_nb, self.header = methods.format_scale_binary_to_dataframe(input_path)
+        elif self.format == "coverx_old":
+            self.cov_dataf, self.e_bins, self.group_nb, self.header = methods.format_scale_binary_to_dataframe(input_path, big_endian=True)
         elif self.format in ["coverx_text", "coverx_txt"]:
             self.cov_dataf, self.e_bins, self.group_nb, self.header = methods.format_scale_txt_to_dataframe(input_path)
         elif self.format == "comac":
@@ -793,7 +797,9 @@ class NDCovariances:
         elif self.format == "xlsx":
             self.cov_dataf, self.e_bins, self.group_nb, self.header = methods.format_xlsx_to_dataframe(input_path)
         else:
-            raise errors.UserInputError(f"Format must be either 'coverx', 'coverx_txt', 'comac', 'gendf', or 'xlsx', but was provided as {format}")
+            raise errors.UserInputError(
+                f"Format must be either 'coverx', 'coverx_old', 'coverx_txt', 'comac', 'gendf', or 'xlsx', but was provided as {format}"
+            )
 
         cov_dataf = self.cov_dataf
 
@@ -825,6 +831,8 @@ class NDCovariances:
         elif "scale" in self.input_path or "SCALE" in self.input_path:
             if "txt" in self.input_path:
                 return "coverx_text"
+            elif "44groupcov" in self.input_path:
+                return "coverx_old"
             return "coverx"
         elif "comac" in self.input_path or "COMAC" in self.input_path:
             return "comac"
@@ -832,7 +840,7 @@ class NDCovariances:
             return "gendf"
         else:
             raise errors.UserInputError(
-                "Could not detect the format of the covariance file. Please specify the format explicitly among 'coverx', 'coverx_text', 'comac', or 'gendf'."
+                "Could not detect the format of the covariance file. Please specify the format explicitly among 'coverx', 'coverx_old', 'coverx_text', 'comac', 'gendf', or 'xlsx'."
             )
 
     def write_xlsx(self, output_path: str):
