@@ -43,8 +43,6 @@ $$ G_{ij} = 1 - \frac{|\mathbf{S}_i - \mathbf{S}_j|^2}{|\mathbf{S}_i|^2 + |\math
 
 where $\overline{|\mathbf{S}|^2} = \frac{|\mathbf{S}_i|^2 + |\mathbf{S}_j|^2}{2}$.
 
-It is recommended to use this formula with relative-formatted sensitivities to calculate G for $k_{eff}$ responses.
-
 **Overlap index G from CEA (value between 0 and 1):**
 This index calculates the overlap rate of each sensitivity corresponding to an energy group, isotope, and reaction. The rate is calculated by taking a case as reference, and another to compare to.
 
