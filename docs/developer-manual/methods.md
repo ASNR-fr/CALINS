@@ -83,8 +83,9 @@ These functions use the *make_...* functions to build sensitivity vectors and th
 One function exists per similarity index. Implemented indices are:
 - E
 - C<sub>k</sub>
-- G (CEA formula)
-- Shared Sensitivities overlap index (Mariya BROVCHENKO formula)
+- G_GEA (CEA formula)
+- G (SCALE formula, Eq. 6.8.49)
+- SSR (Shared Sensitivities overlap index) (Mariya BROVCHENKO formula)
 
 These functions take as input at least two sensitivity vectors and a covariance matrix for C<sub>k</sub> calculations. Sensitivity data can either be a SDF-file path, or *Case* object (presented below), but not preconstructed *numpy* vectors.
 

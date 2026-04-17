@@ -36,7 +36,16 @@ This index weights the dot product with covariance values.
 
 $$ C_k = \sqrt{\frac{(S_1 \cdot Cov \cdot S_2^t)^2}{(S_1 \cdot Cov \cdot S_1^t)(S_2 \cdot Cov \cdot S_2^t)}} $$
 
-**Overlap index G (value between 0 and 1):**
+**Similarity index G (SCALE formula Eq. 6.8.49):**
+This index measures the similarity between two sensitivity vectors. Unlike E which indicates maximum similarity when vectors are proportional, G equals unity only when the two vectors are identical.
+
+$$ G_{ij} = 1 - \frac{|\mathbf{S}_i - \mathbf{S}_j|^2}{|\mathbf{S}_i|^2 + |\mathbf{S}_j|^2} = \frac{\mathbf{S}_i^T \mathbf{S}_j}{\overline{|\mathbf{S}|^2}} $$
+
+where $\overline{|\mathbf{S}|^2} = \frac{|\mathbf{S}_i|^2 + |\mathbf{S}_j|^2}{2}$.
+
+It is recommended to use this formula with relative-formatted sensitivities to calculate G for $k_{eff}$ responses.
+
+**Overlap index G from CEA (value between 0 and 1):**
 This index calculates the overlap rate of each sensitivity corresponding to an energy group, isotope, and reaction. The rate is calculated by taking a case as reference, and another to compare to.
 
 $$  G = 1 - {\sum_{g}^{}\sum_{i, r}^{} \left\{\begin{cases}

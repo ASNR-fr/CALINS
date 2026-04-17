@@ -141,13 +141,13 @@ class TestFunctions(unittest.TestCase):
 
     def test_G(self):
 
-        G = cl.calcul_G(appl_case=sensi_correct_path_1, bench_case=sensi_correct_path_2)
+        G = cl.calcul_G_CEA(appl_case=sensi_correct_path_1, bench_case=sensi_correct_path_2)
         self.assertAlmostEqual(G, 0.5714, places=4)
 
-        G = cl.calcul_G(appl_case=sensi_case_1, bench_case=sensi_case_2)
+        G = cl.calcul_G_CEA(appl_case=sensi_case_1, bench_case=sensi_case_2)
         self.assertAlmostEqual(G, 0.5714, places=4)
 
-        G = cl.calcul_G(appl_case=sensi_correct_path_1, bench_case=sensi_case_2)
+        G = cl.calcul_G_CEA(appl_case=sensi_correct_path_1, bench_case=sensi_case_2)
         self.assertAlmostEqual(G, 0.5714, places=4)
 
         print("Test successfull for calculation type G")

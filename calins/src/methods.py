@@ -1698,7 +1698,7 @@ def calcul_SSR(
 
 
 @log_exec()
-def calcul_G(
+def calcul_G_CEA(
     appl_case,
     bench_case,
     return_iso_reac_list=False,
@@ -1710,7 +1710,7 @@ def calcul_G(
     exclude_reac: list = None,
 ):
     """
-    Calculate the G similarity coefficient between two cases.
+    Calculate the G similarity coefficient from CEA between two cases.
 
     Parameters
     ----------
@@ -1821,6 +1821,116 @@ def calcul_G(
         return {"total_value": G_tot, "iso_reac_list": iso_reac_list}
     else:
         return G_tot
+
+
+@log_exec()
+def calcul_G(
+    case_1,
+    case_2,
+    return_iso_reac_list=False,
+    return_partial=False,
+    iso_reac_list=None,
+    reac_list: list = None,
+    iso_list: list = None,
+    exclude_iso: list = None,
+    exclude_reac: list = None,
+):
+    """
+    Calculate the G similarity coefficient between two cases (SCALE formula, Eq. 6.8.49).
+
+    Parameters
+    ----------
+    case_1 : str, Path, or Case object
+        The first case for which the G is calculated.
+    case_2 : str, Path, or Case object
+        The second case for which the G is calculated.
+    return_iso_reac_list : bool, optional
+        Flag to return the iso-reac list with the G value. Default is False.
+    return_partial : bool, optional
+        Flag to return the partial G values as a pd.DataFrame with columns : "ISO", "REAC", "ISO_NAME", "REAC_NAME", "SIMILARITY".
+    iso_reac_list : list of tuples (int ISO, int REAC), optional
+        The list of iso-reac pairs to consider. If None, all iso-reac pairs are used.
+    reac_list : list of int or str, optional
+        The list of reactions to consider. If None, all reactions are used.
+    iso_list : list of int or str, optional
+        The list of isotopes to consider. If None, all isotopes are used.
+    exclude_iso : list of int or str, optional
+        The list of isotopes to exclude. If None, no isotopes are excluded.
+    exclude_reac : list of int or str, optional
+        The list of reactions to exclude. If None, no reactions are excluded.
+
+    Returns
+    -------
+    float
+        The G similarity coefficient between the two cases.
+    or
+    dict={"total_value":float, "iso_reac_list":list)
+        If return_iso_reac_list is True, returns a dict with the G total value and the iso-reac list.
+    or
+    dict={"total_value":float, "partial":pd.DataFrame)
+        If return_partial is True, returns a dict with the G total value and the partial G values as a pd.DataFrame with columns : "ISO", "REAC", "ISO_NAME", "REAC_NAME", "SIMILARITY".
+    """
+    cases = []
+    for case_i in [case_1, case_2]:
+        if isinstance(case_i, (Path, str)):
+            cases.append(classes.Case(sdf_path=case_i))
+        elif isinstance(case_i, classes.Case):
+            cases.append(case_i)
+        else:
+            raise TypeError(f"Wrong sensitivity type for {case_i} - Choose case object, Path, or string")
+
+    if iso_reac_list != None:
+        for i, pair in enumerate(iso_reac_list):
+            if not isinstance(pair, tuple):
+                raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
+
+    [sensi_vec1, sensi_vec2], iso_reac_list = make_sensi_vectors(
+        cases_list=cases,
+        operation="union",
+        iso_reac_list=iso_reac_list,
+        reac_list=reac_list,
+        iso_list=iso_list,
+        exclude_iso=exclude_iso,
+        exclude_reac=exclude_reac,
+    )
+
+    norm_sq_1 = np.linalg.norm(sensi_vec1) ** 2
+    norm_sq_2 = np.linalg.norm(sensi_vec2) ** 2
+    denom = norm_sq_1 + norm_sq_2
+
+    if denom == 0:
+        G = 0.0
+    else:
+        G = (2.0 * sensi_vec1 @ sensi_vec2) / denom
+
+    if return_partial:
+        partial = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY": []}
+        group_nb = cases[0].group_nb
+
+        for i, (iso, reac) in enumerate(iso_reac_list):
+            sub_vec1 = sensi_vec1[i * group_nb : (i + 1) * group_nb]
+            sub_vec2 = sensi_vec2[i * group_nb : (i + 1) * group_nb]
+
+            sub_denom = np.linalg.norm(sub_vec1) ** 2 + np.linalg.norm(sub_vec2) ** 2
+            G_sub = (2.0 * sub_vec1 @ sub_vec2) / sub_denom if sub_denom != 0 else 0.0
+
+            partial["ISO"].append(iso)
+            partial["REAC"].append(reac)
+            partial["ISO_NAME"].append(convert_iso_id_to_string(iso))
+            partial["REAC_NAME"].append(reac_trad.get(str(reac), f"REAC_{reac}"))
+            partial["SIMILARITY"].append(G_sub)
+
+        partial = pd.DataFrame(partial)
+
+        if return_iso_reac_list:
+            return {"total_value": G, "iso_reac_list": iso_reac_list, "partial": partial}
+        else:
+            return {"total_value": G, "partial": partial}
+
+    elif return_iso_reac_list:
+        return {"total_value": G, "iso_reac_list": iso_reac_list}
+    else:
+        return G
 
 
 @log_exec()
