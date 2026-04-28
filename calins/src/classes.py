@@ -2221,7 +2221,11 @@ class Assimilation:
         valid_gap_str = ""
         valid_gap_dict = {}
         iso_validation_gap = set(
-            [iso for iso, reac in common_iso_reac if (iso, reac) in case_iso_reac and (iso, reac) not in benchs_iso_reac and iso in self.iso_list]
+            [
+                iso
+                for iso, reac in common_iso_reac
+                if (iso, reac) in case_iso_reac and (iso, reac) not in benchs_iso_reac and (iso, reac) in self.iso_reac_list
+            ]
         )
         if len(iso_validation_gap) > 0:
             unc_decomp_gap = self.prior_uncertainty.decomposition.copy()
