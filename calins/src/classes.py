@@ -2220,13 +2220,9 @@ class Assimilation:
         # --------------------------------
         valid_gap_str = ""
         valid_gap_dict = {}
-        iso_validation_gap = set(
-            [
-                iso
-                for iso, reac in common_iso_reac
-                if (iso, reac) in case_iso_reac and (iso, reac) not in benchs_iso_reac and (iso, reac) in self.iso_reac_list
-            ]
-        )
+        bench_iso_list = set([iso for iso, reac in benchs_iso_reac])
+
+        iso_validation_gap = set([iso for iso in self.iso_list if iso in self.appl_case.iso_list and iso not in bench_iso_list])
         if len(iso_validation_gap) > 0:
             unc_decomp_gap = self.prior_uncertainty.decomposition.copy()
             unc_decomp_gap = unc_decomp_gap.groupby(["ISO"]).sum().reset_index()
@@ -2234,9 +2230,10 @@ class Assimilation:
                 by="CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)", inplace=True, ascending=False
             )
             for iso in iso_validation_gap:
-                contrib = unc_decomp_gap[unc_decomp_gap["ISO"] == iso][
+                contribs = unc_decomp_gap[unc_decomp_gap["ISO"] == iso][
                     "CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)"
-                ].tolist()[0]
+                ].tolist()
+                contrib = sum(contribs)
                 pos_neg = 1 if contrib >= 0 else -1
                 contrib = pos_neg * sqrt(abs(contrib)) * self.appl_case.resp_calc * 1e5
                 valid_gap_dict[iso] = contrib
