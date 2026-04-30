@@ -75,8 +75,15 @@ def write_and_print(msg, type=None, bypass_verbose=False):
         print_in_terminal(msg, type)
 
 
-def warn(msg):
-    write_and_print(msg, "WARNING", bypass_verbose=True)
+def warn(msg, bypass_verbose=False):
+    global session_init
+
+    if not session_init:
+        session_init = True
+        pkg_name = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        init_session(pkg_name=pkg_name)
+
+    write_and_print(msg, "WARNING", bypass_verbose=bypass_verbose)
 
 
 def init_session(pkg_name=None):

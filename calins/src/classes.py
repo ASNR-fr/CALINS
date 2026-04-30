@@ -3,7 +3,7 @@ import pandas as pd
 from scipy.sparse import csr_matrix
 from scipy.stats import norm, nct
 from tabulate import tabulate
-import os, copy, re, warnings
+import os, copy, re
 import plotly.offline as po
 import plotly.graph_objects as go
 import plotly.express as px
@@ -231,7 +231,7 @@ class Case:
                     The format should be on line 4 as : [resp calc] +/- [sigma resp calc] [...] [response type] from the forward case"
                 )
         except:
-            warn(f"No calculated response was extracted from the file {self.sdf_path}.")
+            warn(f"No calculated response was extracted from the file {self.sdf_path}.", bypass_verbose=True)
             None
 
     def read_resp_expe(self):
@@ -252,7 +252,7 @@ class Case:
                     The format should be on line 1 as : [response type] expe : [resp expe] +/- [sigma response]"
                 )
         except:
-            warn(f"No experimental response was extracted from the file {self.sdf_path}.")
+            warn(f"No experimental response was extracted from the file {self.sdf_path}.", bypass_verbose=True)
             None
 
     @log_exec()

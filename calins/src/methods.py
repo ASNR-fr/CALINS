@@ -1003,7 +1003,7 @@ def format_sensi_to_dataframe(
 
                     elif occurrences_rule == "first":
                         warn(
-                            f"The sensitivities for the isotope {line_split[0]} / {iso} and the reaction {line_split[1]} / {reac} is being ignored. Its first encounter has already been stored (arg occurrences_rule:'first').{' But the current values are zeros anyway' if sensi_integ_abs == 0.0 else ''}"
+                            f"The sensitivities for the isotope {line_split[0]} / {iso} and the reaction {line_split[1]} / {reac} is being ignored. Its first encounter has already been stored (arg occurrences_rule:'first').{' But the current values are zeros anyway.' if sensi_integ_abs == 0.0 else ''}"
                         )
 
                 else:
@@ -1121,7 +1121,7 @@ def make_cov_matrix(cov_data, iso_reac_list: list):
     # Create new submatrices for versatile isotopes (e.g., H-poly / 1901) and isotopes not present but associated with their natural isotope
 
     new_rows_list = []
-
+    naturalized_iso, rebased_iso = [], []
     for iso in list(set([iso for iso, reac in iso_reac_list])):
         # Handle isotopes not present in the matrix, if their natural isotope is present
         natural_idx = int(iso / 1000) * 1000
@@ -1134,9 +1134,8 @@ def make_cov_matrix(cov_data, iso_reac_list: list):
             rows_to_add.loc[rows_to_add["ISO_V"] == natural_idx, "ISO_V"] = iso
 
             new_rows_list.append(rows_to_add)
-            warn(
-                f"The isotope {iso} is not present in the var-covar matrix file. It will be replaced by its natural isotope {natural_idx} for the construction of the covariance matrix."
-            )
+
+            naturalized_iso.append((iso, natural_idx))
 
         # Handle unconventional isotopes (e.g., H-poly / 1901) if their standard isotope (e.g., H-1 / 1001) is present
         rebased_idx = int(iso / 1000) * 1000 + int(str(iso)[-2:])
@@ -1149,9 +1148,19 @@ def make_cov_matrix(cov_data, iso_reac_list: list):
             rows_to_add.loc[rows_to_add["ISO_V"] == rebased_idx, "ISO_V"] = iso
 
             new_rows_list.append(rows_to_add)
-            warn(
-                f"The unconventional isotope {iso} is not present in the var-covar matrix file. It will be replaced by its base isotope {rebased_idx} for the construction of the covariance matrix."
-            )
+
+            rebased_iso.append((iso, rebased_idx))
+
+    if len(naturalized_iso) > 0:
+        warn(
+            f"The isotopes {', '.join([str(iso) for iso, _ in naturalized_iso])} are not present in the var-covar matrix file. They will be replaced by their natural isotopes for the construction of the covariance matrix (being {', '.join([str(natural_idx) for _, natural_idx in naturalized_iso])}).",
+            bypass_verbose=True,
+        )
+    if len(rebased_iso) > 0:
+        warn(
+            f"The unconventional isotopes {', '.join([str(iso) for iso, _ in rebased_iso])} are not present in the var-covar matrix file. They will be replaced by their base isotopes for the construction of the covariance matrix (being {', '.join([str(rebased_idx) for _, rebased_idx in rebased_iso])}).",
+            bypass_verbose=True,
+        )
 
     if new_rows_list:
         cov_dataf = pd.concat([cov_dataf] + new_rows_list, ignore_index=True)
@@ -1174,7 +1183,8 @@ def make_cov_matrix(cov_data, iso_reac_list: list):
     iso_reac_notfound = [convert_iso_id_to_string(iso) + " " + str(reac) for iso, reac in iso_reac_notfound]
     if len(iso_reac_notfound) > 0:
         warn(
-            f"The following iso-reac are not present in the var-covar matrix file - they are ignored for the construction of the covariance matrix : \n{list(iso_reac_notfound)}"
+            f"The following iso-reac are not present in the var-covar matrix file - they are ignored for the construction of the covariance matrix : \n{list(iso_reac_notfound)}",
+            bypass_verbose=True,
         )
 
     cov_dim = len(iso_reac_inter) * group_nb
@@ -2250,7 +2260,8 @@ def check_correspondences(sensi_vec, cov_mat, iso_reac_list, group_nb):
         if df.iloc[i, 2] == 0.0:
             reac_name = reac_trad.get(str(df.iloc[i, 0][1]), f"REAC_{df.iloc[i, 0][1]}")
             warn(
-                f"The isotope-reaction {convert_iso_id_to_string(df.iloc[i, 0][0])} - {reac_name} doesn't have data inside the covariances matrix you selected ; it is the {i+1}-th isotope-reaction with the highest absolute integral sensitivity."
+                f"The isotope-reaction {convert_iso_id_to_string(df.iloc[i, 0][0])} - {reac_name} doesn't have data inside the covariances matrix you selected ; it is the {i+1}-th isotope-reaction with the highest absolute integral sensitivity.",
+                bypass_verbose=True,
             )
 
         i += 1
@@ -2642,7 +2653,7 @@ def build_sensitive_dataframe(dict_sensitive):
     # Traverse the nested dictionary to extract values in a pivot-friendly format
 
     if not dict_sensitive.items():
-        warn(f"No cases sensitive to the specified criteria were found")
+        warn(f"No cases sensitive to the specified criteria were found", bypass_verbose=True)
         return None
 
     else:
@@ -3027,7 +3038,7 @@ def sort_case_sensitivities(
     df.index = range(1, len(df) + 1)
 
     if df.empty:
-        warn("No data matching the specified criteria was found")
+        warn("No data matching the specified criteria was found", bypass_verbose=True)
 
     return df
 
@@ -3045,7 +3056,7 @@ def display_dataframe(df, max_number_of_rows_displayed=30):
         The maximum number of rows to display.
     """
     if df is None or df.empty:
-        warn("Dataframe is empty.")
+        warn("Dataframe is empty.", bypass_verbose=True)
     else:
         num_rows = df.shape[0]
 
