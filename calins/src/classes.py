@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
-from scipy.stats import norm, nct
+from scipy.stats import norm, nct, shapiro
+from scipy.optimize import brentq
+from math import erf as math_erf
 from tabulate import tabulate
 import os, copy, re
 import plotly.offline as po
@@ -27,13 +29,7 @@ OFFLINE_EXPORT = False
 OFFLINE_CONTROL = False
 plotlyjs_fig_include = "cdn"
 
-global plot_height
-global plot_width
-global block_margin
-global font_size
-global plotly_template
-
-plot_height, plot_width, block_margin, font_size, plotly_template = 500, 1200, 20, 10, "plotly_white"
+block_margin = 20
 
 
 __pkg_name__ = methods.__package__.split(".")[0]
@@ -316,15 +312,7 @@ class Case:
             title="Sensitivities (group-wise integrals)",
             yaxis_title=f"Sensitivity ({unit_str}/%[ND] - group-wise integral)",
         )
-        trace_sensi_integrals.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(trace_sensi_integrals)
 
         case_vec_per_unit_lethargy = []
         for iso, reac in iso_reac_list:
@@ -341,15 +329,7 @@ class Case:
             title="Sensitivities",
             yaxis_title=f"Sensitivity ({unit_str}/%[ND])",
         )
-        trace_sensi_profiles.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(trace_sensi_profiles)
 
         trace_sensi_profiles_lethargy = plots.plot_profiles_per_iso_reac(
             vector=case_vec_per_unit_lethargy,
@@ -360,15 +340,7 @@ class Case:
             title="Sensitivities per unit lethargy",
             yaxis_title=f"Sensitivity ({unit_str}/%[ND] per unit lethargy)",
         )
-        trace_sensi_profiles_lethargy.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(trace_sensi_profiles_lethargy)
 
         with open(output_html_path, "a", encoding="utf-8") as f:
 
@@ -946,6 +918,23 @@ class Assimilation:
         List of reactions to exclude from assimilation.
     isotopes_to_detail : list of int or str, optional
         List of isotopes to provide detailed variances-covariances (as heatmaps) in the HTML outputfile.
+    MOS : float
+        Margin of Subcriticality (default 0.05). Used in USL calculations: USL = 1 - CM - MOS.
+    prior_chi2 : float
+        A priori global chi-squared per benchmark.
+    post_chi2 : float
+        A posteriori global chi-squared per benchmark.
+    bias_std : float
+        Standard deviation of the bias population across assimilated benchmarks.
+    USL_gllsm : dict
+        GLLSM Upper Subcritical Limit results. Keys: ``'USL'``, ``'calculational_margin'``, ``'bias'``, ``'std'``, ``'K'``, ``'N'``, ``'p'``, ``'q'``.
+    USL_parametric : dict
+        Parametric USL results (assumes normal C/E distribution). Keys: ``'USL'``, ``'calculational_margin'``, ``'beta'``, ``'sigma_beta'``, ``'kappa'``, ``'k_bar'``,
+        ``'Delta_m'``, ``'s_k'``, ``'sigma_bar_k'``, ``'N'``, ``'p'``, ``'q'``, ``'shapiro_stat'``, ``'shapiro_pvalue'``, ``'normality_passed'``.
+    USL_nonparametric : dict
+        Nonparametric rank-order USL results (distribution-free). Keys: ``'USL'``, ``'calculational_margin'``, ``'beta'``, ``'sigma_beta'``, ``'min_k_tilde'``,
+        ``'Delta_m'``, ``'sigma_worst'``, ``'CNP'``, ``'m_NP'``, ``'N'``, ``'p_pop'``, ``'n_sigma'``.
+        ``'USL'`` and ``'calculational_margin'`` are ``None`` when CNP ≤ 0.4 (insufficient benchmarks).
     [+ explicit internal attributes...]
 
     Methods
@@ -974,6 +963,7 @@ class Assimilation:
         output_html_path=None,
         plotting_unit="pcm",
         isotopes_to_detail=[],
+        MOS=0.05,
     ) -> None:
         """
         Initializes the Assimilation object.
@@ -1008,6 +998,8 @@ class Assimilation:
             List of reactions to exclude from assimilation.
         isotopes_to_detail : list of int or str, optional
             List of isotopes to provide detailed variances-covariances (as heatmaps) in the HTML outputfile.
+        MOS : float, optional
+            Margin of Subcriticality (default 0.05). Used in USL calculations: USL = 1 - CM - MOS.
         """
 
         self.bench_cases = benchmarks_list[:]
@@ -1094,13 +1086,17 @@ class Assimilation:
         else:
             self.e_bins = self.bench_cases[0].e_bins
 
+        self.MOS = MOS
+
         self.calcul_prior_uncertainty()
         self.calcul_matrix_assimilation()
         self.calcul_bias()
         self.calcul_post_chi2()
         self.calcul_post_uncertainty()
         self.calcul_bias_std()
-        self.calcul_USL_95_95()
+        self.calcul_USL_gllsm()
+        self.calcul_USL_parametric()
+        self.calcul_USL_nonparametric()
         self.export_to_html(output_html_path=self.output_html_path, plotting_unit=plotting_unit, isotopes_to_detail=isotopes_to_detail)
 
     def make_sensimat_covmat_casevec_expemat_and_deltaCE(
@@ -1263,7 +1259,7 @@ class Assimilation:
 
                     if len(chi2_list) == 1:
                         raise errors.UserInputError(
-                            "Your Χ² filtering threshold is leading to the removal of every benchmark case of your list. Please, choose other benchmark cases, or increasing your threshold."
+                            "Your Chi2 filtering threshold is leading to the removal of every benchmark case of your list. Please, choose other benchmark cases, or increasing your threshold."
                         )
                     indiv_chi2_idx = chi2_list.index(max(chi2_list))
 
@@ -1271,7 +1267,7 @@ class Assimilation:
                     self.bench_list.at[self.bench_list.index[self.bench_list["INDIVIDUAL CHI2"] == max(chi2_list)][0], "REMOVED"] = True
 
                     write_and_print(
-                        f"{2*'    '}Assimilation - Removing benchmark {os.path.basename(bench_path_to_remove)} from assimilation ...\n - Indivudual Χ² to remove : {max(chi2_list)}"
+                        f"{2*'    '}Assimilation - Removing benchmark {os.path.basename(bench_path_to_remove)} from assimilation ...\n - Individual Chi2 to remove : {max(chi2_list)}"
                     )
 
                     C_i = np.delete(C_i, (indiv_chi2_idx), axis=0)
@@ -1300,10 +1296,10 @@ class Assimilation:
 
                     if chi2 < self.targetted_chi2:
                         self.prior_chi2 = chi2
-                        write_and_print(f"{2*'    '}Assimilation - Χ² removal {i+1} result : {chi2}")
+                        write_and_print(f"{2*'    '}Assimilation - Chi2 removal {i+1} result : {chi2}")
                         break
 
-                    write_and_print(f"{2*'    '}Assimilation - Χ² removal {i+1} result : {chi2}")
+                    write_and_print(f"{2*'    '}Assimilation - Chi2 removal {i+1} result : {chi2}")
 
                 self.bench_sensi_mat = Sexp_i
                 self.expe_mat = C_i
@@ -1348,6 +1344,10 @@ class Assimilation:
                     Sexp_i = np.delete(Sexp_i, (indiv_ck_idx), axis=0)
                     delta_CE_i = np.delete(delta_CE_i, (indiv_ck_idx))
 
+            if len(delta_CE_i) == 0:
+                raise errors.UserInputError(
+                    "Your Ck filtering threshold is leading to the removal of every benchmark case of your list. Please, choose other benchmark cases, or increasing your threshold."
+                )
             self.bench_sensi_mat = Sexp_i
             self.expe_mat = C_i
             self.delta_CE_vec = delta_CE_i
@@ -1394,7 +1394,7 @@ class Assimilation:
         chi2 = chi2 / len(self.bench_cases)
         self.prior_chi2 = chi2
 
-        write_and_print(f"{2*'    '}Assimilation - initial Χ² = {self.prior_chi2}")
+        write_and_print(f"{2*'    '}Assimilation - initial Chi2 = {self.prior_chi2}")
 
         self.bench_list["INDIVIDUAL CHI2"] = [None for i in range(len(self.bench_cases))]
         self.bench_list["REMOVED"] = [False for i in range(len(self.bench_cases))]
@@ -1559,27 +1559,277 @@ class Assimilation:
 
         return self.bias_std
 
-    def K_95_95(self):
-        p = 0.95
-        gamma = 0.95
-        dof = len([i for i in self.bench_list["REMOVED"] if i == False])
+    def _coverage_factor_os_tdist(self, p=0.95, q=0.95, N=None):
 
-        nu = dof - 1
+        nu = N - 1
         z_p = norm.ppf(p)
-        delta = z_p * np.sqrt(dof)
-        t_gamma = nct.ppf(gamma, df=nu, nc=delta)
+        delta = z_p * np.sqrt(N)
+        t_q = nct.ppf(q, df=nu, nc=delta)
 
         # coverage factor
-        K = t_gamma / np.sqrt(dof)
+        K = t_q / np.sqrt(N)
 
         return K
 
     @log_exec()
-    def calcul_USL_95_95(self):
-        resp_threshold_9595 = self.appl_case.resp_calc + (self.bias.value / 1e5) + (self.K_95_95() * self.bias_std)
-        self.USL_95_95 = resp_threshold_9595
+    def calcul_USL_gllsm(self, p=0.95, q=0.95):
+        """GLLSM-based method for USL.
+        Uses the bias from GLLSM assimilation and a coverage factor approach.
 
-        return self.USL_95_95
+        Parameters
+        ----------
+        p : float
+            Population fraction (default 0.95).
+        q : float
+            Confidence level (default 0.95).
+        """
+        N = len([i for i in self.bench_list["REMOVED"] if i == False])
+
+        if N < 2:
+            write_and_print(
+                f"{2*'    '}GLLSM USL = Not calculable (N = {N} < 2, coverage factor undefined)"
+            )
+            self.USL_gllsm = {
+                "bias": (self.bias.value / 1e5),
+                "std": self.bias_std,
+                "K": None,
+                "calculational_margin": None,
+                "USL": None,
+                "N": N,
+                "p": p,
+                "q": q,
+            }
+            return self.USL_gllsm
+
+        bias = self.bias.value / 1e5
+        K = self._coverage_factor_os_tdist(p=p, q=q, N=N)
+        CM = bias + (K * self.bias_std)
+        USL = 1.0 - CM - self.MOS
+
+        self.USL_gllsm = {
+            "bias": (self.bias.value / 1e5),
+            "std": self.bias_std,
+            "K": K,
+            "calculational_margin": CM,
+            "USL": USL,
+            "N": N,
+            "p": p,
+            "q": q,
+        }
+
+        return self.USL_gllsm
+
+    def _get_scaled_k_and_sigma(self):
+        """Return scaled multiplication factors k_tilde_i and combined uncertainties sigma_i for non-removed benchmarks."""
+        k_tilde_list = []
+        sigma_list = []
+        for b in range(len(self.bench_list)):
+            if self.bench_list["REMOVED"][b]:
+                continue
+            bench = self.bench_cases[b]
+            # k_tilde = k_calc / k_bench
+            k_tilde = bench.resp_calc / bench.resp_expe
+            # sigma = sqrt(sigma_bench² + sigma_calc²)  (combined uncertainty)
+            sigma = sqrt(bench.sigma_resp_expe**2 + bench.sigma_resp_calc**2)
+            k_tilde_list.append(k_tilde)
+            sigma_list.append(sigma)
+        return np.array(k_tilde_list), np.array(sigma_list)
+
+    def _kappa_tolerance_factor(self, p, q, N):
+        """Single-sided tolerance factor κ using noncentral t-distribution.
+        Guarantees fraction p of the population is bounded at confidence level q with N benchmarks.
+        """
+        nu = N - 1
+        z_p = norm.ppf(p)
+        delta = z_p * np.sqrt(N)
+        t_q = nct.ppf(q, df=nu, nc=delta)
+        kappa = t_q / np.sqrt(N)
+        return kappa
+
+    @log_exec()
+    def calcul_USL_parametric(self, p=0.99, q=0.99):
+        """Parametric method for USL.
+        Requires normally distributed benchmark k (Shapiro-Wilk test is performed).
+
+        Parameters
+        ----------
+        p : float
+            Population fraction (default 0.99).
+        q : float
+            Confidence level (default 0.99).
+        """
+        k_tilde, sigma = self._get_scaled_k_and_sigma()
+        N = len(k_tilde)
+
+        if N < 2:
+            # With a single benchmark, the variance formula (N/(N-1)) and the
+            # noncentral t-distribution (df=N-1=0) are undefined.
+            k_bar = float(k_tilde[0])
+            beta = k_bar - 1.0
+            write_and_print(
+                f"{2*'    '}Parametric USL = Not calculable (N = {N} < 2, variance and tolerance factor undefined)"
+            )
+            self.USL_parametric = {
+                "k_bar": k_bar,
+                "beta": beta,
+                "Delta_m": max(0.0, beta),
+                "s_k": None,
+                "sigma_bar_k": None,
+                "sigma_beta": None,
+                "kappa": None,
+                "calculational_margin": None,
+                "USL": None,
+                "N": N,
+                "p": p,
+                "q": q,
+                "shapiro_stat": None,
+                "shapiro_pvalue": None,
+                "normality_passed": None,
+            }
+            return self.USL_parametric
+
+        # Weights
+        w = 1.0 / sigma**2
+        W = np.sum(w)
+
+        # Weighted mean k-bar 
+        k_bar = np.sum(w * k_tilde) / W
+
+        # Bias
+        beta = k_bar - 1.0
+
+        # Nonconservative bias adjustment 
+        Delta_m = max(0.0, beta)
+
+        # Weighted standard deviation s_k²
+        s_k_sq = (1.0 / W) * (N / (N - 1)) * np.sum(w * (k_tilde - k_bar) ** 2)
+
+        # Average variance sigma_bar_k²
+        sigma_bar_k_sq = N / W
+
+        # Pooled standard deviation sigma_beta
+        sigma_beta = sqrt(s_k_sq + sigma_bar_k_sq)
+
+        # Single-sided tolerance factor
+        kappa = self._kappa_tolerance_factor(p, q, N)
+
+        # Calculational margin
+        CM = -beta + kappa * sigma_beta + Delta_m
+
+        # Shapiro-Wilk normality test on scaled k values
+        if N >= 3:
+            stat_sw, pvalue_sw = shapiro(k_tilde)
+            normality_passed = bool(pvalue_sw > 0.05)
+        else:
+            stat_sw, pvalue_sw = None, None
+            normality_passed = None
+
+        USL_parametric = 1.0 - CM - self.MOS
+
+        self.USL_parametric = {
+            "k_bar": k_bar,
+            "beta": beta,
+            "Delta_m": Delta_m,
+            "s_k": sqrt(s_k_sq),
+            "sigma_bar_k": sqrt(sigma_bar_k_sq),
+            "sigma_beta": sigma_beta,
+            "kappa": kappa,
+            "calculational_margin": CM,
+            "USL": USL_parametric,
+            "N": N,
+            "p": p,
+            "q": q,
+            "shapiro_stat": stat_sw,
+            "shapiro_pvalue": pvalue_sw,
+            "normality_passed": normality_passed,
+        }
+
+        write_and_print(
+            f"{2*'    '}Parametric USL = {USL_parametric:.5f}  (Calculational margin = {CM:.5f}, beta = {beta:.5f}, kappa = {kappa:.2f}, N = {N})"
+        )
+
+        return self.USL_parametric
+
+    # ============================================================
+    #  Nonparametric Rank-Order Method
+    # ============================================================
+
+    @log_exec()
+    def calcul_USL_nonparametric(self, p_pop=0.95, n_sigma=2.6):
+        """Nonparametric rank-order method for USL.
+
+        Parameters
+        ----------
+        p_pop : float
+            Population fraction for CNP calculation (default 0.95).
+        n_sigma : float
+            Confidence multiplier for benchmark uncertainty (default 2.6, i.e. ~99% confidence).
+        """
+        k_tilde, sigma = self._get_scaled_k_and_sigma()
+        N = len(k_tilde)
+
+        # Bias = min(k_tilde) - 1
+        idx_min = np.argmin(k_tilde)
+        beta = k_tilde[idx_min] - 1.0
+
+        # Bias uncertainty = combined uncertainty of the worst-case benchmark at chosen confidence
+        sigma_beta = n_sigma * sigma[idx_min]
+
+        # Nonconservative bias adjustment
+        Delta_m = max(0.0, beta)
+
+        # Nonparametric confidence level CNP
+        CNP = 1.0 - p_pop**N
+
+        # Nonparametric margin
+        if CNP > 0.9:
+            m_NP = 0.00
+        elif CNP > 0.8:
+            m_NP = 0.01
+        elif CNP > 0.7:
+            m_NP = 0.02
+        elif CNP > 0.6:
+            m_NP = 0.03
+        elif CNP > 0.5:
+            m_NP = 0.04
+        elif CNP > 0.4:
+            m_NP = 0.05
+        else:
+            m_NP = None  # Additional data needed
+
+        # Calculational margin = -beta + sigma_beta + Delta_m + m_NP 
+        if m_NP is not None:
+            CM = -beta + sigma_beta + Delta_m + m_NP
+        else:
+            CM = None
+
+        # USL
+        USL_nonparametric = 1.0 - CM - self.MOS if CM is not None else None
+
+        self.USL_nonparametric = {
+            "min_k_tilde": k_tilde[idx_min],
+            "beta": beta,
+            "Delta_m": Delta_m,
+            "sigma_worst": sigma[idx_min],
+            "sigma_beta": sigma_beta,
+            "CNP": CNP,
+            "m_NP": m_NP,
+            "calculational_margin": CM,
+            "USL": USL_nonparametric,
+            "N": N,
+            "p_pop": p_pop,
+            "n_sigma": n_sigma,
+        }
+
+        if USL_nonparametric is not None:
+            write_and_print(
+                f"{2*'    '}Nonparametric USL = {USL_nonparametric:.5f}  (Calculational margin = {CM:.5f}, CNP = {CNP:.4f}, m_NP = {m_NP}, N = {N})"
+            )
+        else:
+            write_and_print(f"{2*'    '}Nonparametric USL = Not calculable (CNP = {CNP:.4f} < 0.4 - Additional data needed)")
+
+        return self.USL_nonparametric
+
 
     def plot_appl_case_sensi(self, output_html_path: str = None, show=False):
         """
@@ -1639,12 +1889,18 @@ class Assimilation:
             "ND Uncertainty a posteriori",
             "Application bias population std",
             "Estimated application bias (C<sub>post</sub> - C<sub>prior</sub>)",
-            "Χ² a priori ",
-            "Χ² a posteriori",
+            "Calc. Margin (Bias<sub>appl.</sub> + K x sigma<sub>bias</sub><sup>appl, pop</sup>)",
+            "Chi2 a priori ",
+            "Chi2 a posteriori",
             "Nb of benchmark cases removed",
             "Energy groups number",
         ]
-        headers_b = ["<b>" + h + ":</b>" for h in headers]
+        headers_b = ["<b>" + h.replace("Chi2", "Χ²").replace("sigma", "σ") + ":</b>" for h in headers]
+
+        headers_b[3] = (
+            f"<b>{plots.create_html_tip('Standard deviation of the bias population across all assimilated benchmarks. Reflects the dispersion of individual benchmark biases around the mean GLLSM bias estimate.')}"
+            f"Application bias population std:</b>"
+        )
 
         if self.appl_case != None:
             results = [
@@ -1653,6 +1909,7 @@ class Assimilation:
                 f"{int(round(self.post_uncertainty.value))} pcm",
                 f"{int(round(self.bias_std*self.appl_case.resp_calc*1e5))} pcm",
                 f"{int(round(self.bias.value))} pcm ",
+                f"{int(round(self.USL_gllsm['calculational_margin']*1e5))} pcm" if self.USL_gllsm['calculational_margin'] is not None else "N/A (N<2)",
                 round(self.prior_chi2, 5),
                 round(self.post_chi2, 5),
                 list(self.bench_list["REMOVED"]).count(True),
@@ -1660,6 +1917,7 @@ class Assimilation:
             ]
         else:
             results = [
+                "None",
                 "None",
                 "None",
                 "None",
@@ -1677,11 +1935,234 @@ class Assimilation:
         resp_threshold_2 = self.appl_case.resp_calc + (self.bias.value / 1e5) + (2 * self.bias_std)
         C3_str = '<hr width="60%" /><div style="display: block; font-size:14px; padding-left: 80px; padding-right: 80px;">'
         if self.post_chi2 < 1.2:
-            C3_str += f"The adjustment shows an <u>acceptale consistency</u> among the adjusted benchmark biases (Χ² a posteriori : {self.post_chi2:.2f} < 1.2).<br>"
-            C3_str += f"With a coverage parameter K<sub>95/95</sub> of {self.K_95_95():.2f} (95% quantile of noncentral t-distribution), there is <u>95% confidence that at least 95% of the population of the application responses satisfy:</u><br>\n<b>RESPONSE < Resp<sup>calc</sup> + Bias + K<sub>95/95</sub> x σ<sub>bias</sub><sup>appl, pop</sup> = {self.USL_95_95:.5f} </b><br>\n\
+            usl_gllsm_CM = self.USL_gllsm["calculational_margin"]
+            usl_gllsm_K = self.USL_gllsm["K"]
+            usl_gllsm_p = self.USL_gllsm["p"]
+            usl_gllsm_q = self.USL_gllsm["q"]
+            C3_str += (
+                f"The adjustment shows an <u>acceptable consistency</u> among the benchmark biases (Χ² a priori : {self.prior_chi2:.2f} < 1.2).<br>"
+            )
+            if usl_gllsm_CM is not None and usl_gllsm_K is not None:
+                C3_str += f"With a coverage parameter K<sub>{usl_gllsm_p*1E2:.0f}/{usl_gllsm_q*1E2:.0f}</sub> of {usl_gllsm_K:.2f} ({usl_gllsm_q*1E2:.0f}% quantile of noncentral t-distribution), there is <u>{usl_gllsm_p*1E2:.0f}% confidence that at least {usl_gllsm_q*1E2:.0f}% of the population of the application responses satisfy:</u><br>\n<b>RESPONSE < Resp<sup>calc</sup> + CM = {self.appl_case.resp_calc + usl_gllsm_CM:.5f} </b><br>\n\
                 For a conservative coverage parameter K of 2: RESPONSE < {resp_threshold_2:.5f}\n"
+            else:
+                C3_str += "GLLSM USL not calculable (insufficient benchmarks N < 2).<br>\n"
         else:
-            C3_str += f"The adjustment shows a poor consistency among the adjusted benchmark biases (Χ² a posteriori : {self.post_chi2:.2f} > 1.2).<br>Consider checking your covariance data, or increasing your targetted chi2 threshold to remove more inconsistent benchmarks from the assimilation process.\n"
+            C3_str += f"The adjustment shows a poor consistency among the benchmark biases (Χ² a priori : {self.prior_chi2:.2f} > 1.2).<br>Consider checking your covariance data, or increasing your targetted chi2 threshold to remove more inconsistent benchmarks from the assimilation process.\n"
+        C3_str += "</div><hr width='60%' />"
+
+        # --------------------------------
+        # Validation methods results (Parametric, Nonparametric)
+        # --------------------------------
+        tip = plots.create_html_tip
+        C3_str += '<div class="calins-vm" style="display: block; font-size:14px; padding-left: 40px; padding-right: 40px;">'
+        C3_str += "<h3>Validation methods</h3>"
+
+        # --- Get k_tilde data for figures ---
+        k_tilde_fig, sigma_fig = self._get_scaled_k_and_sigma()
+
+        pr = self.USL_parametric
+        npr = self.USL_nonparametric
+
+        # --- Summary comparison table ---
+        summary_labels = [
+            f"{tip('Bias and uncertainty from the GLLS adjustment. The coverage factor K₉₅/₉₅ ensures 95% confidence that 95% of the population is bounded.')}GLLSM (K<sub>95/95</sub>)",
+            f"{tip('Assumes C/E values follow a normal distribution. Uses a weighted mean bias and a tolerance factor κ from the noncentral t-distribution.')}Parametric",
+        ]
+        summary_values = [
+            f"{self.USL_gllsm['calculational_margin']*1E5:.0f} pcm" if self.USL_gllsm['calculational_margin'] is not None else "<span style='color:red'>N/A (N&lt;2)</span>",
+            f"{pr['calculational_margin']*1E5:.0f} pcm" if pr['calculational_margin'] is not None else "<span style='color:red'>N/A (N&lt;2)</span>",
+        ]
+        if npr["USL"] is not None:
+            summary_labels.append(
+                f"{tip('Distribution-free method based on the worst-case (minimum) C/E. No normality assumption required. Requires enough benchmarks for statistical confidence.')}Nonparametric"
+            )
+            summary_values.append(f"{npr['calculational_margin']*1E5:.0f} pcm")
+        else:
+            summary_labels.append(f"{tip('Distribution-free method. Cannot compute: insufficient benchmarks (CNP ≤ 0.4).')}Nonparametric")
+            summary_values.append("<span style='color:red'>Additional data needed</span>")
+        C3_str += "<h4>Summary comparison</h4>"
+        C3_str += plots.create_html_table(
+            headers=[
+                "Method",
+                f"{tip('Calculational Margin (CM) is a penalty applied to keff=1 to define the USL. It accounts for the computational bias, its uncertainty, and any additional margins. USL = 1 − CM − MOS.')}Calculational Margin",
+            ],
+            lines=[summary_labels, summary_values],
+            table_attrs="border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse; font-size:14px; text-align:center;'",
+            header_style="background:#809684; color:white;",
+            centered=False,
+        )
+
+        biases_all = k_tilde_fig - 1.0
+
+        # --- Figure 1: Parametric (1D strip, compact) ---
+        fig_param = go.Figure()
+        fig_param.add_trace(
+            go.Scatter(
+                x=biases_all, y=[0] * len(biases_all), mode="markers", marker=dict(size=6, color="#4C78A8", opacity=0.7), name="Benchmark biases"
+            )
+        )
+        if pr["beta"] is not None:
+            fig_param.add_vline(
+                x=pr["beta"],
+                line=dict(color="#E45756", width=2, dash="solid"),
+                annotation_text="β̄",
+                annotation_position="top left",
+                annotation=dict(font_size=10),
+            )
+        if pr["calculational_margin"] is not None:
+            fig_param.add_vline(
+                x=-pr["calculational_margin"],
+                line=dict(color="#54A24B", width=2, dash="dash"),
+                annotation_text="−CM",
+                annotation_position="top right",
+                annotation=dict(font_size=10),
+            )
+        if pr["kappa"] is not None and pr["sigma_beta"] is not None:
+            fig_param.add_vrect(
+                x0=pr["beta"] - pr["kappa"] * pr["sigma_beta"],
+                x1=pr["beta"] + pr["kappa"] * pr["sigma_beta"],
+                fillcolor="#E45756",
+                opacity=0.1,
+                line_width=0,
+                annotation_text="κσ<sub>β</sub>",
+                annotation_position="top left",
+                annotation=dict(font_size=9),
+            )
+        fig_param.update_layout(
+            width=300,
+            height=100,
+            margin=dict(l=5, r=5, t=20, b=25),
+            showlegend=False,
+            template="plotly_white",
+            xaxis=dict(title=dict(text="Bias (k̃-1)", font=dict(size=9)), tickfont=dict(size=8), zeroline=True, zerolinecolor="grey", zerolinewidth=1),
+            yaxis=dict(visible=False, range=[-0.5, 0.5]),
+        )
+        html_fig_param = fig_param.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include, config={"displayModeBar": False})
+
+        # --- Figure 2: Nonparametric (1D strip, compact) ---
+        fig_nparam = go.Figure()
+        fig_nparam.add_trace(
+            go.Scatter(
+                x=biases_all, y=[0] * len(biases_all), mode="markers", marker=dict(size=6, color="#4C78A8", opacity=0.7), name="Benchmark biases"
+            )
+        )
+        fig_nparam.add_vline(
+            x=npr["beta"],
+            line=dict(color="#E45756", width=2, dash="solid"),
+            annotation_text="β (min)",
+            annotation_position="top left",
+            annotation=dict(font_size=10),
+        )
+        if npr["calculational_margin"] is not None:
+            fig_nparam.add_vline(
+                x=-npr["calculational_margin"],
+                line=dict(color="#54A24B", width=2, dash="dash"),
+                annotation_text="−CM",
+                annotation_position="top right",
+                annotation=dict(font_size=10),
+            )
+        fig_nparam.add_vrect(
+            x0=npr["beta"] - npr["sigma_beta"],
+            x1=npr["beta"] + npr["sigma_beta"],
+            fillcolor="#E45756",
+            opacity=0.1,
+            line_width=0,
+            annotation_text=f"n<sub>σ</sub>·σ",
+            annotation_position="top left",
+            annotation=dict(font_size=9),
+        )
+        fig_nparam.update_layout(
+            width=300,
+            height=100,
+            margin=dict(l=5, r=5, t=20, b=25),
+            showlegend=False,
+            template="plotly_white",
+            xaxis=dict(title=dict(text="Bias (k̃-1)", font=dict(size=9)), tickfont=dict(size=8), zeroline=True, zerolinecolor="grey", zerolinewidth=1),
+            yaxis=dict(visible=False, range=[-0.5, 0.5]),
+        )
+        html_fig_nparam = fig_nparam.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include, config={"displayModeBar": False})
+        vm_table_attrs = "border='1' cellpadding='3' cellspacing='0' style='border-collapse:collapse; font-size:11px; width:100%;'"
+
+        # --- Column 1: Parametric data ---
+        param_labels = [
+            f"{tip('Number of non-removed benchmark cases used in the analysis.')}N benchmarks",
+            f"{tip('Inverse-variance weighted mean of k̃ᵢ = Cᵢ/Eᵢ across all benchmarks. Weights are wᵢ = 1/σᵢ².')}Weighted mean k̄",
+            f"{tip('Average computational bias: β = k̄ − 1. Negative means calculations underpredict experiments on average.')}Bias β",
+            f"{tip('Non-conservative bias adjustment: Δm = max(0, β). Adds a penalty when the average bias is positive (non-conservative).')}Noncons. bias adj. Δ<sub>m</sub>",
+            f"{tip('Pooled standard deviation combining the scatter of k̃ values (s_k) and the average individual uncertainty (σ̄_k): σ_β = √(s_k² + σ̄_k²).')}Pooled std σ<sub>β</sub>",
+            f"{tip('Single-sided tolerance factor from the noncentral t-distribution. Ensures that fraction p of the population is bounded at confidence level q. κ = t_q(ν, δ) / √N.')}Tolerance factor κ ({pr['p']}/{pr['q']})",
+            f"{tip('Total calculational margin: CM = −β + κ·σ_β + Δm. Represents the penalty to apply to keff = 1.')}<b>Calc. Margin = -β + κσ<sub>β</sub> + Δ<sub>m</sub> </b>",
+            f"{tip('Upper Subcritical Limit: the maximum acceptable keff. USL = 1 − MOS − CM, where MOS is the administrative Margin of Subcriticality.')}<b>USL = 1 - {self.MOS} - CM</b>",
+        ]
+        param_values = [
+            f"{pr['N']}",
+            f"{pr['k_bar']:.6f}" if pr['k_bar'] is not None else "N/A",
+            f"{pr['beta']:.6f}" if pr['beta'] is not None else "N/A",
+            f"{pr['Delta_m']:.6f}" if pr['Delta_m'] is not None else "N/A",
+            f"{pr['sigma_beta']:.6f}" if pr['sigma_beta'] is not None else "N/A (N&lt;2)",
+            f"{pr['kappa']:.4f}" if pr['kappa'] is not None else "N/A (N&lt;2)",
+            f"<b>{pr['calculational_margin']:.5f}</b>" if pr['calculational_margin'] is not None else "<b>N/A (N&lt;2)</b>",
+            f"<b>{pr['USL']:.5f}</b>" if pr['USL'] is not None else "<b>N/A (N&lt;2)</b>",
+        ]
+        if pr["normality_passed"] is not None:
+            sw_color = "green" if pr["normality_passed"] else "red"
+            sw_text = "PASSED" if pr["normality_passed"] else "FAILED"
+            param_labels.append(
+                f"{tip('The parametric method assumes the k̃ values are normally distributed. The Shapiro-Wilk test checks this hypothesis. FAILED (p < 0.05) means the normality assumption may not hold and results should be used with caution.')}Shapiro-Wilk"
+            )
+            param_values.append(f"<span style='color:{sw_color}'>{sw_text} (p={pr['shapiro_pvalue']:.4f})</span>")
+
+        # --- Column 2: Nonparametric data ---
+        nparam_labels = [
+            f"{tip('Number of non-removed benchmark cases used in the analysis.')}N benchmarks",
+            f"{tip('The minimum scaled multiplication factor k̃ = C/E among all benchmarks. This worst-case benchmark drives the nonparametric bias estimate.')}Min k̃ (worst case)",
+            f"{tip('Bias from the worst-case benchmark: β = k̃_min − 1. Uses the most conservative single data point.')}Bias β = k̃<sub>min</sub> - 1",
+            f"{tip('Non-conservative bias adjustment: Δm = max(0, β). Adds a penalty when the worst-case bias is positive.')}Noncons. bias adj. Δ<sub>m</sub>",
+            f"{tip('Combined experimental + calculational uncertainty of the worst-case benchmark: σ = √(σ_exp² + σ_calc²).')}σ worst-case",
+            f"{tip('Bias uncertainty = n_σ × σ_worst. The multiplier n_σ (default 2.6 ≈ 99%% confidence) expands the worst-case uncertainty.')}Bias unc. = {npr['n_sigma']}×σ",
+            f"{tip('Nonparametric confidence level: C_NP = 1 − p^N. Probability that the minimum of N samples bounds at least fraction p of the population.')}Confidence level C<sub>NP</sub> (p={npr['p_pop']})",
+        ]
+        nparam_values = [
+            f"{npr['N']}",
+            f"{npr['min_k_tilde']:.6f}",
+            f"{npr['beta']:.6f}",
+            f"{npr['Delta_m']:.6f}",
+            f"{npr['sigma_worst']:.6f}",
+            f"{npr['sigma_beta']:.6f}",
+            f"{npr['CNP']:.6f}",
+        ]
+        if npr["m_NP"] is not None:
+            nparam_labels.extend(
+                [
+                    f"{tip('Additional margin based on C_NP. Compensates for limited confidence when few benchmarks are available. Ranges from 0 (C_NP > 0.9) to 0.05 (C_NP > 0.4).')}Additional nonparam. margin m<sub>NP</sub>",
+                    f"{tip('Total calculational margin combining the worst-case bias, its expanded uncertainty, and the nonparametric penalty.')}<b>Calc. Margin = -β + {npr['n_sigma']}×σ + m<sub>NP</sub> </b>",
+                    f"{tip('Upper Subcritical Limit = 1 − MOS − CM.')}<b>USL = 1 - {self.MOS} - CM</b>",
+                ]
+            )
+            nparam_values.extend([f"{npr['m_NP']:.3f}", f"<b>{npr['calculational_margin']:.5f}</b>", f"<b>{npr['USL']:.5f}</b>"])
+        else:
+            nparam_labels.append(
+                f"<span style='color:red'>{tip('When C_NP ≤ 0.4, there are too few benchmarks for the nonparametric method to provide meaningful confidence bounds. Add more benchmarks.')}C<sub>NP</sub> ≤ 0.4</span>"
+            )
+            nparam_values.append("<span style='color:red'>Additional data needed</span>")
+
+        # Outer flex row
+        C3_str += "<div style='display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;'>"
+
+        C3_str += "<div style='flex:1; min-width:280px; display:flex; flex-direction:column; align-items:flex-start; padding:0 8px;'>"
+        C3_str += "<h4 style='font-size:13px;'>1. Parametric Method</h4>"
+        C3_str += plots.create_html_table(lines=[param_labels, param_values], table_attrs=vm_table_attrs, centered=False)
+        C3_str += "<div style='margin-top:6px;'>" + html_fig_param + "</div>"
+        C3_str += "</div>"
+
+        C3_str += "<div style='flex:1; min-width:280px; display:flex; flex-direction:column; align-items:flex-start; padding:0 8px;'>"
+        C3_str += "<h4 style='font-size:13px;'>2. Nonparametric Rank-Order</h4>"
+        C3_str += plots.create_html_table(lines=[nparam_labels, nparam_values], table_attrs=vm_table_attrs, centered=False)
+        C3_str += "<div style='margin-top:6px;'>" + html_fig_nparam + "</div>"
+        C3_str += "</div>"
+        C3_str += "</div>"
+
         C3_str += "</div><hr width='60%' />"
 
         # --------------------------------
@@ -1729,69 +2210,7 @@ class Assimilation:
         trace_bias.update_yaxes(title_text="E - C (pcm) (3 sigma=sqrt(expe²+ND²))")
         trace_bias.update_traces(marker_size=8, error_y_thickness=0.5)
         trace_bias.update_xaxes(tickvals=bench_list_custom["PATH"], ticktext=[os.path.basename(path) for path in bench_list_custom["PATH"]])
-        trace_bias.update_layout(
-            {
-                "height": plot_height + 300,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
-
-        # --------------------------------
-        trace_sim = px.scatter(
-            bench_list_included,
-            x="Ck",
-            y="E - C_PRIOR (pcm)",
-            error_y=3
-            * np.sqrt((bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5) ** 2 + bench_list_included["UNC_PRIOR (pcm)"].astype(float) ** 2),
-            hover_name="PATH",
-            title="Benchmark cases similarity with application case (Ck) vs bias (E-C)",
-        )
-
-        if len(bench_list_included) > 1:
-            x_data = bench_list_included["Ck"].values
-            y_data = bench_list_included["E - C_PRIOR (pcm)"].values
-            y_unc = np.sqrt(
-                (bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5) ** 2 + bench_list_included["UNC_PRIOR (pcm)"].astype(float) ** 2
-            )
-            unc_weights = 1.0 / (y_unc**2)
-
-            coeffs, cov = np.polyfit(x_data, y_data, 1, w=unc_weights, cov=True)
-            x_extrapolated = 1.0
-            y_extrapolated = coeffs[0] * x_extrapolated + coeffs[1]
-            sigma_y_extrap = np.sqrt((x_extrapolated**2 * cov[0, 0]) + (2 * x_extrapolated * cov[0, 1]) + cov[1, 1])
-
-            x_trendline = np.linspace(min(x_data), 1.0, 100)
-            y_trendline = coeffs[0] * x_trendline + coeffs[1]
-            trace_sim.add_scatter(
-                x=x_trendline, y=y_trendline, mode="lines", line=dict(dash="dash", color="gray"), name="Linear extrapolation", showlegend=True
-            )
-
-            trace_sim.add_scatter(
-                x=[1.0],
-                y=[y_extrapolated],
-                error_y=dict(type="data", array=[3 * sigma_y_extrap], visible=True),
-                mode="markers+text",
-                marker=dict(size=10, color="gray", symbol="star"),
-                text=[f"{y_extrapolated:.0f} pcm"],
-                textposition="top center",
-                name="Extrapolated bias to Ck=1",
-                showlegend=True,
-            )
-
-            trace_sim.update_yaxes(title_text="E - C (pcm) (3 sigma=sqrt(expe²+ND²))")
-            trace_sim.update_traces(marker_size=8, error_y_thickness=0.5)
-            trace_sim.update_layout(
-                {
-                    "height": plot_height,
-                    "width": plot_width,
-                    "font_size": font_size,
-                    "template": plotly_template,
-                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-                }
-            )
+        plots.apply_default_layout(trace_bias, height=800)
 
         # --------------------------------
         headers = [
@@ -1803,7 +2222,7 @@ class Assimilation:
             "ND uncertainty (post) (pcm)",
             "E - C<sub>prior</sub> (pcm)",
             "E - C<sub>post</sub> (pcm)",
-            "Χ² individual",
+            "Chi2 individual",
             "Ck",
         ]
         lines = [
@@ -1822,7 +2241,7 @@ class Assimilation:
             [round(ck, 4) if ck != None else None for ck in self.bench_list["Ck"]],
         ]
         table_bench_fig = plots.create_html_table(
-            headers=headers,
+            headers=[h.replace("Chi2", "Χ²") for h in headers],
             lines=lines,
             color_per_lines=["red" if rem else "white" for rem in self.bench_list["REMOVED"]],
         )
@@ -1848,15 +2267,7 @@ class Assimilation:
                 title="Application case sensitivities (integrals)",
                 yaxis_title=f"Sensitivity ({unit_str}/%[ND] - group-wise integral)",
             )
-            trace_case_sensi_integrals.update_layout(
-                {
-                    "height": plot_height,
-                    "width": plot_width,
-                    "font_size": font_size,
-                    "template": plotly_template,
-                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-                }
-            )
+            plots.apply_default_layout(trace_case_sensi_integrals)
 
             trace_case_sensi_profiles = plots.plot_profiles_per_iso_reac(
                 vector=self.case_vec,
@@ -1866,15 +2277,7 @@ class Assimilation:
                 title="Application case sensitivities",
                 yaxis_title=f"Sensitivity ({unit_str}/%[ND])",
             )
-            trace_case_sensi_profiles.update_layout(
-                {
-                    "height": plot_height,
-                    "width": plot_width,
-                    "font_size": font_size,
-                    "template": plotly_template,
-                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-                }
-            )
+            plots.apply_default_layout(trace_case_sensi_profiles)
 
             case_vec_per_unit_lethargy = []
             for iso, reac in self.iso_reac_list:
@@ -1892,15 +2295,7 @@ class Assimilation:
                 title="Sensitivities per unit lethargy",
                 yaxis_title=f"Sensitivity ({unit_str}/%[ND] per unit lethargy)",
             )
-            trace_case_sensi_profiles_lethargy.update_layout(
-                {
-                    "height": plot_height,
-                    "width": plot_width,
-                    "font_size": font_size,
-                    "template": plotly_template,
-                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-                }
-            )
+            plots.apply_default_layout(trace_case_sensi_profiles_lethargy)
 
             # --------------------------------
             dec_prior_trace_integ = plots.plot_integrals_per_iso_reac(
@@ -1912,15 +2307,7 @@ class Assimilation:
                 yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
             )
 
-            dec_prior_trace_integ.update_layout(
-                {
-                    "height": plot_height,
-                    "width": plot_width,
-                    "font_size": font_size,
-                    "template": plotly_template,
-                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-                }
-            )
+            plots.apply_default_layout(dec_prior_trace_integ)
 
             dec_prior_trace = plots.plot_profiles_per_iso_reac(
                 vector=self.prior_uncertainty.decomp_vec,
@@ -1930,15 +2317,7 @@ class Assimilation:
                 title="Contribution to relative a priori uncertainy² (covariances included)",
                 yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
             )
-            dec_prior_trace.update_layout(
-                {
-                    "height": plot_height,
-                    "width": plot_width,
-                    "font_size": font_size,
-                    "template": plotly_template,
-                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-                }
-            )
+            plots.apply_default_layout(dec_prior_trace)
 
             # --------------------------------
             dec_post_trace_integ = plots.plot_integrals_per_iso_reac(
@@ -1950,15 +2329,7 @@ class Assimilation:
                 yaxis_title=f"Unc² ({unit_str}²)",
             )
 
-            dec_post_trace_integ.update_layout(
-                {
-                    "height": plot_height,
-                    "width": plot_width,
-                    "font_size": font_size,
-                    "template": plotly_template,
-                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-                }
-            )
+            plots.apply_default_layout(dec_post_trace_integ)
 
             dec_post_trace = plots.plot_profiles_per_iso_reac(
                 vector=self.post_uncertainty.decomp_vec,
@@ -1968,15 +2339,7 @@ class Assimilation:
                 title="Contribution to relative a posteriori uncertainy² (covariances included)",
                 yaxis_title=f"Unc² ({unit_str}²)",
             )
-            dec_post_trace.update_layout(
-                {
-                    "height": plot_height,
-                    "width": plot_width,
-                    "font_size": font_size,
-                    "template": plotly_template,
-                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-                }
-            )
+            plots.apply_default_layout(dec_post_trace)
 
             # --------------------------------
             dec_bias_trace_integ = plots.plot_integrals_per_iso_reac(
@@ -1987,15 +2350,7 @@ class Assimilation:
                 title="Integral contribution to relative bias",
                 yaxis_title=f"Bias ({unit_str})",
             )
-            dec_bias_trace_integ.update_layout(
-                {
-                    "height": plot_height,
-                    "width": plot_width,
-                    "font_size": font_size,
-                    "template": plotly_template,
-                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-                }
-            )
+            plots.apply_default_layout(dec_bias_trace_integ)
 
             dec_bias_trace = plots.plot_profiles_per_iso_reac(
                 vector=self.bias.decomp_vec,
@@ -2005,15 +2360,7 @@ class Assimilation:
                 title="Contribution to relative bias",
                 yaxis_title=f"Bias ({unit_str})",
             )
-            dec_bias_trace.update_layout(
-                {
-                    "height": plot_height,
-                    "width": plot_width,
-                    "font_size": font_size,
-                    "template": plotly_template,
-                    "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-                }
-            )
+            plots.apply_default_layout(dec_bias_trace)
 
         # --------------------------------
         trace_cov_prior_integrals = plots.plot_matrix_integrals_per_iso_reac(
@@ -2023,15 +2370,7 @@ class Assimilation:
             title="Variances-covariances matrix before assimilation (group-wise integrals - covariances included)",
             yaxis_title="Unc(%)² (group-wise integral - covariances included)",
         )
-        trace_cov_prior_integrals.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(trace_cov_prior_integrals)
 
         matrix_diag = np.diag(self.cov_mat.toarray())
         trace_matrix_profiles = plots.plot_profiles_per_iso_reac(
@@ -2041,15 +2380,7 @@ class Assimilation:
             title="Variances-covariances matrix before assimilation (diagonal elements)",
             yaxis_title="Unc(%)²",
         )
-        trace_matrix_profiles.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(trace_matrix_profiles)
 
         matrix_prof_covar = [np.sum(x) for x in self.cov_mat]
         trace_matrix_profiles_cov = plots.plot_profiles_per_iso_reac(
@@ -2059,15 +2390,7 @@ class Assimilation:
             title="Variances-covariances matrix before assimilation (covariances included)",
             yaxis_title="Unc(%)² (covariances included)",
         )
-        trace_matrix_profiles_cov.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(trace_matrix_profiles_cov)
 
         trace_cov_delta_integrals = plots.plot_matrix_integrals_per_iso_reac(
             cov_mat=-1 * self.cov_mat_delta,
@@ -2076,15 +2399,7 @@ class Assimilation:
             title="Variances-covariances matrix deltas (Cov_post - Cov_prior) after assimilation (group-wise integrals - covariances included)",
             yaxis_title="Variance & Covariance (group-wise integral - covariances included)",
         )
-        trace_cov_delta_integrals.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(trace_cov_delta_integrals)
 
         matrix_delta_diag = np.diag(-1 * self.cov_mat_delta.toarray())
         trace_matrix_delta_profiles = plots.plot_profiles_per_iso_reac(
@@ -2094,15 +2409,7 @@ class Assimilation:
             title="Variances-covariances matrix deltas (Cov_post - Cov_prior) after assimilation (diagonal elements)",
             yaxis_title="Unc(%)²",
         )
-        trace_matrix_delta_profiles.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(trace_matrix_delta_profiles)
 
         matrix_delta_prof_covar = [np.sum(x) for x in -1 * self.cov_mat_delta]
         trace_matrix_delta_profiles_cov = plots.plot_profiles_per_iso_reac(
@@ -2112,15 +2419,7 @@ class Assimilation:
             title="Variances-covariances matrix deltas (Cov_post - Cov_prior) after assimilation (covariances included)",
             yaxis_title="Unc(%)² (covariances included)",
         )
-        trace_matrix_delta_profiles_cov.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(trace_matrix_delta_profiles_cov)
 
         delta_mu_integrals = plots.plot_integrals_per_iso_reac(
             vector=self.delta_mu,
@@ -2129,15 +2428,7 @@ class Assimilation:
             title="Relative change in ND (group-wise integrals)",
             yaxis_title=f"Relative change in ND (group-wise integral) - Delta[ND]/ND",
         )
-        delta_mu_integrals.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(delta_mu_integrals)
 
         delta_mu_profiles = plots.plot_profiles_per_iso_reac(
             vector=self.delta_mu,
@@ -2146,15 +2437,7 @@ class Assimilation:
             title="Relative change in ND",
             yaxis_title=f"Relative change in ND - Delta[ND]/ND",
         )
-        delta_mu_profiles.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(delta_mu_profiles)
         # --------------------------------
         case_iso_reac = []
         if self.appl_case != None:
@@ -2213,9 +2496,7 @@ class Assimilation:
                 )
             ]
         )
-        table_iso_reac.update_layout(
-            {"width": plot_width, "font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.3)", "margin": dict(l=20, r=20, t=20, b=20)}
-        )
+        plots.apply_default_layout(table_iso_reac, height=None, paper_bgcolor="rgba(255, 255, 255, 0.3)", margin=dict(l=20, r=20, t=20, b=20))
 
         # --------------------------------
         valid_gap_str = ""
@@ -2258,7 +2539,9 @@ class Assimilation:
             offline_control()
             f.writelines(HTML_intro)
             f.write(text_intro)
+            f.write('<div class="calins-vm">')
             f.write(table_res)
+            f.write("</div>")
             f.write(C3_str)
             f.write(valid_gap_str)
 
@@ -2280,8 +2563,6 @@ class Assimilation:
             f.write('<div id="Benchmark list" class="tabcontent">\n')
             f.write(f'<section style="background:linear-gradient(#d2978e, white) ; padding: 14px 100px">\n' + "<br>\n")
             f.write(trace_bias.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-            if trace_sim is not None:
-                f.write(trace_sim.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
             f.write(table_bench_fig)
             f.write("</section>\n")
             f.write("</div>\n")
@@ -2353,29 +2634,13 @@ class Assimilation:
 
                     if trace_cov_prior_submat != None:
                         write_div = True
-                        trace_cov_prior_submat.update_layout(
-                            {
-                                "height": plot_height,
-                                "width": plot_width,
-                                "font_size": font_size,
-                                "template": plotly_template,
-                                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-                            }
-                        )
+                        plots.apply_default_layout(trace_cov_prior_submat)
                         html_plot = trace_cov_prior_submat.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include)
                         f.write(f'<section style="border: 4px solid #4B0082; border-radius: 25px ; margin:{block_margin}; padding:10">\n')
                         f.write(html_plot + "<br>\n")
 
                     if trace_cov_delta_submat != None:
-                        trace_cov_delta_submat.update_layout(
-                            {
-                                "height": plot_height,
-                                "width": plot_width,
-                                "font_size": font_size,
-                                "template": plotly_template,
-                                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-                            }
-                        )
+                        plots.apply_default_layout(trace_cov_delta_submat)
 
                         html_plot = trace_cov_delta_submat.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include)
                         if not write_div:
@@ -2605,15 +2870,7 @@ class Uncertainty:
             title="Application case sensitivities (integrals)",
             yaxis_title=f"Sensitivity ({unit_str}/%[ND] - group-wise integral)",
         )
-        trace_case_sensi_integrals.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(trace_case_sensi_integrals)
 
         trace_case_sensi_profiles = plots.plot_profiles_per_iso_reac(
             vector=self.__sensi_vec,
@@ -2623,15 +2880,7 @@ class Uncertainty:
             title="Application case sensitivities",
             yaxis_title=f"Sensitivity ({unit_str}/%[ND])",
         )
-        trace_case_sensi_profiles.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(trace_case_sensi_profiles)
 
         case_vec_per_unit_lethargy = []
         for iso, reac in self.iso_reac_list:
@@ -2649,15 +2898,7 @@ class Uncertainty:
             title="Sensitivities per unit lethargy",
             yaxis_title=f"Sensitivity ({unit_str}/%[ND] per unit lethargy)",
         )
-        trace_case_sensi_profiles_lethargy.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(trace_case_sensi_profiles_lethargy)
 
         # --------------------------------
         dec_trace_integ = plots.plot_integrals_per_iso_reac(
@@ -2669,15 +2910,7 @@ class Uncertainty:
             yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
         )
 
-        dec_trace_integ.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(dec_trace_integ)
 
         dec_trace = plots.plot_profiles_per_iso_reac(
             vector=self.decomp_vec,
@@ -2687,15 +2920,7 @@ class Uncertainty:
             title="Contribution to relative uncertainy² (covariances included)",
             yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
         )
-        dec_trace.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(dec_trace)
         # --------------------------------
         trace_cov_integrals = plots.plot_matrix_integrals_per_iso_reac(
             cov_mat=self.__cov_mat,
@@ -2704,15 +2929,7 @@ class Uncertainty:
             title="Variances-covariances matrix (group-wise integrals - covariances included)",
             yaxis_title="Unc(%)² (group-wise integral - covariances included)",
         )
-        trace_cov_integrals.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(trace_cov_integrals)
 
         matrix_diag = np.diag(self.__cov_mat.toarray())
         trace_matrix_profiles = plots.plot_profiles_per_iso_reac(
@@ -2722,15 +2939,7 @@ class Uncertainty:
             title="Variances-covariances matrix (diagonal elements)",
             yaxis_title="Unc(%)²",
         )
-        trace_matrix_profiles.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(trace_matrix_profiles)
 
         matrix_prof_covar = [np.sum(x) for x in self.__cov_mat]
         trace_matrix_profiles_cov = plots.plot_profiles_per_iso_reac(
@@ -2740,15 +2949,7 @@ class Uncertainty:
             title="Variances-covariances matrix (covariances included)",
             yaxis_title="Unc(%)² (covariances included)",
         )
-        trace_matrix_profiles_cov.update_layout(
-            {
-                "height": plot_height,
-                "width": plot_width,
-                "font_size": font_size,
-                "template": plotly_template,
-                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-            }
-        )
+        plots.apply_default_layout(trace_matrix_profiles_cov)
         # --------------------------------
         case_iso = [iso for iso, reac in self.appl_case.iso_reac_list if reac != 1]
         case_reac = [reac for iso, reac in self.appl_case.iso_reac_list if reac != 1]
@@ -2792,7 +2993,7 @@ class Uncertainty:
                 )
             ]
         )
-        table_iso_reac.update_layout({"font_size": font_size, "paper_bgcolor": "rgba(255, 255, 255, 0.3)", "margin": dict(l=20, r=20, t=20, b=20)})
+        plots.apply_default_layout(table_iso_reac, height=None, paper_bgcolor="rgba(255, 255, 255, 0.3)", margin=dict(l=20, r=20, t=20, b=20))
 
         with open(output_html_path, "a", encoding="utf-8") as f:
 
@@ -2850,15 +3051,7 @@ class Uncertainty:
                     )
 
                     if trace_cov_submat != None:
-                        trace_cov_submat.update_layout(
-                            {
-                                "height": plot_height,
-                                "width": plot_width,
-                                "font_size": font_size,
-                                "template": plotly_template,
-                                "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-                            }
-                        )
+                        plots.apply_default_layout(trace_cov_submat)
                         f.write(trace_cov_submat.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
 
             f.write("</section>\n")

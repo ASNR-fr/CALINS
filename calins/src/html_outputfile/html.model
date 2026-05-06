@@ -46,6 +46,18 @@ h4 {color: #363636}
   border: 1px solid #ccc;
   border-top: none;
 }
+
+/* Tooltip (?) icons */
+.calins-vm .tip{position:relative;display:inline-block;cursor:help;
+  background:#809684;color:#fff;border-radius:50%;width:14px;height:14px;
+  font-size:10px;text-align:center;line-height:14px;margin-right:4px;vertical-align:middle;font-weight:bold;}
+.calins-vm .tip .tiptext{visibility:hidden;width:280px;max-width:90vw;background:#333;color:#fff;
+  text-align:left;border-radius:6px;padding:8px 10px;position:absolute;z-index:1;
+  bottom:125%;left:0;font-size:11px;line-height:1.4;
+  box-shadow:0 2px 8px rgba(0,0,0,.3);opacity:0;transition:opacity .2s;font-weight:normal;}
+.calins-vm .tip .tiptext::after{content:"";position:absolute;top:100%;left:10px;
+  border-width:5px;border-style:solid;border-color:#333 transparent transparent transparent;}
+.calins-vm .tip:hover .tiptext{visibility:visible;opacity:1;}
 </style>
 </head>
 <body>

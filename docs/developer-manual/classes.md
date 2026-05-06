@@ -116,7 +116,8 @@ Initialization of an *Assimilation* object consists of several main steps:
 5. *self.calcul_prior_uncertainty()*: calculation and creation of an *Uncertainty* object;
 6. *self.calcul_matrix_assimilation()*: calculation of \(\Delta \mu_{XS}\), \(\Delta Cov_{assim}\), application of a \(\chi^2\) filter if a target value is provided, and filter application on Ck if a target is provided;
 7. *self.calcul_bias()*: calculation and creation of a *Bias* object;
-8. *self.calcul_post_uncertainty()*: calculation and creation of an *Uncertainty* object.
+8. *self.calcul_post_uncertainty()*: calculation and creation of an *Uncertainty* object;
+9. *self.calcul_USL_gllsm()*, *self.calcul_USL_parametric()*, *self.calcul_USL_nonparametric()*: computation of three independent Upper Safety Limits (see section below).
 
 The *Assimilation* object has two functions to display and/or save several analysis elements in *.html* format:
 - the sensitivity vector of the application case;
@@ -131,3 +132,17 @@ The *Assimilation* object has two functions to display and/or save several analy
   - histograms of covariance matrix integrals per isotope-reaction pair, and of \(\Delta Cov_{assim}\) for comparison;
   - sub-matrices of covariances and \(\Delta Cov_{assim}\) for user-selected isotope-reaction pairs.
   - list of isotope-reaction pair included in benchmark cases, in covariances-data and in calculation for verification;
+
+### USL Validation Methods
+
+The *Assimilation* object also computes three **Upper Safety Limit (USL)** values automatically upon initialization. Results are stored as dictionary attributes:
+
+- **`calcul_USL_gllsm(p=0.95, q=0.95)`** — Uses the GLLSM bias and a coverage factor approach based on the noncentral t-distribution. Returns `self.USL_gllsm` with keys: `'USL'`, `'calculational_margin'`, `'bias'`, `'std'`, `'K'`, `'N'`, `'p'`, `'q'`.
+
+- **`calcul_USL_parametric(p=0.99, q=0.99)`** — Assumes normally-distributed scaled multiplication factors $\tilde{k}_i = k_{\text{calc},i} / k_{\text{bench},i}$ (validated by a Shapiro-Wilk test). Uses inverse-variance weighting and a tolerance factor $\kappa$ from the noncentral $t$-distribution. Returns `self.USL_parametric` with keys: `'USL'`, `'calculational_margin'`, `'beta'`, `'sigma_beta'`, `'kappa'`, `'k_bar'`, `'Delta_m'`, `'s_k'`, `'sigma_bar_k'`, `'N'`, `'p'`, `'q'`, `'shapiro_stat'`, `'shapiro_pvalue'`, `'normality_passed'`.
+
+- **`calcul_USL_nonparametric(p_pop=0.95, n_sigma=2.6)`** — Distribution-free method based on worst-case bias (min $\tilde{k}_i$). Uses a nonparametric confidence level $C_{NP} = 1 - p_{\text{pop}}^N$ and a lookup-table margin $m_{NP}$. Returns `self.USL_nonparametric` with keys: `'USL'`, `'calculational_margin'`, `'beta'`, `'sigma_beta'`, `'min_k_tilde'`, `'Delta_m'`, `'sigma_worst'`, `'CNP'`, `'m_NP'`, `'N'`, `'p_pop'`, `'n_sigma'`. Note: `'USL'` and `'calculational_margin'` are `None` when $C_{NP} \leq 0.4$ (insufficient benchmarks).
+
+All methods use the common USL formula: $\text{USL} = 1 - \text{CM} - \text{MOS}$, where MOS (Margin of Subcriticality) defaults to 0.05.
+
+For theoretical details, see the [Validation Methods](../theory/validation-methods.md) page.

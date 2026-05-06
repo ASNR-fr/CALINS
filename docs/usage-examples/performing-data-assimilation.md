@@ -35,4 +35,23 @@ print(f"Posterior uncertainty: {assimilation.post_uncertainty.value} pcm")
 print(f"Posterior bias: {assimilation.bias.value} pcm")
 print(f"Chi-squared prior: {assimilation.prior_chi2}")
 print(f"Chi-squared post: {assimilation.post_chi2}")
+
+# Access validation methods results (each is a dictionary)
+# USL = 1 - CM - MOS, where MOS is the Margin of Subcriticality (default 0.05)
+print(f"MOS (Margin of Subcriticality): {assimilation.MOS}")
+
+# GLLSM USL
+print(f"GLLSM USL: {assimilation.USL_gllsm['USL']:.5f}")
+print(f"  Calculational Margin: {assimilation.USL_gllsm['calculational_margin']*1e5:.0f} pcm")
+print(f"  Coverage factor K: {assimilation.USL_gllsm['K']:.4f}")
+
+# Parametric USL (assumes normal distribution of C/E)
+print(f"Parametric USL: {assimilation.USL_parametric['USL']:.5f}")
+print(f"  Bias beta: {assimilation.USL_parametric['beta']:.6f}")
+print(f"  Normality test passed: {assimilation.USL_parametric['normality_passed']}")
+
+# Nonparametric USL (distribution-free, based on worst-case C/E)
+# Note: USL and calculational_margin can be None if CNP <= 0.4 (not enough benchmarks)
+print(f"Nonparametric USL: {assimilation.USL_nonparametric['USL']}")
+print(f"  CNP: {assimilation.USL_nonparametric['CNP']:.4f}")
 ```

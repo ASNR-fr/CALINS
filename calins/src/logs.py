@@ -100,9 +100,9 @@ def log_exec():
             global session_init
 
             if not session_init:
+                session_init = True
                 pkg_name = func.__module__.split(".")[0]
                 init_session(pkg_name=pkg_name)
-                session_init = True
 
             func_args = inspect.signature(func).bind(*args, **kwargs).arguments
 

@@ -139,7 +139,7 @@ class TestFunctions(unittest.TestCase):
         self.assertAlmostEqual(SSR, 0.5714, places=4)
         print("Test successfull for calculation type SS")
 
-    def test_G(self):
+    def test_G_CEA(self):
 
         G = cl.calcul_G_CEA(appl_case=sensi_correct_path_1, bench_case=sensi_correct_path_2)
         self.assertAlmostEqual(G, 0.5714, places=4)
@@ -149,6 +149,19 @@ class TestFunctions(unittest.TestCase):
 
         G = cl.calcul_G_CEA(appl_case=sensi_correct_path_1, bench_case=sensi_case_2)
         self.assertAlmostEqual(G, 0.5714, places=4)
+
+        print("Test successfull for calculation type G CEA")
+
+    def test_G(self):
+
+        G = cl.calcul_G(case_1=sensi_correct_path_1, case_2=sensi_correct_path_2)
+        self.assertAlmostEqual(G, 0.71795, places=4)  # TODO: valeur à ajuster
+
+        G = cl.calcul_G(case_1=sensi_case_1, case_2=sensi_case_2)
+        self.assertAlmostEqual(G, 0.71795, places=4)  # TODO: valeur à ajuster
+
+        G = cl.calcul_G(case_1=sensi_correct_path_1, case_2=sensi_case_2)
+        self.assertAlmostEqual(G, 0.71795, places=4)  # TODO: valeur à ajuster
 
         print("Test successfull for calculation type G")
 
@@ -240,6 +253,251 @@ class TestFunctions(unittest.TestCase):
         self.assertAlmostEqual(assim_nd.post_uncertainty.value, 1.1281, places=4)
 
         print("Test successfull for calculation type GLLSM")
+
+    def test_USL_gllsm(self):
+        """Test GLLSM-based USL calculation."""
+        # --- With 1 benchmark: N < 2 -> USL not calculable
+        assim = cl.Assimilation(benchmarks_list=[sensi_correct_path_2], appl_case=sensi_correct_path_1, cov_data=cov_1_nd)
+
+        self.assertIsInstance(assim.USL_gllsm, dict)
+        expected_keys = {"USL", "calculational_margin", "bias", "std", "K", "N", "p", "q"}
+        self.assertEqual(set(assim.USL_gllsm.keys()), expected_keys)
+        self.assertEqual(assim.USL_gllsm["N"], 1)
+        self.assertIsNone(assim.USL_gllsm["USL"])
+        self.assertIsNone(assim.USL_gllsm["calculational_margin"])
+        self.assertIsNone(assim.USL_gllsm["K"])
+
+        # --- With multiple benchmarks: N >= 2 -> USL calculable
+        assim2 = cl.Assimilation(
+            benchmarks_list=[sensi_correct_path_2, sensi_correct_path_3, sensi_correct_path_4],
+            appl_case=sensi_correct_path_1,
+            cov_data=cov_1_nd,
+        )
+
+        self.assertIsNotNone(assim2.USL_gllsm["USL"])
+        self.assertIsNotNone(assim2.USL_gllsm["K"])
+        self.assertEqual(assim2.USL_gllsm["p"], 0.95)
+        self.assertEqual(assim2.USL_gllsm["q"], 0.95)
+
+        # Check formula consistency: USL = 1 - CM - MOS
+        self.assertAlmostEqual(
+            assim2.USL_gllsm["USL"],
+            1.0 - assim2.USL_gllsm["calculational_margin"] - assim2.MOS,
+            places=10,
+        )
+
+        # Check USL value (placeholder - à remplacer par valeur de référence)
+        self.assertAlmostEqual(assim2.USL_gllsm["USL"], 0.95, places=4)
+        self.assertAlmostEqual(assim2.USL_gllsm["K"], 7.6559, places=4)
+
+        print("Test successfull for USL GLLSM method")
+
+    def test_USL_parametric(self):
+        """Test parametric USL calculation."""
+        # --- With 1 benchmark: N < 2 -> USL not calculable
+        assim = cl.Assimilation(benchmarks_list=[sensi_correct_path_2], appl_case=sensi_correct_path_1, cov_data=cov_1_nd)
+
+        self.assertIsInstance(assim.USL_parametric, dict)
+        expected_keys = {
+            "USL", "calculational_margin", "beta", "sigma_beta", "kappa",
+            "k_bar", "Delta_m", "s_k", "sigma_bar_k", "N", "p", "q",
+            "shapiro_stat", "shapiro_pvalue", "normality_passed",
+        }
+        self.assertEqual(set(assim.USL_parametric.keys()), expected_keys)
+        self.assertEqual(assim.USL_parametric["N"], 1)
+        self.assertIsNone(assim.USL_parametric["USL"])
+        self.assertIsNone(assim.USL_parametric["calculational_margin"])
+        self.assertIsNone(assim.USL_parametric["kappa"])
+        self.assertIsNone(assim.USL_parametric["sigma_beta"])
+        self.assertIsNotNone(assim.USL_parametric["beta"])  # beta is still defined
+        self.assertEqual(assim.USL_parametric["Delta_m"], max(0.0, assim.USL_parametric["beta"]))
+
+        # --- With multiple benchmarks: N >= 2 -> USL calculable
+        assim2 = cl.Assimilation(
+            benchmarks_list=[sensi_correct_path_2, sensi_correct_path_3, sensi_correct_path_4],
+            appl_case=sensi_correct_path_1,
+            cov_data=cov_1_nd,
+        )
+
+        self.assertIsNotNone(assim2.USL_parametric["USL"])
+        self.assertIsNotNone(assim2.USL_parametric["kappa"])
+        self.assertEqual(assim2.USL_parametric["p"], 0.99)
+        self.assertEqual(assim2.USL_parametric["q"], 0.99)
+
+        # Check formula consistency: USL = 1 - CM - MOS
+        self.assertAlmostEqual(
+            assim2.USL_parametric["USL"],
+            1.0 - assim2.USL_parametric["calculational_margin"] - assim2.MOS,
+            places=10,
+        )
+
+        # Check CM formula: CM = -beta + kappa * sigma_beta + Delta_m
+        self.assertAlmostEqual(
+            assim2.USL_parametric["calculational_margin"],
+            -assim2.USL_parametric["beta"] + assim2.USL_parametric["kappa"] * assim2.USL_parametric["sigma_beta"] + assim2.USL_parametric["Delta_m"],
+            places=10,
+        )
+
+        # Check Delta_m = max(0, beta)
+        self.assertEqual(assim2.USL_parametric["Delta_m"], max(0.0, assim2.USL_parametric["beta"]))
+
+        # Check USL values (placeholders - à remplacer par valeurs de référence)
+        self.assertAlmostEqual(assim2.USL_parametric["USL"], 0.90167, places=4)
+        self.assertAlmostEqual(assim2.USL_parametric["beta"], 0.010050, places=6)
+        self.assertAlmostEqual(assim2.USL_parametric["kappa"], 23.8956, places=4)
+
+        # Shapiro-Wilk: with >= 3 benchmarks, normality test should produce a result
+        self.assertIsNotNone(assim2.USL_parametric["shapiro_pvalue"])
+
+        print("Test successfull for USL parametric method")
+
+    def test_USL_parametric_normality_test(self):
+        """Test that Shapiro-Wilk normality test runs with enough benchmarks."""
+        assim = cl.Assimilation(
+            benchmarks_list=[sensi_correct_path_2, sensi_correct_path_4, sensi_correct_path_3],
+            appl_case=sensi_correct_path_1,
+            cov_data=cov_1_nd,
+        )
+
+        # With >= 3 benchmarks, normality test should produce a result
+        self.assertIsNotNone(assim.USL_parametric["shapiro_pvalue"])
+        self.assertIsNotNone(assim.USL_parametric["shapiro_stat"])
+        self.assertIsInstance(assim.USL_parametric["normality_passed"], bool)
+
+        # Check pvalue is between 0 and 1
+        self.assertGreaterEqual(assim.USL_parametric["shapiro_pvalue"], 0.0)
+        self.assertLessEqual(assim.USL_parametric["shapiro_pvalue"], 1.0)
+
+        print("Test successfull for USL parametric normality test")
+
+    def test_USL_nonparametric(self):
+        """Test nonparametric rank-order USL calculation."""
+        assim = cl.Assimilation(benchmarks_list=[sensi_correct_path_2], appl_case=sensi_correct_path_1, cov_data=cov_1_nd)
+
+        # Check that USL_nonparametric dict is populated with expected keys
+        self.assertIsInstance(assim.USL_nonparametric, dict)
+        expected_keys = {
+            "USL", "calculational_margin", "beta", "sigma_beta",
+            "min_k_tilde", "Delta_m", "sigma_worst", "CNP", "m_NP",
+            "N", "p_pop", "n_sigma",
+        }
+        self.assertEqual(set(assim.USL_nonparametric.keys()), expected_keys)
+
+        # Check default parameters
+        self.assertEqual(assim.USL_nonparametric["p_pop"], 0.95)
+        self.assertEqual(assim.USL_nonparametric["n_sigma"], 2.6)
+        self.assertEqual(assim.USL_nonparametric["N"], 1)
+
+        # With 1 benchmark: CNP = 1 - 0.95^1 = 0.05, which is <= 0.4 -> USL should be None
+        self.assertAlmostEqual(assim.USL_nonparametric["CNP"], 0.05, places=4)
+        self.assertIsNone(assim.USL_nonparametric["USL"])
+        self.assertIsNone(assim.USL_nonparametric["calculational_margin"])
+        self.assertIsNone(assim.USL_nonparametric["m_NP"])
+
+        # Check beta = min(k_tilde) - 1
+        self.assertAlmostEqual(
+            assim.USL_nonparametric["beta"],
+            assim.USL_nonparametric["min_k_tilde"] - 1.0,
+            places=10,
+        )
+
+        # Check sigma_beta = n_sigma * sigma_worst
+        self.assertAlmostEqual(
+            assim.USL_nonparametric["sigma_beta"],
+            assim.USL_nonparametric["n_sigma"] * assim.USL_nonparametric["sigma_worst"],
+            places=10,
+        )
+
+        print("Test successfull for USL nonparametric method")
+
+    def test_USL_nonparametric_sufficient_benchmarks(self):
+        """Test nonparametric USL when enough benchmarks are provided (CNP > 0.4)."""
+        # Use multiple benchmarks to get CNP > 0.4
+        bench_list = [sensi_correct_path_2, sensi_correct_path_3, sensi_correct_path_4] * 5  # 15 benchmarks
+        assim = cl.Assimilation(
+            benchmarks_list=bench_list,
+            appl_case=sensi_correct_path_1,
+            cov_data=cov_1_nd,
+        )
+
+        # CNP = 1 - 0.95^N should be > 0.4 with enough benchmarks
+        N_active = assim.USL_nonparametric["N"]
+        expected_CNP = 1.0 - 0.95**N_active
+        self.assertAlmostEqual(assim.USL_nonparametric["CNP"], expected_CNP, places=10)
+
+        if expected_CNP > 0.4:
+            # USL should be calculable
+            self.assertIsNotNone(assim.USL_nonparametric["USL"])
+            self.assertIsNotNone(assim.USL_nonparametric["calculational_margin"])
+            self.assertIsNotNone(assim.USL_nonparametric["m_NP"])
+
+            # Check formula consistency: USL = 1 - CM - MOS
+            self.assertAlmostEqual(
+                assim.USL_nonparametric["USL"],
+                1.0 - assim.USL_nonparametric["calculational_margin"] - assim.MOS,
+                places=10,
+            )
+
+            # Check CM = -beta + sigma_beta + Delta_m + m_NP
+            self.assertAlmostEqual(
+                assim.USL_nonparametric["calculational_margin"],
+                -assim.USL_nonparametric["beta"] + assim.USL_nonparametric["sigma_beta"] + assim.USL_nonparametric["Delta_m"] + assim.USL_nonparametric["m_NP"],
+                places=10,
+            )
+
+        print("Test successfull for USL nonparametric with sufficient benchmarks")
+
+    def test_USL_custom_MOS(self):
+        """Test that custom MOS value is correctly applied to all USL methods."""
+        custom_MOS = 0.02
+        assim = cl.Assimilation(
+            benchmarks_list=[sensi_correct_path_2, sensi_correct_path_3, sensi_correct_path_4],
+            appl_case=sensi_correct_path_1,
+            cov_data=cov_1_nd,
+            MOS=custom_MOS,
+        )
+
+        self.assertEqual(assim.MOS, custom_MOS)
+
+        # GLLSM: USL = 1 - CM - MOS
+        self.assertIsNotNone(assim.USL_gllsm["USL"])
+        self.assertAlmostEqual(
+            assim.USL_gllsm["USL"],
+            1.0 - assim.USL_gllsm["calculational_margin"] - custom_MOS,
+            places=10,
+        )
+
+        # Parametric: USL = 1 - CM - MOS
+        self.assertIsNotNone(assim.USL_parametric["USL"])
+        self.assertAlmostEqual(
+            assim.USL_parametric["USL"],
+            1.0 - assim.USL_parametric["calculational_margin"] - custom_MOS,
+            places=10,
+        )
+
+        print("Test successfull for USL with custom MOS")
+
+    def test_USL_parametric_custom_params(self):
+        """Test parametric USL with custom p and q values."""
+        assim = cl.Assimilation(
+            benchmarks_list=[sensi_correct_path_2, sensi_correct_path_3, sensi_correct_path_4],
+            appl_case=sensi_correct_path_1,
+            cov_data=cov_1_nd,
+        )
+
+        # Store the default kappa (p=0.99, q=0.99)
+        kappa_default = assim.USL_parametric["kappa"]
+
+        # Re-run with less conservative parameters
+        result = assim.calcul_USL_parametric(p=0.95, q=0.95)
+
+        self.assertEqual(result["p"], 0.95)
+        self.assertEqual(result["q"], 0.95)
+
+        # kappa should be smaller with lower p and q (less conservative)
+        self.assertLess(result["kappa"], kappa_default)
+
+        print("Test successfull for USL parametric custom parameters")
 
 
 if __name__ == "__main__":

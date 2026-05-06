@@ -21,6 +21,7 @@ nav:
     - Alignment Rule for Matrix Calculations: theory/alignment-rule.md
     - Uncertainty Calculation on the Response: theory/uncertainty-calculation.md
     - Assimilation of Experimental Data and Bias Calculation via GLLSM: theory/assimilation-gllsm.md
+    - Validation Methods for the USL: theory/validation-methods.md
     - Reflections on Experimental Correlations: theory/experimental-correlations.md
   - Developer Manual:
     - methods.py: developer-manual/methods.md

@@ -274,20 +274,49 @@ def create_html_tabs(names: list = []):
     return txt
 
 
-def create_html_table(headers=None, lines=None, color_per_lines=None):
-    if color_per_lines == None:
+def create_html_tip(txt):
+    """Return a small '?' icon with a hover tooltip."""
+    safe = txt.replace("'", "&#39;").replace('"', "&quot;")
+    return f'<span class="tip">?<span class="tiptext">{safe}</span></span>'
+
+
+def apply_default_layout(fig, **overrides):
+    """Apply the standard CALINS layout to a plotly figure. Any key can be overridden."""
+    layout = {
+        "height": 500,
+        "width": 1200,
+        "font_size": 10,
+        "template": "plotly_white",
+        "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+    }
+    layout.update(overrides)
+    fig.update_layout(layout)
+    return fig
+
+
+def create_html_table(headers=None, lines=None, color_per_lines=None, table_attrs=None, header_style=None, centered=True):
+    if color_per_lines is None:
         color_per_lines = ["white" for i in range(len(lines[0]))]
 
-    table = "<h1> </h1>"
+    table = ""
+    if centered:
+        table += "<h1> </h1>"
+        table += '<div style="display: flex; align-items: center; justify-content: center;">\n'
 
-    table += '<div style="display: flex; align-items: center; justify-content: center;">\n'
-    table += '<table style="font-size:14px;" border="0" bordercolor="#363636" bgcolor="#e9d4c9">\n'
+    if table_attrs is None:
+        table += '<table style="font-size:14px;" border="0" bordercolor="#363636" bgcolor="#e9d4c9">\n'
+    else:
+        table += f"<table {table_attrs}>\n"
 
     # Create the table's column headers
-    table += "  <tr>\n"
-    for column in headers:
-        table += f"    <th>{column}</th>\n"
-    table += "  </tr>\n"
+    if headers:
+        if header_style:
+            table += f"  <tr style='{header_style}'>\n"
+        else:
+            table += "  <tr>\n"
+        for column in headers:
+            table += f"    <th>{column}</th>\n"
+        table += "  </tr>\n"
 
     # Create the table's row data
     for r in range(len(lines[0])):
@@ -297,8 +326,9 @@ def create_html_table(headers=None, lines=None, color_per_lines=None):
         table += "  </tr>\n"
 
     table += "</table>"
-    table += "</div>"
-    table += "<h1> </h1>"
+    if centered:
+        table += "</div>"
+        table += "<h1> </h1>"
 
     return table
 
