@@ -523,7 +523,3 @@ This project is licensed under the BSD-3-Clause License - see the LICENSE file f
 **Contact**: For questions and support, please use the GitHub issue tracker.
 
 **Version**: 1.0.0-beta
-
----
-
-*Last updated: 2024*
