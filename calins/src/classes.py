@@ -960,6 +960,7 @@ class Assimilation:
         Ck_threshold=None,
         targetted_chi2=None,
         filtering_chi2_method="delta",
+        expe_correlations=None,
         output_html_path=None,
         plotting_unit="pcm",
         isotopes_to_detail=[],
@@ -998,6 +999,10 @@ class Assimilation:
             List of reactions to exclude from assimilation.
         isotopes_to_detail : list of int or str, optional
             List of isotopes to provide detailed variances-covariances (as heatmaps) in the HTML outputfile.
+        expe_correlations : numpy.ndarray or list of lists, optional
+            Symmetric correlation matrix (N x N) between benchmark experimental responses.
+            Must follow the same ordering as benchmarks_list.
+            Values must be between 0 and 1 (inclusive). Diagonal is ignored (overwritten to 1).
         MOS : float, optional
             Margin of Subcriticality (default 0.05). Used in USL calculations: USL = 1 - CM - MOS.
         """
@@ -1050,6 +1055,23 @@ class Assimilation:
             raise Exception('The filtering chi2 method available currently are "delta" or "diagonal"')
 
         self.filtering_chi2_method = filtering_chi2_method
+
+        # Validate and store experimental correlations
+        if expe_correlations is not None:
+            expe_correlations = np.array(expe_correlations, dtype=float)
+            n_bench = len(self.bench_cases)
+            if expe_correlations.shape != (n_bench, n_bench):
+                raise errors.DimError(
+                    f"expe_correlations must be a ({n_bench}, {n_bench}) matrix matching the number of benchmarks, got {expe_correlations.shape}"
+                )
+            # Symmetry check
+            if not np.allclose(expe_correlations, expe_correlations.T):
+                raise errors.UserInputError("expe_correlations must be a symmetric matrix")
+            # Values in [0, 1] check (off-diagonal)
+            off_diag_mask = ~np.eye(n_bench, dtype=bool)
+            if np.any(expe_correlations[off_diag_mask] < 0) or np.any(expe_correlations[off_diag_mask] > 1):
+                raise errors.UserInputError("expe_correlations off-diagonal values must be between 0 and 1")
+        self.expe_correlations = expe_correlations
 
         self.bench_list = pd.DataFrame({"PATH": [bench_case.sdf_path for bench_case in self.bench_cases]})
 
@@ -1165,6 +1187,14 @@ class Assimilation:
             expe_mat[idx, idx] = bench_case.sigma_resp_expe**2 / bench_case.resp_calc**2
             # delta_CE_vec[idx] = (bench_case.resp_calc - bench_case.resp_expe) / bench_case.resp_expe
             delta_CE_vec[idx] = (bench_case.resp_calc - bench_case.resp_expe) / bench_case.resp_calc
+
+        # Fill off-diagonal terms with experimental correlations
+        if self.expe_correlations is not None:
+            for i in range(len(self.bench_cases)):
+                for j in range(len(self.bench_cases)):
+                    if i != j:
+                        rho_ij = self.expe_correlations[i, j]
+                        expe_mat[i, j] = rho_ij * (self.bench_cases[i].sigma_resp_expe / self.bench_cases[i].resp_calc) * (self.bench_cases[j].sigma_resp_expe / self.bench_cases[j].resp_calc)
 
         self.expe_mat = np.array(expe_mat)
         self.delta_CE_vec = np.array(delta_CE_vec)
@@ -2213,6 +2243,31 @@ class Assimilation:
         plots.apply_default_layout(trace_bias, height=800)
 
         # --------------------------------
+        # Experimental correlation matrix heatmap (if provided)
+        trace_expe_corr = None
+        if self.expe_correlations is not None:
+            bench_labels = [os.path.basename(p) for p in self.bench_list["PATH"]]
+            trace_expe_corr = go.Figure(
+                data=go.Heatmap(
+                    z=self.expe_correlations,
+                    x=bench_labels,
+                    y=bench_labels,
+                    colorscale="RdBu_r",
+                    zmin=0,
+                    zmax=1,
+                    text=np.round(self.expe_correlations, 3),
+                    texttemplate="%{text}",
+                    colorbar=dict(title="\u03c1"),
+                )
+            )
+            trace_expe_corr.update_layout(
+                title="Experimental correlation matrix (user-provided)",
+                xaxis=dict(tickangle=45),
+                yaxis=dict(autorange="reversed"),
+            )
+            plots.apply_default_layout(trace_expe_corr, width=600, height=600)
+
+        # --------------------------------
         headers = [
             "Benchmark cases",
             "Resp expe",
@@ -2563,6 +2618,8 @@ class Assimilation:
             f.write('<div id="Benchmark list" class="tabcontent">\n')
             f.write(f'<section style="background:linear-gradient(#d2978e, white) ; padding: 14px 100px">\n' + "<br>\n")
             f.write(trace_bias.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
+            if trace_expe_corr is not None:
+                f.write(trace_expe_corr.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
             f.write(table_bench_fig)
             f.write("</section>\n")
             f.write("</div>\n")

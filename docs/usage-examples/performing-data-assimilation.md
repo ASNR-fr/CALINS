@@ -55,3 +55,27 @@ print(f"  Normality test passed: {assimilation.USL_parametric['normality_passed'
 print(f"Nonparametric USL: {assimilation.USL_nonparametric['USL']}")
 print(f"  CNP: {assimilation.USL_nonparametric['CNP']:.4f}")
 ```
+
+## Accounting for experimental correlations
+
+When benchmarks share common experimental biases (e.g. same fission chamber, same facility), their experimental uncertainties are correlated. Use `expe_correlations` to pass a symmetric correlation matrix:
+
+```python
+import numpy as np
+
+# Correlation matrix (N x N), values in [0, 1], must be symmetric.
+# IMPORTANT: rows/columns must follow the same order as benchmarks_list.
+expe_corr = np.array([
+    [1.0, 0.3, 0.1],   # bench1 vs bench1, bench2, bench3
+    [0.3, 1.0, 0.2],   # bench2 vs ...
+    [0.1, 0.2, 1.0]    # bench3 vs ...
+])
+
+assimilation = cl.Assimilation(
+    appl_case=appl_case,
+    benchmarks_list=benchmarks,
+    cov_data=cov_data,
+    expe_correlations=expe_corr,  # populates off-diagonal of C_bench
+    output_html_path='assimilation_correlated.html'
+)
+```
