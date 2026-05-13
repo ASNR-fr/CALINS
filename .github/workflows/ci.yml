@@ -21,7 +21,7 @@ jobs:
           pip install pytest
 
       - name: Run unit tests
-        run: pytest ./tests/test_unitaires.py
+        run: pytest ./tests/test_unit.py
 
       - name: Tests done
         run: echo "Tests done."

@@ -1,0 +1,18 @@
+FICHIER TEST DE SENSIBILITE 2, keff expe : 0.995 +/- 0.002
+       2 number of neutron groups
+       2   number of sensitivity profiles         2 are region integrated
+  1.005 +/-   0.00030 k-eff from the forward case
+energy boundaries:
+  2.000000E+07  3.000000E+00  1.000000E-05
+iso-1        reac-1            10000      2
+      0      0
+  0.000000E+00  0.000000E+00      0      0
+  4.000000E-04  7.071070E-06  4.000000E-04  0.000000E+00  0.000000E+00
+  2.000000E-04  2.000000E-04
+  5.000000E-06  5.000000E-06
+iso-2        reac-1          20000      2
+      0      0
+  0.000000E+00  0.000000E+00      0      0
+  8.000000E-04  7.071070E-06  8.000000E-04  0.000000E+00  0.000000E+00
+  4.000000E-04  4.000000E-04
+  5.000000E-06  5.000000E-06
