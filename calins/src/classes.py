@@ -2823,17 +2823,18 @@ class Uncertainty:
             key = (row["ISO"], row["REAC"])
             sensi_lookup[key] = row["SENSI_INTEGRAL"]
 
-        for i, (iso, reac) in enumerate(iso_reac_list):
 
-            sub_cov_mat = cov_mat[:, i * self.group_nb : (i + 1) * self.group_nb]
+        full_sensi_cov = sensi_vec @ cov_mat  # shape: (n_total,)
+
+        for i, (iso, reac) in enumerate(iso_reac_list):
 
             sub_sensi_vec = sensi_vec[i * self.group_nb : (i + 1) * self.group_nb]
 
-            unc_partial_covar = sensi_vec @ sub_cov_mat
-            unc_partial_covar_detail = unc_partial_covar * sub_sensi_vec
+            unc_partial_covar_full = full_sensi_cov[i * self.group_nb : (i + 1) * self.group_nb]
+            unc_partial_covar_detail = unc_partial_covar_full * sub_sensi_vec
             decomp_vec.extend(unc_partial_covar_detail)
-            unc_partial_covar = unc_partial_covar @ sub_sensi_vec
-            unc_partial_var = sub_sensi_vec @ sub_cov_mat[i * self.group_nb : (i + 1) * self.group_nb, :] @ sub_sensi_vec
+            unc_partial_covar = unc_partial_covar_full @ sub_sensi_vec
+            unc_partial_var = sub_sensi_vec @ cov_mat[i * self.group_nb : (i + 1) * self.group_nb, i * self.group_nb : (i + 1) * self.group_nb] @ sub_sensi_vec
 
             sum += unc_partial_covar
 
