@@ -2122,11 +2122,12 @@ class Assimilation:
 
         resp_threshold_2 = self.appl_case.resp_calc + (self.bias.value / 1e5) + (2 * self.bias_std)
         C3_str = '<hr width="60%" /><div style="display: block; font-size:14px; padding-left: 80px; padding-right: 80px;">'
+        usl_gllsm_CM = self.USL_gllsm["calculational_margin"]
+        usl_gllsm_K = self.USL_gllsm["K"]
+        usl_gllsm_p = self.USL_gllsm["coverage"]
+        usl_gllsm_q = self.USL_gllsm["confidence"]
         if self.post_chi2 < 1.2:
-            usl_gllsm_CM = self.USL_gllsm["calculational_margin"]
-            usl_gllsm_K = self.USL_gllsm["K"]
-            usl_gllsm_p = self.USL_gllsm["coverage"]
-            usl_gllsm_q = self.USL_gllsm["confidence"]
+
             C3_str += (
                 f"The adjustment shows an <u>acceptable consistency</u> among the benchmark biases (Χ² a priori : {self.prior_chi2:.2f} < 1.2).<br>"
             )
@@ -2156,8 +2157,10 @@ class Assimilation:
 
 
         # --- Summary comparison table ---
+        p_pct = f"{usl_gllsm_p*1E2:.0f}"
+        q_pct = f"{usl_gllsm_q*1E2:.0f}"
         summary_labels = [
-            f"{tip(f'Bias and uncertainty from the GLLS adjustment. The coverage factor K₉₅/₉₅ ensures {gllsm['q']}% confidence that {gllsm['p']}% of the population is bounded.')}GLLSM (K<sub>{gllsm['p']}/{gllsm['q']}</sub>)",
+            f"{tip('Bias and uncertainty from the GLLS adjustment. The coverage factor K<sub>' + p_pct + '/' + q_pct + '</sub> ensures with ' + q_pct + '%% confidence that ' + p_pct + '%% of the population is bounded.')}GLLSM (K<sub>{usl_gllsm_p*1E2:.0f}/{usl_gllsm_q*1E2:.0f}</sub>)",
             f"{tip('Assumes C/E values follow a normal distribution. Uses a weighted mean bias and a tolerance factor κ from the noncentral t-distribution.')}Parametric",
         ]
         summary_values = [
