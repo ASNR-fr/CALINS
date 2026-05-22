@@ -54,6 +54,12 @@ print(f"  Normality test passed: {assimilation.USL_parametric['normality_passed'
 # Note: USL and calculational_margin can be None if CNP <= 0.4 (not enough benchmarks)
 print(f"Nonparametric USL: {assimilation.USL_nonparametric['USL']}")
 print(f"  CNP: {assimilation.USL_nonparametric['CNP']:.4f}")
+
+# Trending USL (NUREG/CR-6698 single-sided lower tolerance band, linear regression on Ck)
+print(f"Trending USL: {assimilation.USL_trending['USL']:.5f}")
+print(f"  Slope (beta_1): {assimilation.USL_trending['beta_1']:.6f}")
+print(f"  Trend significant (t-test): {assimilation.USL_trending['trend_significant']}")
+print(f"  Pooled std S_p: {assimilation.USL_trending['S_p']:.6f}")
 ```
 
 ## Accounting for experimental correlations

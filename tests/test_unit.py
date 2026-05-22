@@ -260,7 +260,7 @@ class TestFunctions(unittest.TestCase):
         assim = cl.Assimilation(benchmarks_list=[sensi_proper_path_2], appl_case=sensi_proper_path_1, cov_data=cov_1_nd)
 
         self.assertIsInstance(assim.USL_gllsm, dict)
-        expected_keys = {"USL", "calculational_margin", "bias", "std", "K", "N", "p", "q"}
+        expected_keys = {"USL", "calculational_margin", "bias", "std", "K", "N", "coverage", "confidence"}
         self.assertEqual(set(assim.USL_gllsm.keys()), expected_keys)
         self.assertEqual(assim.USL_gllsm["N"], 1)
         self.assertIsNone(assim.USL_gllsm["USL"])
@@ -276,8 +276,8 @@ class TestFunctions(unittest.TestCase):
 
         self.assertIsNotNone(assim2.USL_gllsm["USL"])
         self.assertIsNotNone(assim2.USL_gllsm["K"])
-        self.assertEqual(assim2.USL_gllsm["p"], 0.95)
-        self.assertEqual(assim2.USL_gllsm["q"], 0.95)
+        self.assertEqual(assim2.USL_gllsm["coverage"], 0.95)
+        self.assertEqual(assim2.USL_gllsm["confidence"], 0.95)
 
         # Check formula consistency: USL = 1 - CM - MOS
         self.assertAlmostEqual(
@@ -300,7 +300,7 @@ class TestFunctions(unittest.TestCase):
         self.assertIsInstance(assim.USL_parametric, dict)
         expected_keys = {
             "USL", "calculational_margin", "beta", "sigma_beta", "kappa",
-            "k_bar", "Delta_m", "s_k", "sigma_bar_k", "N", "p", "q",
+            "k_bar", "Delta_m", "s_k", "sigma_bar_k", "N", "coverage", "confidence",
             "shapiro_stat", "shapiro_pvalue", "normality_passed",
         }
         self.assertEqual(set(assim.USL_parametric.keys()), expected_keys)
@@ -321,8 +321,8 @@ class TestFunctions(unittest.TestCase):
 
         self.assertIsNotNone(assim2.USL_parametric["USL"])
         self.assertIsNotNone(assim2.USL_parametric["kappa"])
-        self.assertEqual(assim2.USL_parametric["p"], 0.99)
-        self.assertEqual(assim2.USL_parametric["q"], 0.99)
+        self.assertEqual(assim2.USL_parametric["coverage"], 0.95)
+        self.assertEqual(assim2.USL_parametric["confidence"], 0.95)
 
         # Check formula consistency: USL = 1 - CM - MOS
         self.assertAlmostEqual(
@@ -341,10 +341,10 @@ class TestFunctions(unittest.TestCase):
         # Check Delta_m = max(0, beta)
         self.assertEqual(assim2.USL_parametric["Delta_m"], max(0.0, assim2.USL_parametric["beta"]))
 
-        # Check USL values (placeholders - to be replaced with reference values)
-        self.assertAlmostEqual(assim2.USL_parametric["USL"], 0.90167, places=4)
+        # Check USL values with default p=0.95, q=0.95
+        self.assertAlmostEqual(assim2.USL_parametric["USL"], 0.93452, places=4)
         self.assertAlmostEqual(assim2.USL_parametric["beta"], 0.010050, places=6)
-        self.assertAlmostEqual(assim2.USL_parametric["kappa"], 23.8956, places=4)
+        self.assertAlmostEqual(assim2.USL_parametric["kappa"], 7.6559, places=4)
 
         # Shapiro-Wilk: with >= 3 benchmarks, normality test should produce a result
         self.assertIsNotNone(assim2.USL_parametric["shapiro_pvalue"])
@@ -379,13 +379,13 @@ class TestFunctions(unittest.TestCase):
         expected_keys = {
             "USL", "calculational_margin", "beta", "sigma_beta",
             "min_k_tilde", "Delta_m", "sigma_worst", "CNP", "m_NP",
-            "N", "p_pop", "n_sigma",
+            "N", "coverage", "n_sigma",
         }
         self.assertEqual(set(assim.USL_nonparametric.keys()), expected_keys)
 
         # Check default parameters
-        self.assertEqual(assim.USL_nonparametric["p_pop"], 0.95)
-        self.assertEqual(assim.USL_nonparametric["n_sigma"], 2.6)
+        self.assertEqual(assim.USL_nonparametric["coverage"], 0.95)
+        self.assertEqual(assim.USL_nonparametric["n_sigma"], 1.645)
         self.assertEqual(assim.USL_nonparametric["N"], 1)
 
         # With 1 benchmark: CNP = 1 - 0.95^1 = 0.05, which is <= 0.4 -> USL should be None
@@ -485,19 +485,113 @@ class TestFunctions(unittest.TestCase):
             cov_data=cov_1_nd,
         )
 
-        # Store the default kappa (p=0.99, q=0.99)
+        # Store the default kappa (p=0.95, q=0.95)
         kappa_default = assim.USL_parametric["kappa"]
 
-        # Re-run with less conservative parameters
-        result = assim.calcul_USL_parametric(p=0.95, q=0.95)
+        # Re-run with more conservative parameters (coverage=0.99, confidence=0.99)
+        result = assim.calcul_USL_parametric(coverage=0.99, confidence=0.99)
 
-        self.assertEqual(result["p"], 0.95)
-        self.assertEqual(result["q"], 0.95)
+        self.assertEqual(result["coverage"], 0.99)
+        self.assertEqual(result["confidence"], 0.99)
 
-        # kappa should be smaller with lower p and q (less conservative)
-        self.assertLess(result["kappa"], kappa_default)
+        # kappa should be larger with higher p and q (more conservative)
+        self.assertGreater(result["kappa"], kappa_default)
 
         print("Test successfull for USL parametric custom parameters")
+
+    def test_USL_trending(self):
+        """Test trending USL calculation (NUREG/CR-6698 single-sided lower tolerance band)."""
+        # --- With 1 benchmark: N < 3 -> USL not calculable
+        assim = cl.Assimilation(benchmarks_list=[sensi_proper_path_2], appl_case=sensi_proper_path_1, cov_data=cov_1_nd)
+
+        self.assertIsInstance(assim.USL_trending, dict)
+        expected_keys = {
+            "beta_0", "beta_1", "beta_x", "sigma_beta_x", "S_p",
+            "sigma_fit", "sigma_bar", "S_xx", "x_bar", "k_bar", "x_eval",
+            "Delta_m", "calculational_margin", "USL", "N", "confidence",
+            "coverage", "t_fit", "t_critical", "trend_significant",
+        }
+        self.assertEqual(set(assim.USL_trending.keys()), expected_keys)
+        self.assertEqual(assim.USL_trending["N"], 1)
+        self.assertIsNone(assim.USL_trending["USL"])
+        self.assertIsNone(assim.USL_trending["calculational_margin"])
+        self.assertIsNone(assim.USL_trending["beta_1"])
+
+        # --- With multiple benchmarks: N >= 3 -> USL calculable
+        assim2 = cl.Assimilation(
+            benchmarks_list=[sensi_proper_path_2, sensi_proper_path_3, sensi_proper_path_4],
+            appl_case=sensi_proper_path_1,
+            cov_data=cov_1_nd,
+        )
+
+        self.assertIsNotNone(assim2.USL_trending["USL"])
+        self.assertIsNotNone(assim2.USL_trending["beta_1"])
+        self.assertIsNotNone(assim2.USL_trending["S_p"])
+        self.assertEqual(assim2.USL_trending["confidence"], 0.95)
+        self.assertEqual(assim2.USL_trending["coverage"], 0.95)
+
+        # Check formula consistency: USL = 1 - CM - MOS
+        self.assertAlmostEqual(
+            assim2.USL_trending["USL"],
+            1.0 - assim2.USL_trending["calculational_margin"] - assim2.MOS,
+            places=10,
+        )
+
+        # Check CM = -beta_x + sigma_beta_x + Delta_m
+        self.assertAlmostEqual(
+            assim2.USL_trending["calculational_margin"],
+            -assim2.USL_trending["beta_x"] + assim2.USL_trending["sigma_beta_x"] + assim2.USL_trending["Delta_m"],
+            places=10,
+        )
+
+        # Check Delta_m = max(0, beta_x)
+        self.assertEqual(assim2.USL_trending["Delta_m"], max(0.0, assim2.USL_trending["beta_x"]))
+
+        # Check that x_eval is the max Ck value
+        self.assertGreater(assim2.USL_trending["x_eval"], 0.0)
+        self.assertLessEqual(assim2.USL_trending["x_eval"], 1.0)
+
+        # Check S_p = sqrt(sigma_fit² + sigma_bar²)
+        import math
+        self.assertAlmostEqual(
+            assim2.USL_trending["S_p"],
+            math.sqrt(assim2.USL_trending["sigma_fit"]**2 + assim2.USL_trending["sigma_bar"]**2),
+            places=10,
+        )
+
+        # Check t-test produced a result
+        self.assertIsNotNone(assim2.USL_trending["t_fit"])
+        self.assertIsNotNone(assim2.USL_trending["t_critical"])
+        self.assertIsInstance(assim2.USL_trending["trend_significant"], bool)
+
+        # trend_significant should be consistent with t_fit vs t_critical
+        self.assertEqual(
+            assim2.USL_trending["trend_significant"],
+            assim2.USL_trending["t_fit"] > assim2.USL_trending["t_critical"],
+        )
+
+        print("Test successfull for USL trending method")
+
+    def test_USL_trending_custom_params(self):
+        """Test trending USL with custom confidence and proportion."""
+        assim = cl.Assimilation(
+            benchmarks_list=[sensi_proper_path_2, sensi_proper_path_3, sensi_proper_path_4],
+            appl_case=sensi_proper_path_1,
+            cov_data=cov_1_nd,
+        )
+
+        # Default params
+        usl_default = assim.USL_trending["USL"]
+
+        # Re-run with less conservative parameters
+        result = assim.calcul_USL_trending(confidence=0.90, coverage=0.90)
+        self.assertEqual(result["confidence"], 0.90)
+        self.assertEqual(result["coverage"], 0.90)
+
+        # Less conservative -> higher USL (smaller margin)
+        self.assertGreater(result["USL"], usl_default)
+
+        print("Test successfull for USL trending custom parameters")
 
 
 if __name__ == "__main__":

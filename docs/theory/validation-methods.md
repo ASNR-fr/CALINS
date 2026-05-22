@@ -1,6 +1,6 @@
 # Validation Methods for the Upper Safety Limit (USL)
 
-After performing data assimilation via GLLSM and obtaining a bias estimate, CALINS provides three independent methods to compute an **Upper Safety Limit (USL)** for the application case response. The USL are determined based on the assumption that the responses are the multiplication factor $k_{eff}$. These methods are based on the formalism described by Kiedrowski et al. (NSE 181, 2015).
+After performing data assimilation via GLLSM and obtaining a bias estimate, CALINS provides four independent methods to compute an **Upper Safety Limit (USL)** for the application case response. The USL are determined based on the assumption that the responses are the multiplication factor $k_{eff}$. The parametric and nonparametric methods are based on the formalism described by Kiedrowski et al. (NSE 181, 2015). The trending method implements the NUREG/CR-6698 single-sided lower tolerance band (also available in SCALE/VADER).
 
 All three methods share the same general framework:
 
@@ -152,10 +152,102 @@ $$\text{USL} = 1 - \text{CM} - \text{MOS}$$
 
 ---
 
+---
+
+## 3. Trending Method (Single-Sided Lower Tolerance Band)
+
+### Hypotheses
+
+- A **linear trend** of $\tilde{k}_i$ as a function of the trending parameter $x_i$ (here $x_i = Ck_i$, the similarity coefficient) is assumed.
+- A **t-test for trend significance** is performed to determine whether the slope $\beta_1$ is statistically different from zero.
+- Uses the NUREG/CR-6698 single-sided lower tolerance band formalism (also implemented in SCALE/VADER).
+- All statistics use **inverse-variance weighting** (same as the parametric method).
+
+### Procedure
+
+**Step 1 — Inverse-variance weights and weighted means:**
+
+$$w_i = \frac{1}{\sigma_i^2}, \quad W = \sum_i w_i$$
+
+$$\bar{k} = \frac{\sum_i w_i \tilde{k}_i}{W}, \quad \bar{x} = \frac{\sum_i w_i x_i}{W}$$
+
+**Step 2 — Weighted sums of squares:**
+
+$$S_{xx} = \frac{N}{W} \sum_i w_i (x_i - \bar{x})^2$$
+
+$$S_{kx} = \frac{N}{W} \sum_i w_i (x_i - \bar{x})(\tilde{k}_i - \bar{k})$$
+
+**Step 3 — Linear fit coefficients:**
+
+$$\beta_1 = \frac{S_{kx}}{S_{xx}}, \quad \beta_0 = \bar{k} - \beta_1 \bar{x}$$
+
+The fitted value at any $x$ is: $k_{fit}(x) = \beta_0 + \beta_1 x$
+
+**Step 4 — Variance of the fit and pooled standard deviation:**
+
+$$\sigma_{fit}^2 = \frac{N}{(N-2) W} \sum_i w_i \left(\tilde{k}_i - k_{fit}(x_i)\right)^2$$
+
+$$\bar{\sigma}^2 = \frac{N}{W}$$
+
+$$S_p = \sqrt{\sigma_{fit}^2 + \bar{\sigma}^2}$$
+
+**Step 5 — t-test for trend significance:**
+
+$$t_{fit} = \frac{|\beta_1|}{\sigma_{fit} / \sqrt{S_{xx}}}$$
+
+The null hypothesis $H_0: \beta_1 = 0$ is rejected (trend is significant) if:
+
+$$t_{fit} > t_{1-\alpha/2,\; N-2}$$
+
+where $\alpha = 1 - \text{confidence}$ (default confidence = 0.95).
+
+**Step 6 — Evaluation point:**
+
+The USL is evaluated at the maximum Ck value: $x_{eval} = \max(x_i)$, corresponding to the most similar benchmark.
+
+**Step 7 — Bias at evaluation point:**
+
+$$\beta(x_{eval}) = k_{fit}(x_{eval}) - 1$$
+
+$$\Delta_m = \max(0, \beta(x_{eval}))$$
+
+**Step 8 — Bias uncertainty (NUREG/CR-6698 tolerance band):**
+
+$$\sigma_\beta(x) = S_p \left( \sqrt{2 F_{\alpha}(2, N-2) \left[\frac{1}{N} + \frac{(x - \bar{x}_{unw})^2}{S_{xx}}\right]} + \frac{z_p \sqrt{N-2}}{\sqrt{\chi^2_{1-\alpha, N-2}}} \right)$$
+
+where:
+
+- $F_{\alpha}(2, N-2)$ is the F-distribution quantile at confidence level $\alpha$
+- $z_p$ is the standard normal quantile at proportion $p$ (default 0.95)
+- $\chi^2_{1-\alpha, N-2}$ is the chi-squared quantile
+- $\bar{x}_{unw}$ is the unweighted (arithmetic) mean of $x_i$
+
+**Step 9 — Calculational Margin and USL:**
+
+$$\text{CM} = -\beta(x_{eval}) + \sigma_\beta(x_{eval}) + \Delta_m$$
+
+$$\text{USL} = 1 - \text{CM} - \text{MOS}$$
+
+### Summary
+
+| Quantity | Formula |
+|---|---|
+| Bias | $\beta(x) = k_{fit}(x) - 1$ (from linear regression) |
+| Bias uncertainty | $\sigma_\beta(x)$ (NUREG/CR-6698 tolerance band) |
+| CM | $-\beta(x) + \sigma_\beta(x) + \Delta_m$ |
+| Key hypothesis | **Linear trend** of $\tilde{k}_i$ vs $Ck_i$ |
+| Diagnostic | t-test for trend significance |
+
+---
+
 !!! note "Practical recommendations"
-    - Use the **Parametric** method when Shapiro-Wilk passes and benchmarks are well-behaved.
+    - Use the **Parametric** method when Shapiro-Wilk passes and benchmarks are well-behaved (no significant trend).
     - Use the **Nonparametric** method as a conservative fallback when normality is not satisfied.
+    - Use the **Trending** method when a significant linear trend is detected (t-test rejects $H_0$). It accounts for the dependence of bias on similarity.
+    - If the trend is **not significant**, the parametric or nonparametric methods are more appropriate.
 
 ## References
 
 - **B. C. Kiedrowski, F. B. Brown, A. C. Kahler, S. R. Bolding, M. E. Rising, and J. A. Favorite**, *Whisper: Sensitivity/Uncertainty-Based Computational Methods and Software for Determining Baseline Upper Subcritical Limits*, **Nuclear Science and Engineering, 181**, pp. 17-47 (2015).
+- **J. C. Dean and R. W. Tayloe Jr.**, *Guide for Validation of Nuclear Criticality Safety Calculational Methodology*, **NUREG/CR-6698**, prepared for the US Nuclear Regulatory Commission by Science Applications International Corporation, Oak Ridge, TN, January 2001.
+- **J. B. Clarity, W. J. Marshall, D. E. Mueller, S. S. Powers, B. T. Rearden, S. M. Bowman, and A. Barto**, *Determination of Bias and Bias Uncertainty for Criticality Safety Computational Methods*, **NUREG/CR-7311**, Oak Ridge National Laboratory, 2025.

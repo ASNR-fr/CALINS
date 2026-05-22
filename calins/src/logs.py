@@ -126,11 +126,12 @@ def log_exec():
                     arg_str += f"\n{11*' '}{tab_str}    {key}={val}"
 
             if not "calcul_bias" in inspect.stack()[1][3]:
-                write_and_print(f"{parent_str}{func.__name__} : {arg_str}")
+                write_and_print(f"{parent_str}{func.__name__}: {arg_str}")
 
             ret = func(*args, **kwargs)
 
-            if "calcul" in func.__name__ and not "calcul" in inspect.stack()[1][3]:
+            calcul_exceptions = ["USL"]
+            if "calcul" in func.__name__ and not "calcul" in inspect.stack()[1][3] and not any(exc in func.__name__ for exc in calcul_exceptions):
                 write_and_print(f"{tab_str}    -> {ret.value if re.search('Uncertainty|Bias',ret.__class__.__name__) else ret}")
 
             return ret

@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy.sparse import csr_matrix
-from scipy.stats import norm, nct, shapiro
+from scipy.stats import norm, nct, shapiro, t as t_dist, f as f_dist, chi2 as chi2_dist
 from scipy.optimize import brentq
 from math import erf as math_erf
 from tabulate import tabulate
@@ -927,14 +927,19 @@ class Assimilation:
     bias_std : float
         Standard deviation of the bias population across assimilated benchmarks.
     USL_gllsm : dict
-        GLLSM Upper Subcritical Limit results. Keys: ``'USL'``, ``'calculational_margin'``, ``'bias'``, ``'std'``, ``'K'``, ``'N'``, ``'p'``, ``'q'``.
+        GLLSM Upper Subcritical Limit results. Keys: ``'USL'``, ``'calculational_margin'``, ``'bias'``, ``'std'``, ``'K'``, ``'N'``, ``'coverage'``, ``'confidence'``.
     USL_parametric : dict
         Parametric USL results (assumes normal C/E distribution). Keys: ``'USL'``, ``'calculational_margin'``, ``'beta'``, ``'sigma_beta'``, ``'kappa'``, ``'k_bar'``,
-        ``'Delta_m'``, ``'s_k'``, ``'sigma_bar_k'``, ``'N'``, ``'p'``, ``'q'``, ``'shapiro_stat'``, ``'shapiro_pvalue'``, ``'normality_passed'``.
+        ``'Delta_m'``, ``'s_k'``, ``'sigma_bar_k'``, ``'N'``, ``'coverage'``, ``'confidence'``, ``'shapiro_stat'``, ``'shapiro_pvalue'``, ``'normality_passed'``.
     USL_nonparametric : dict
         Nonparametric rank-order USL results (distribution-free). Keys: ``'USL'``, ``'calculational_margin'``, ``'beta'``, ``'sigma_beta'``, ``'min_k_tilde'``,
-        ``'Delta_m'``, ``'sigma_worst'``, ``'CNP'``, ``'m_NP'``, ``'N'``, ``'p_pop'``, ``'n_sigma'``.
+        ``'Delta_m'``, ``'sigma_worst'``, ``'CNP'``, ``'m_NP'``, ``'N'``, ``'coverage'``, ``'n_sigma'``.
         ``'USL'`` and ``'calculational_margin'`` are ``None`` when CNP ≤ 0.4 (insufficient benchmarks).
+    USL_trending : dict
+        Linear trending USL results (single-sided lower tolerance band). Keys: ``'USL'``, ``'calculational_margin'``, ``'beta_0'``, ``'beta_1'``,
+        ``'beta_x'``, ``'sigma_beta_x'``, ``'S_p'``, ``'sigma_fit'``, ``'sigma_bar'``, ``'S_xx'``, ``'x_bar'``, ``'k_bar'``, ``'x_eval'``,
+        ``'Delta_m'``, ``'N'``, ``'confidence'``, ``'coverage'``, ``'t_fit'``, ``'t_critical'``, ``'trend_significant'``.
+        ``'USL'`` and ``'calculational_margin'`` are ``None`` when N < 3 (insufficient benchmarks).
     [+ explicit internal attributes...]
 
     Methods
@@ -1119,6 +1124,7 @@ class Assimilation:
         self.calcul_USL_gllsm()
         self.calcul_USL_parametric()
         self.calcul_USL_nonparametric()
+        self.calcul_USL_trending()
         self.export_to_html(output_html_path=self.output_html_path, plotting_unit=plotting_unit, isotopes_to_detail=isotopes_to_detail)
 
     def make_sensimat_covmat_casevec_expemat_and_deltaCE(
@@ -1424,7 +1430,8 @@ class Assimilation:
         chi2 = chi2 / len(self.bench_cases)
         self.prior_chi2 = chi2
 
-        write_and_print(f"{2*'    '}Assimilation - initial Chi2 = {self.prior_chi2}")
+        write_and_print(f"{2*'    '}Assimilation - initial Chi2:")
+        write_and_print(f"{2*'    '}    -> {self.prior_chi2}")
 
         self.bench_list["INDIVIDUAL CHI2"] = [None for i in range(len(self.bench_cases))]
         self.bench_list["REMOVED"] = [False for i in range(len(self.bench_cases))]
@@ -1589,12 +1596,12 @@ class Assimilation:
 
         return self.bias_std
 
-    def _coverage_factor_os_tdist(self, p=0.95, q=0.95, N=None):
+    def _coverage_factor_os_tdist(self, coverage=0.95, confidence=0.95, N=None):
 
         nu = N - 1
-        z_p = norm.ppf(p)
+        z_p = norm.ppf(coverage)
         delta = z_p * np.sqrt(N)
-        t_q = nct.ppf(q, df=nu, nc=delta)
+        t_q = nct.ppf(confidence, df=nu, nc=delta)
 
         # coverage factor
         K = t_q / np.sqrt(N)
@@ -1602,22 +1609,22 @@ class Assimilation:
         return K
 
     @log_exec()
-    def calcul_USL_gllsm(self, p=0.95, q=0.95):
+    def calcul_USL_gllsm(self, coverage=0.95, confidence=0.95):
         """GLLSM-based method for USL.
         Uses the bias from GLLSM assimilation and a coverage factor approach.
 
         Parameters
         ----------
-        p : float
-            Population fraction (default 0.95).
-        q : float
-            Confidence level (default 0.95).
+        coverage : float
+            Proportion of the population to be bounded (default 0.95).
+        confidence : float
+            Confidence level that the bound holds (default 0.95).
         """
         N = len([i for i in self.bench_list["REMOVED"] if i == False])
 
         if N < 2:
             write_and_print(
-                f"{2*'    '}GLLSM USL = Not calculable (N = {N} < 2, coverage factor undefined)"
+                f"{2*'    '}    -> GLLSM USL = Not calculable (N = {N} < 2, coverage factor undefined)"
             )
             self.USL_gllsm = {
                 "bias": (self.bias.value / 1e5),
@@ -1626,13 +1633,13 @@ class Assimilation:
                 "calculational_margin": None,
                 "USL": None,
                 "N": N,
-                "p": p,
-                "q": q,
+                "coverage": coverage,
+                "confidence": confidence,
             }
             return self.USL_gllsm
 
         bias = self.bias.value / 1e5
-        K = self._coverage_factor_os_tdist(p=p, q=q, N=N)
+        K = self._coverage_factor_os_tdist(coverage=coverage, confidence=confidence, N=N)
         CM = bias + (K * self.bias_std)
         USL = 1.0 - CM - self.MOS
 
@@ -1643,8 +1650,8 @@ class Assimilation:
             "calculational_margin": CM,
             "USL": USL,
             "N": N,
-            "p": p,
-            "q": q,
+            "coverage": coverage,
+            "confidence": confidence,
         }
 
         return self.USL_gllsm
@@ -1665,28 +1672,28 @@ class Assimilation:
             sigma_list.append(sigma)
         return np.array(k_tilde_list), np.array(sigma_list)
 
-    def _kappa_tolerance_factor(self, p, q, N):
+    def _kappa_tolerance_factor(self, coverage, confidence, N):
         """Single-sided tolerance factor κ using noncentral t-distribution.
-        Guarantees fraction p of the population is bounded at confidence level q with N benchmarks.
+        Guarantees fraction coverage of the population is bounded at confidence level with N benchmarks.
         """
         nu = N - 1
-        z_p = norm.ppf(p)
+        z_p = norm.ppf(coverage)
         delta = z_p * np.sqrt(N)
-        t_q = nct.ppf(q, df=nu, nc=delta)
+        t_q = nct.ppf(confidence, df=nu, nc=delta)
         kappa = t_q / np.sqrt(N)
         return kappa
 
     @log_exec()
-    def calcul_USL_parametric(self, p=0.99, q=0.99):
+    def calcul_USL_parametric(self, coverage=0.95, confidence=0.95):
         """Parametric method for USL.
         Requires normally distributed benchmark k (Shapiro-Wilk test is performed).
 
         Parameters
         ----------
-        p : float
-            Population fraction (default 0.99).
-        q : float
-            Confidence level (default 0.99).
+        coverage : float
+            Proportion of the population to be bounded (default 0.95).
+        confidence : float
+            Confidence level that the bound holds (default 0.95).
         """
         k_tilde, sigma = self._get_scaled_k_and_sigma()
         N = len(k_tilde)
@@ -1697,7 +1704,7 @@ class Assimilation:
             k_bar = float(k_tilde[0])
             beta = k_bar - 1.0
             write_and_print(
-                f"{2*'    '}Parametric USL = Not calculable (N = {N} < 2, variance and tolerance factor undefined)"
+                f"{2*'    '}    -> Parametric USL = Not calculable (N = {N} < 2, variance and tolerance factor undefined)"
             )
             self.USL_parametric = {
                 "k_bar": k_bar,
@@ -1710,8 +1717,8 @@ class Assimilation:
                 "calculational_margin": None,
                 "USL": None,
                 "N": N,
-                "p": p,
-                "q": q,
+                "coverage": coverage,
+                "confidence": confidence,
                 "shapiro_stat": None,
                 "shapiro_pvalue": None,
                 "normality_passed": None,
@@ -1741,7 +1748,7 @@ class Assimilation:
         sigma_beta = sqrt(s_k_sq + sigma_bar_k_sq)
 
         # Single-sided tolerance factor
-        kappa = self._kappa_tolerance_factor(p, q, N)
+        kappa = self._kappa_tolerance_factor(coverage, confidence, N)
 
         # Calculational margin
         CM = -beta + kappa * sigma_beta + Delta_m
@@ -1767,15 +1774,15 @@ class Assimilation:
             "calculational_margin": CM,
             "USL": USL_parametric,
             "N": N,
-            "p": p,
-            "q": q,
+            "coverage": coverage,
+            "confidence": confidence,
             "shapiro_stat": stat_sw,
             "shapiro_pvalue": pvalue_sw,
             "normality_passed": normality_passed,
         }
 
         write_and_print(
-            f"{2*'    '}Parametric USL = {USL_parametric:.5f}  (Calculational margin = {CM:.5f}, beta = {beta:.5f}, kappa = {kappa:.2f}, N = {N})"
+            f"{2*'    '}    -> Parametric USL = {USL_parametric:.5f}  (Calculational margin = {CM:.5f}, beta = {beta:.5f}, kappa = {kappa:.2f}, N = {N})"
         )
 
         return self.USL_parametric
@@ -1785,15 +1792,15 @@ class Assimilation:
     # ============================================================
 
     @log_exec()
-    def calcul_USL_nonparametric(self, p_pop=0.95, n_sigma=2.6):
+    def calcul_USL_nonparametric(self, coverage=0.95, n_sigma=1.645):
         """Nonparametric rank-order method for USL.
 
         Parameters
         ----------
-        p_pop : float
-            Population fraction for CNP calculation (default 0.95).
+        coverage : float
+            Proportion of the population for CNP calculation (default 0.95).
         n_sigma : float
-            Confidence multiplier for benchmark uncertainty (default 2.6, i.e. ~99% confidence).
+            Confidence multiplier for benchmark uncertainty (default 1.645, i.e. ~95% confidence).
         """
         k_tilde, sigma = self._get_scaled_k_and_sigma()
         N = len(k_tilde)
@@ -1809,7 +1816,7 @@ class Assimilation:
         Delta_m = max(0.0, beta)
 
         # Nonparametric confidence level CNP
-        CNP = 1.0 - p_pop**N
+        CNP = 1.0 - coverage**N
 
         # Nonparametric margin
         if CNP > 0.9:
@@ -1847,19 +1854,170 @@ class Assimilation:
             "calculational_margin": CM,
             "USL": USL_nonparametric,
             "N": N,
-            "p_pop": p_pop,
+            "coverage": coverage,
             "n_sigma": n_sigma,
         }
 
         if USL_nonparametric is not None:
             write_and_print(
-                f"{2*'    '}Nonparametric USL = {USL_nonparametric:.5f}  (Calculational margin = {CM:.5f}, CNP = {CNP:.4f}, m_NP = {m_NP}, N = {N})"
+                f"{2*'    '}    -> Nonparametric USL = {USL_nonparametric:.5f}  (Calculational margin = {CM:.5f}, CNP = {CNP:.4f}, m_NP = {m_NP}, N = {N})"
             )
         else:
-            write_and_print(f"{2*'    '}Nonparametric USL = Not calculable (CNP = {CNP:.4f} < 0.4 - Additional data needed)")
+            write_and_print(f"{2*'    '}    -> Nonparametric USL = Not calculable (CNP = {CNP:.4f} < 0.4 - Additional data needed)")
 
         return self.USL_nonparametric
 
+    # ============================================================
+    #  Trending Method (Single-Sided Lower Tolerance Band)
+    #  Linear regression of k_norm vs Ck, with t-test for trend
+    #  significance.
+    # ============================================================
+
+    @log_exec()
+    def calcul_USL_trending(self, confidence=0.95, coverage=0.95):
+        """Trending method for USL using single-sided lower tolerance band.
+        Performs linear regression of k_norm vs Ck (similarity coefficient) and
+        applies the confidence band approach. Includes t-test for trend significance.
+
+        Parameters
+        ----------
+        confidence : float
+            Confidence level for the tolerance band (default 0.95).
+        coverage : float
+            Proportion of population to be bounded (default 0.95).
+        """
+        k_tilde, sigma = self._get_scaled_k_and_sigma()
+        N = len(k_tilde)
+
+        if N < 3:
+            write_and_print(
+                f"{2*'    '}Trending USL = Not calculable (N = {N} < 3, linear regression requires at least 3 points)"
+            )
+            self.USL_trending = {
+                "beta_0": None,
+                "beta_1": None,
+                "beta_x": None,
+                "sigma_beta_x": None,
+                "S_p": None,
+                "sigma_fit": None,
+                "sigma_bar": None,
+                "S_xx": None,
+                "x_bar": None,
+                "k_bar": None,
+                "x_eval": None,
+                "Delta_m": None,
+                "calculational_margin": None,
+                "USL": None,
+                "N": N,
+                "confidence": confidence,
+                "coverage": coverage,
+                "t_fit": None,
+                "t_critical": None,
+                "trend_significant": None,
+            }
+            return self.USL_trending
+
+        # Trending parameter: Ck values for non-removed benchmarks
+        x_values = []
+        for b in range(len(self.bench_list)):
+            if not self.bench_list["REMOVED"][b]:
+                x_values.append(self.bench_list["Ck"][b])
+        x_values = np.array(x_values)
+
+        # Inverse-variance weights (same weighting scheme as parametric method)
+        w = 1.0 / sigma**2
+        W = np.sum(w)
+
+        # Weighted means
+        k_bar = np.sum(w * k_tilde) / W
+        x_bar = np.sum(w * x_values) / W
+
+        # Weighted sum of squares S_xx and cross-product S_kx
+        S_xx = np.sum(w * (x_values - x_bar) ** 2) / (W / N)
+        S_kx = np.sum(w * (x_values - x_bar) * (k_tilde - k_bar)) / (W / N)
+
+        # Linear fit coefficients: k_fit(x) = beta_0 + beta_1 * x
+        beta_1 = S_kx / S_xx if S_xx > 0 else 0.0
+        beta_0 = k_bar - beta_1 * x_bar
+
+        # Residuals
+        k_fit = beta_0 + beta_1 * x_values
+        residuals = k_tilde - k_fit
+
+        # Variance of fit sigma_fit² (scatter around regression line)
+        sigma_fit_sq = np.sum(w * residuals**2) / ((N - 2) * W / N)
+
+        # Average total variance sigma_bar² (average individual benchmark uncertainty)
+        sigma_bar_sq = N / W
+
+        # Pooled standard deviation S_p = sqrt(sigma_fit² + sigma_bar²)
+        S_p = sqrt(sigma_fit_sq + sigma_bar_sq)
+
+        # ---- t-test for trend significance ----
+        sigma_fit = sqrt(sigma_fit_sq) if sigma_fit_sq > 0 else 1e-12
+        t_fit = abs(beta_1) / (sigma_fit / sqrt(S_xx)) if S_xx > 0 else 0.0
+        alpha = 1.0 - confidence
+        t_critical = t_dist.ppf(1.0 - alpha / 2.0, df=N - 2)
+        trend_significant = bool(t_fit > t_critical)
+
+        # ---- Evaluation point: maximum Ck (most similar benchmark) ----
+        x_eval = np.max(x_values)
+
+        # Bias at evaluation point: beta(x) = k_fit(x) - 1
+        k_at_x = beta_0 + beta_1 * x_eval
+        beta_x = k_at_x - 1.0
+
+        # Nonconservative bias adjustment (Eq. 7)
+        Delta_m = max(0.0, beta_x)
+
+        # Bias uncertainty: single-sided lower tolerance band
+        # sigma_beta(x) = S_p * ( sqrt(2*F * [1/N + (x-x_bar_unw)²/S_xx]) + z_p * sqrt((N-2)/chi²) )
+        # Note: h(x) uses the unweighted (arithmetic) mean of x per CR-6698/VADER convention
+        F_val = f_dist.ppf(confidence, dfn=2, dfd=N - 2)
+        z_p = norm.ppf(coverage)
+        chi2_val = chi2_dist.ppf((1.0-confidence)/2, df=N - 2)
+        chi2_val = max(chi2_val, 1e-12)  # avoid division by zero
+
+        x_bar_unw = np.mean(x_values)
+        prediction_term = sqrt(2.0 * F_val * (1.0 / N + (x_eval - x_bar_unw) ** 2 / S_xx)) if S_xx > 0 else sqrt(2.0 * F_val / N)
+        population_term = z_p * sqrt((N - 2) / chi2_val)
+
+        sigma_beta_x = S_p * (prediction_term + population_term)
+
+        # Calculational margin (Eq. 15 adapted): CM = -beta(x) + sigma_beta(x) + Delta_m
+        CM = -beta_x + sigma_beta_x + Delta_m
+
+        # USL (Eq. 2)
+        USL_trending = 1.0 - CM - self.MOS
+
+        self.USL_trending = {
+            "beta_0": beta_0,
+            "beta_1": beta_1,
+            "beta_x": beta_x,
+            "sigma_beta_x": sigma_beta_x,
+            "S_p": S_p,
+            "sigma_fit": sqrt(sigma_fit_sq),
+            "sigma_bar": sqrt(sigma_bar_sq),
+            "S_xx": S_xx,
+            "x_bar": x_bar,
+            "k_bar": k_bar,
+            "x_eval": x_eval,
+            "Delta_m": Delta_m,
+            "calculational_margin": CM,
+            "USL": USL_trending,
+            "N": N,
+            "confidence": confidence,
+            "coverage": coverage,
+            "t_fit": t_fit,
+            "t_critical": t_critical,
+            "trend_significant": trend_significant,
+        }
+
+        write_and_print(
+            f"{2*'    '}    -> Trending USL = {USL_trending:.5f}  (Calculational margin = {CM:.5f}, β(x={x_eval:.3f}) = {beta_x:.5f}, slope = {beta_1:.5f}, trend {'significant' if trend_significant else 'not significant'}, N = {N})"
+        )
+
+        return self.USL_trending
 
     def plot_appl_case_sensi(self, output_html_path: str = None, show=False):
         """
@@ -1967,8 +2125,8 @@ class Assimilation:
         if self.post_chi2 < 1.2:
             usl_gllsm_CM = self.USL_gllsm["calculational_margin"]
             usl_gllsm_K = self.USL_gllsm["K"]
-            usl_gllsm_p = self.USL_gllsm["p"]
-            usl_gllsm_q = self.USL_gllsm["q"]
+            usl_gllsm_p = self.USL_gllsm["coverage"]
+            usl_gllsm_q = self.USL_gllsm["confidence"]
             C3_str += (
                 f"The adjustment shows an <u>acceptable consistency</u> among the benchmark biases (Χ² a priori : {self.prior_chi2:.2f} < 1.2).<br>"
             )
@@ -1982,7 +2140,7 @@ class Assimilation:
         C3_str += "</div><hr width='60%' />"
 
         # --------------------------------
-        # Validation methods results (Parametric, Nonparametric)
+        # Validation methods results (Parametric, Nonparametric, Trending)
         # --------------------------------
         tip = plots.create_html_tip
         C3_str += '<div class="calins-vm" style="display: block; font-size:14px; padding-left: 40px; padding-right: 40px;">'
@@ -1991,12 +2149,15 @@ class Assimilation:
         # --- Get k_tilde data for figures ---
         k_tilde_fig, sigma_fig = self._get_scaled_k_and_sigma()
 
+        gllsm = self.USL_gllsm
         pr = self.USL_parametric
         npr = self.USL_nonparametric
+        tr = self.USL_trending
+
 
         # --- Summary comparison table ---
         summary_labels = [
-            f"{tip('Bias and uncertainty from the GLLS adjustment. The coverage factor K₉₅/₉₅ ensures 95% confidence that 95% of the population is bounded.')}GLLSM (K<sub>95/95</sub>)",
+            f"{tip(f'Bias and uncertainty from the GLLS adjustment. The coverage factor K₉₅/₉₅ ensures {gllsm['q']}% confidence that {gllsm['p']}% of the population is bounded.')}GLLSM (K<sub>{gllsm['p']}/{gllsm['q']}</sub>)",
             f"{tip('Assumes C/E values follow a normal distribution. Uses a weighted mean bias and a tolerance factor κ from the noncentral t-distribution.')}Parametric",
         ]
         summary_values = [
@@ -2011,6 +2172,15 @@ class Assimilation:
         else:
             summary_labels.append(f"{tip('Distribution-free method. Cannot compute: insufficient benchmarks (CNP ≤ 0.4).')}Nonparametric")
             summary_values.append("<span style='color:red'>Additional data needed</span>")
+        if tr["USL"] is not None:
+            summary_labels.append(
+                f"{tip('Linear regression of C/E vs Ck. Tests for a statistically significant trend and applies a single-sided lower tolerance band at the evaluation point.')}Trending"
+            )
+            summary_values.append(f"{tr['calculational_margin']*1E5:.0f} pcm")
+        else:
+            summary_labels.append(f"{tip('Linear trending method. Cannot compute: insufficient benchmarks (N < 3).')}Trending")
+            summary_values.append("<span style='color:red'>Additional data needed</span>")
+
         C3_str += "<h4>Summary comparison</h4>"
         C3_str += plots.create_html_table(
             headers=[
@@ -2112,6 +2282,8 @@ class Assimilation:
             yaxis=dict(visible=False, range=[-0.5, 0.5]),
         )
         html_fig_nparam = fig_nparam.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include, config={"displayModeBar": False})
+
+        # ========== Build HTML: 3-column flex layout, each column = table then graph ==========
         vm_table_attrs = "border='1' cellpadding='3' cellspacing='0' style='border-collapse:collapse; font-size:11px; width:100%;'"
 
         # --- Column 1: Parametric data ---
@@ -2151,7 +2323,7 @@ class Assimilation:
             f"{tip('Non-conservative bias adjustment: Δm = max(0, β). Adds a penalty when the worst-case bias is positive.')}Noncons. bias adj. Δ<sub>m</sub>",
             f"{tip('Combined experimental + calculational uncertainty of the worst-case benchmark: σ = √(σ_exp² + σ_calc²).')}σ worst-case",
             f"{tip('Bias uncertainty = n_σ × σ_worst. The multiplier n_σ (default 2.6 ≈ 99%% confidence) expands the worst-case uncertainty.')}Bias unc. = {npr['n_sigma']}×σ",
-            f"{tip('Nonparametric confidence level: C_NP = 1 − p^N. Probability that the minimum of N samples bounds at least fraction p of the population.')}Confidence level C<sub>NP</sub> (p={npr['p_pop']})",
+            f"{tip('Nonparametric confidence level: C_NP = 1 − p^N. Probability that the minimum of N samples bounds at least fraction p of the population.')}Confidence level C<sub>NP</sub> (p={npr['coverage']})",
         ]
         nparam_values = [
             f"{npr['N']}",
@@ -2176,6 +2348,112 @@ class Assimilation:
                 f"<span style='color:red'>{tip('When C_NP ≤ 0.4, there are too few benchmarks for the nonparametric method to provide meaningful confidence bounds. Add more benchmarks.')}C<sub>NP</sub> ≤ 0.4</span>"
             )
             nparam_values.append("<span style='color:red'>Additional data needed</span>")
+        # --- Column 3: Trending data ---
+        trend_labels = [
+            f"{tip('Number of non-removed benchmark cases used in the analysis.')}N benchmarks",
+        ]
+        trend_values = [
+            f"{tr['N']}",
+        ]
+        if tr["USL"] is not None:
+            trend_labels.extend([
+                f"{tip('Evaluation point: the Ck value at which bias and uncertainty are evaluated. Defaults to the maximum Ck (most similar benchmark).')}Evaluation C<sub>k</sub>",
+                f"{tip('Intercept of the linear regression fit: k̃ = β₀ + β₁·Ck.')}Intercept β<sub>0</sub>",
+                f"{tip('Slope of the linear regression fit. Indicates the rate of change of k̃ with Ck.')}Slope β<sub>1</sub>",
+                f"{tip('Bias at the evaluation point: β(x) = k_fit(x) − 1.')}Bias β(x<sub>eval</sub>)",
+                f"{tip('Non-conservative bias adjustment: Δm = max(0, β). Adds a penalty when the bias at the evaluation point is positive.')}Noncons. bias adj. Δ<sub>m</sub>",
+                f"{tip('Pooled standard deviation combining the regression fit scatter (σ_fit) and the average individual uncertainty (σ̄): S_p = √(σ_fit² + σ̄²).')}Pooled std S<sub>p</sub>",
+                f"{tip('Bias uncertainty from the single-sided lower tolerance band evaluated at x_eval. Accounts for regression uncertainty and population coverage.')}Bias unc. σ<sub>β</sub>(x<sub>eval</sub>)",
+                f"{tip('Total calculational margin: CM = −β(x) + σ_β(x) + Δm.')}<b>Calc. Margin</b>",
+                f"{tip('Upper Subcritical Limit = 1 − MOS − CM.')}<b>USL = 1 - {self.MOS} - CM</b>",
+            ])
+            trend_values.extend([
+                f"{tr['x_eval']:.4f}",
+                f"{tr['beta_0']:.6f}",
+                f"{tr['beta_1']:.6f}",
+                f"{tr['beta_x']:.6f}",
+                f"{tr['Delta_m']:.6f}",
+                f"{tr['S_p']:.6f}",
+                f"{tr['sigma_beta_x']:.6f}",
+                f"<b>{tr['calculational_margin']:.5f}</b>",
+                f"<b>{tr['USL']:.5f}</b>",
+            ])
+            # t-test for trend significance
+            t_color = "green" if tr["trend_significant"] else "orange"
+            t_text = "SIGNIFICANT" if tr["trend_significant"] else "NOT SIGNIFICANT"
+            trend_labels.append(
+                f"{tip('Student t-test for trend significance. Tests if the linear slope β₁ is statistically different from zero. NOT SIGNIFICANT means no detectable linear trend in the data vs Ck.')}Trend t-test"
+            )
+            trend_values.append(f"<span style='color:{t_color}'>{t_text} (t={tr['t_fit']:.3f}, t<sub>crit</sub>={tr['t_critical']:.3f})</span>")
+        else:
+            trend_labels.append(f"<span style='color:red'>{tip('Linear regression requires at least 3 data points.')}N < 3</span>")
+            trend_values.append("<span style='color:red'>Additional data needed</span>")
+
+        # Trending figure: large scatter of k̃ vs Ck + regression line + tolerance band + USL
+        ck_fig = np.array([self.bench_list["Ck"][b] for b in range(len(self.bench_list)) if not self.bench_list["REMOVED"][b]])
+        fig_trend = go.Figure()
+        # Data points with error bars (±σ)
+        fig_trend.add_trace(
+            go.Scatter(
+                x=ck_fig, y=k_tilde_fig, mode="markers",
+                error_y=dict(type="data", array=sigma_fig, visible=True, thickness=1, width=3, color="rgba(76,120,168,0.5)"),
+                marker=dict(size=5, color="#4C78A8"),
+                name="k̃ values",
+            )
+        )
+        if tr["USL"] is not None:
+            # Regression line k(x)
+            x_line = np.linspace(np.min(ck_fig), np.max(ck_fig), 100)
+            y_kfit = tr["beta_0"] + tr["beta_1"] * x_line
+            fig_trend.add_trace(
+                go.Scatter(x=x_line, y=y_kfit, mode="lines", line=dict(color="#4C78A8", width=2), name="k(x)")
+            )
+
+            # Position-dependent tolerance band: k(x) - w(x)
+            # w(x) = S_p * sqrt( 2*F * [1/N + (x-x_bar)²/S_xx] + z_p * sqrt((N-2)/chi²) )
+            F_val = f_dist.ppf(tr["confidence"], dfn=2, dfd=tr["N"] - 2)
+            z_p = norm.ppf(tr["coverage"])
+            chi2_val = chi2_dist.ppf(1.0 - tr["confidence"], df=tr["N"] - 2)
+            chi2_val = max(chi2_val, 1e-12)
+            population_term = z_p * sqrt((tr["N"] - 2) / chi2_val)
+
+            w_x = np.array([
+                tr["S_p"] * sqrt(2.0 * F_val * (1.0 / tr["N"] + (xi - tr["x_bar"])**2 / tr["S_xx"]) + population_term)
+                if tr["S_xx"] > 0 else tr["sigma_beta_x"]
+                for xi in x_line
+            ])
+            y_lower_band = y_kfit - w_x
+            fig_trend.add_trace(
+                go.Scatter(x=x_line, y=y_lower_band, mode="lines", line=dict(color="#F58518", width=2), name="k(x) − w(x)")
+            )
+
+            # Constant W = max(w) over the data range (USL1 approach)
+            W_const = np.max(w_x)
+            y_usl1 = y_kfit - W_const
+            fig_trend.add_trace(
+                go.Scatter(x=x_line, y=y_usl1, mode="lines", line=dict(color="#E45756", width=2, dash="dash"), name="k(x) − W")
+            )
+
+            # USL = k(x) - W - admin_margin (final USL line)
+            y_usl_final = y_kfit - W_const - self.MOS
+            fig_trend.add_trace(
+                go.Scatter(x=x_line, y=y_usl_final, mode="lines", line=dict(color="#54A24B", width=2.5), name=f"USL (MOS={self.MOS})")
+            )
+
+            # Horizontal reference line at k̃ = 1
+            fig_trend.add_hline(y=1.0, line=dict(color="grey", width=0.8, dash="solid"))
+
+        fig_trend.update_layout(
+            width=650,
+            height=350,
+            margin=dict(l=50, r=20, t=30, b=45),
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0, font=dict(size=10)),
+            template="plotly_white",
+            xaxis=dict(title=dict(text="Trending Parameter, C<sub>k</sub>", font=dict(size=11)), tickfont=dict(size=10)),
+            yaxis=dict(title=dict(text="k̃ = C/E", font=dict(size=11)), tickfont=dict(size=10)),
+        )
+        html_fig_trend = fig_trend.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include, config={"displayModeBar": False})
 
         # Outer flex row
         C3_str += "<div style='display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;'>"
@@ -2191,6 +2469,18 @@ class Assimilation:
         C3_str += plots.create_html_table(lines=[nparam_labels, nparam_values], table_attrs=vm_table_attrs, centered=False)
         C3_str += "<div style='margin-top:6px;'>" + html_fig_nparam + "</div>"
         C3_str += "</div>"
+
+
+        # Close outer flex row (parametric + nonparametric)
+        C3_str += "</div>"
+
+        # --- Trending section: full-width below, table + large figure side by side ---
+        C3_str += "<h4 style='font-size:13px; margin-top:18px;'>3. Linear Trending</h4>"
+        C3_str += "<div style='display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start;'>"
+        C3_str += "<div style='min-width:240px; max-width:300px;'>"
+        C3_str += plots.create_html_table(lines=[trend_labels, trend_values], table_attrs=vm_table_attrs, centered=False)
+        C3_str += "</div>"
+        C3_str += "<div style='flex:1; min-width:400px;'>" + html_fig_trend + "</div>"
         C3_str += "</div>"
 
         C3_str += "</div><hr width='60%' />"
@@ -2200,7 +2490,6 @@ class Assimilation:
         bench_list_custom = pd.concat(
             [
                 pd.DataFrame(
-                    {
                         "PATH": bench_list_included["PATH"],
                         "E - C (pcm)": bench_list_included["E - C_PRIOR (pcm)"],
                         "PRIOR/POST": "PRIOR",
