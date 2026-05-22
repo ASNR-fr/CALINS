@@ -2296,7 +2296,7 @@ class Assimilation:
             f"{tip('Average computational bias: β = k̄ − 1. Negative means calculations underpredict experiments on average.')}Bias β",
             f"{tip('Non-conservative bias adjustment: Δm = max(0, β). Adds a penalty when the average bias is positive (non-conservative).')}Noncons. bias adj. Δ<sub>m</sub>",
             f"{tip('Pooled standard deviation combining the scatter of k̃ values (s_k) and the average individual uncertainty (σ̄_k): σ_β = √(s_k² + σ̄_k²).')}Pooled std σ<sub>β</sub>",
-            f"{tip('Single-sided tolerance factor from the noncentral t-distribution. Ensures that fraction p of the population is bounded at confidence level q. κ = t_q(ν, δ) / √N.')}Tolerance factor κ ({pr['p']}/{pr['q']})",
+            f"{tip('Single-sided tolerance factor from the noncentral t-distribution. Ensures that the coverage fraction of the population is bounded at the given confidence level. κ = t_q(ν, δ) / √N.')}Tolerance factor κ ({pr['coverage']}/{pr['confidence']})",
             f"{tip('Total calculational margin: CM = −β + κ·σ_β + Δm. Represents the penalty to apply to keff = 1.')}<b>Calc. Margin = -β + κσ<sub>β</sub> + Δ<sub>m</sub> </b>",
             f"{tip('Upper Subcritical Limit: the maximum acceptable keff. USL = 1 − MOS − CM, where MOS is the administrative Margin of Subcriticality.')}<b>USL = 1 - {self.MOS} - CM</b>",
         ]
@@ -2326,7 +2326,7 @@ class Assimilation:
             f"{tip('Non-conservative bias adjustment: Δm = max(0, β). Adds a penalty when the worst-case bias is positive.')}Noncons. bias adj. Δ<sub>m</sub>",
             f"{tip('Combined experimental + calculational uncertainty of the worst-case benchmark: σ = √(σ_exp² + σ_calc²).')}σ worst-case",
             f"{tip('Bias uncertainty = n_σ × σ_worst. The multiplier n_σ (default 2.6 ≈ 99%% confidence) expands the worst-case uncertainty.')}Bias unc. = {npr['n_sigma']}×σ",
-            f"{tip('Nonparametric confidence level: C_NP = 1 − p^N. Probability that the minimum of N samples bounds at least fraction p of the population.')}Confidence level C<sub>NP</sub> (p={npr['coverage']})",
+            f"{tip('Nonparametric confidence level: C_NP = 1 − coverage^N. Probability that the minimum of N samples bounds at least the coverage fraction of the population.')}Confidence level C<sub>NP</sub> (coverage={npr['coverage']})",
         ]
         nparam_values = [
             f"{npr['N']}",
