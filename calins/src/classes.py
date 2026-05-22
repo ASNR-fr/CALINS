@@ -2493,6 +2493,7 @@ class Assimilation:
         bench_list_custom = pd.concat(
             [
                 pd.DataFrame(
+                    {
                         "PATH": bench_list_included["PATH"],
                         "E - C (pcm)": bench_list_included["E - C_PRIOR (pcm)"],
                         "PRIOR/POST": "PRIOR",
