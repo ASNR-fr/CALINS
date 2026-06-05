@@ -157,7 +157,7 @@ class Case:
         self.resp_expe = resp_expe
         self.sigma_resp_expe = sigma_resp_expe
 
-        self.sensitivities = methods.format_sensi_to_dataframe(
+        self._sensitivities = methods.format_sensi_to_dataframe(
             input_sdf_path=sdf_path, filter_min_ratio_sensi_abs=filter_min_ratio_sensi_abs, occurrences_rule=occurrences_rule, mcnp=mcnp, std=std
         )
 
@@ -169,9 +169,9 @@ class Case:
 
         self.read_energy_bins()
 
-        self.iso_reac_list = [(iso, reac) for (iso, reac) in zip(self.sensitivities["ISO"].to_list(), self.sensitivities["REAC"].to_list())]
-        self.iso_list = list(set([iso for (iso, reac) in self.iso_reac_list]))
-        self.reac_list = list(set([reac for (iso, reac) in self.iso_reac_list]))
+        self._iso_reac_list = [(iso, reac) for (iso, reac) in zip(self.sensitivities["ISO"].to_list(), self.sensitivities["REAC"].to_list())]
+        self._iso_list = list(set(v[0] for v in self._iso_reac_list))
+        self._reac_list = list(set(v[1] for v in self._iso_reac_list))
 
         if self.resp_calc == None or self.sigma_resp_calc == None:
 
@@ -180,6 +180,33 @@ class Case:
         if self.resp_expe == None or self.sigma_resp_expe == None:
 
             self.read_resp_expe()
+
+    @property
+    def sensitivities(self):
+        return self._sensitivities
+    
+    @sensitivities.setter
+    def sensitivities(self, new_sensi_df):
+        self._sensitivities = new_sensi_df
+        self.iso_reac_list = [(iso, reac) for (iso, reac) in zip(self.sensitivities["ISO"].to_list(), self.sensitivities["REAC"].to_list())]
+    
+    @property
+    def iso_reac_list(self):
+        return self._iso_reac_list
+    
+    @iso_reac_list.setter
+    def iso_reac_list(self, value):
+        self._iso_reac_list = value
+        self._iso_list = list(set(v[0] for v in value))
+        self._reac_list = list(set(v[1] for v in value))
+
+    @property
+    def iso_list(self):
+        return self._iso_list
+
+    @property
+    def reac_list(self):
+        return self._reac_list
 
     def read_group_number(self):
         with open(self.sdf_path, "r") as f:
@@ -757,32 +784,69 @@ class NDCovariances:
             self.format = self._detect_format()
             write_and_print(f"Format of ND covariances file {input_path} detected as {self.format}.")
         if self.format == "coverx":
-            self.cov_dataf, self.e_bins, self.group_nb, self.header = methods.format_scale_binary_to_dataframe(input_path)
+            self._cov_dataf, self._e_bins, self.group_nb, self.header = methods.format_scale_binary_to_dataframe(input_path)
         elif self.format == "coverx_old":
-            self.cov_dataf, self.e_bins, self.group_nb, self.header = methods.format_scale_binary_to_dataframe(input_path, big_endian=True)
+            self._cov_dataf, self._e_bins, self.group_nb, self.header = methods.format_scale_binary_to_dataframe(input_path, big_endian=True)
         elif self.format in ["coverx_text", "coverx_txt"]:
-            self.cov_dataf, self.e_bins, self.group_nb, self.header = methods.format_scale_txt_to_dataframe(input_path)
+            self._cov_dataf, self._e_bins, self.group_nb, self.header = methods.format_scale_txt_to_dataframe(input_path)
         elif self.format == "comac":
-            self.cov_dataf, self.e_bins, self.group_nb, self.header = methods.format_comac_to_dataframe(input_path)
+            self._cov_dataf, self._e_bins, self.group_nb, self.header = methods.format_comac_to_dataframe(input_path)
         elif self.format == "gendf":
-            self.cov_dataf, self.e_bins, self.group_nb, self.header = methods.format_gendf_to_dataframe(input_path)
+            self._cov_dataf, self._e_bins, self.group_nb, self.header = methods.format_gendf_to_dataframe(input_path)
         elif self.format == "xlsx":
-            self.cov_dataf, self.e_bins, self.group_nb, self.header = methods.format_xlsx_to_dataframe(input_path)
+            self._cov_dataf, self._e_bins, self.group_nb, self.header = methods.format_xlsx_to_dataframe(input_path)
         else:
             raise errors.UserInputError(
                 f"Format must be either 'coverx', 'coverx_old', 'coverx_txt', 'comac', 'gendf', or 'xlsx', but was provided as {format}"
             )
 
-        cov_dataf = self.cov_dataf
+        cov_dataf = self._cov_dataf
 
         # Extract list of (isotope, reaction) pairs present in covariance data
         iso_reac_cov_H = cov_dataf.apply(lambda x: (x["ISO_H"], x["REAC_H"]), axis=1).to_list()
         iso_reac_cov_V = cov_dataf.apply(lambda x: (x["ISO_V"], x["REAC_V"]), axis=1).to_list()
         all_iso_reac = list(set(iso_reac_cov_H) | set(iso_reac_cov_V))
         # Filter out energy bins entries (0, 0)
+        self._iso_reac_list = [(iso, reac) for iso, reac in all_iso_reac if not (iso == 0)]
+        self._iso_list = list(set(v[0] for v in self._iso_reac_list))
+        self._reac_list = list(set(v[1] for v in self._iso_reac_list))
+
+    @property
+    def cov_dataf(self):
+        return self._cov_dataf
+    
+    @cov_dataf.setter
+    def cov_dataf(self, new_cov_dataf):
+        self._cov_dataf = new_cov_dataf
+
+        iso_reac_cov_H = self._cov_dataf.apply(lambda x: (x["ISO_H"], x["REAC_H"]), axis=1).to_list()
+        iso_reac_cov_V = self._cov_dataf.apply(lambda x: (x["ISO_V"], x["REAC_V"]), axis=1).to_list()
+        all_iso_reac = list(set(iso_reac_cov_H) | set(iso_reac_cov_V))
         self.iso_reac_list = [(iso, reac) for iso, reac in all_iso_reac if not (iso == 0)]
-        self.iso_list = list(set([iso for (iso, reac) in self.iso_reac_list]))
-        self.reac_list = list(set([reac for (iso, reac) in self.iso_reac_list]))
+
+        e_bins_row = self._cov_dataf[(self._cov_dataf["ISO_H"] == 0) & (self._cov_dataf["REAC_H"] == 0) & (self._cov_dataf["ISO_V"] == 0) & (self._cov_dataf["REAC_V"] == 0)]
+        if len(e_bins_row) > 0:
+            self._e_bins = e_bins_row["STD"].to_list()[0]
+        else:
+            None
+
+    @property
+    def iso_reac_list(self):
+        return self._iso_reac_list
+    
+    @iso_reac_list.setter
+    def iso_reac_list(self, value):
+        self._iso_reac_list = value
+        self._iso_list = list(set(v[0] for v in value))
+        self._reac_list = list(set(v[1] for v in value))
+
+    @property
+    def iso_list(self):
+        return self._iso_list
+
+    @property
+    def reac_list(self):
+        return self._reac_list
 
     def _detect_format(self) -> str:
         """
@@ -806,10 +870,12 @@ class NDCovariances:
             elif "44groupcov" in self.input_path:
                 return "coverx_old"
             return "coverx"
-        elif "comac" in self.input_path or "COMAC" in self.input_path:
+        elif "comac" in self.input_path.lower():
             return "comac"
-        elif "gendf" in self.input_path or "GENDF" in self.input_path or "endf" in self.input_path or "ENDF" in self.input_path:
+        elif "gendf" in self.input_path.lower() or "endf" in self.input_path.lower():
             return "gendf"
+        elif "tendl" in self.input_path.lower():
+            return "tendl"
         else:
             raise errors.UserInputError(
                 "Could not detect the format of the covariance file. Please specify the format explicitly among 'coverx', 'coverx_old', 'coverx_text', 'comac', 'gendf', or 'xlsx'."

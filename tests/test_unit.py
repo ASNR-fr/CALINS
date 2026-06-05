@@ -61,6 +61,12 @@ class TestFunctions(unittest.TestCase):
         self.assertEqual(cov_obj_scale.format, "coverx_text")
         self.assertIsNotNone(cov_obj_scale.iso_reac_list)
         self.assertIsInstance(cov_obj_scale.iso_reac_list, list)
+        # --- Test for setter and getter on cl.NDCovariances.cov_dataf and cl.NDCovariances.iso_reac_list
+        print(cov_obj_scale.cov_dataf)
+        cov_obj_scale.cov_dataf.at[1, "ISO_H"] = 30000
+        cov_obj_scale.cov_dataf.at[1, 'ISO_V'] = 30000
+        cov_obj_scale.cov_dataf = cov_obj_scale.cov_dataf.copy()
+        self.assertIn(30000, cov_obj_scale.iso_list)
         print("Test successfull for creating NDCovariances object (SCALE text)")
 
         cov_obj_comac = cl.NDCovariances(input_path=cov_comac_proper_path_2, format="comac")
@@ -113,6 +119,15 @@ class TestFunctions(unittest.TestCase):
 
         if os.path.exists(output_path):
             os.remove(output_path)
+
+        # --- Test for setter and getter on cl.Case.sensitivities
+        appl_case = cl.Case(sdf_path=sensi_proper_path_1)
+        appl_case.sensitivities.at[0, 'ISO'] = 40000
+        appl_case.sensitivities.at[1, 'ISO'] = 40000
+        appl_case.sensitivities = appl_case.sensitivities.copy()
+        self.assertIn(40000, appl_case.iso_list)
+
+        print("Test successfull for setter and getter on cl.Case.sensitivities and cl.Case.iso_reac_list")
 
     def test_E(self):
 
