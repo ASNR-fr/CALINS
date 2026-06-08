@@ -831,6 +831,10 @@ class NDCovariances:
             None
 
     @property
+    def e_bins(self):
+        return self._e_bins
+
+    @property
     def iso_reac_list(self):
         return self._iso_reac_list
     
