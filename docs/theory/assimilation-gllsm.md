@@ -102,9 +102,10 @@ The required inversion is not always mathematically possible. The impact of inve
 
 ***
 
-**A posteriori bias Δresp<sup>post</sup>**, deviation $(k_{eff}^{expe}-k_{eff}^{calc}) \over k_{eff}^{calc}$ (unit: %, value relative to the calculated response):
+**A posteriori bias Δresp<sup>post</sup>**, deviation $(resp^{expe}-resp^{calc}) \over resp^{calc}$ (unit: %, value relative to the calculated response):
 
 $$ \Delta \text{resp}^{\text{post}} = S_{\text{appl}} \cdot \Delta\mu_{ND} $$
+
 $$ \Delta \text{resp}^{\text{post}} = \lambda_{B} \cdot (- \Delta k_{C/E \text{ bench}}) $$
 
 **Application bias population standard deviation**
