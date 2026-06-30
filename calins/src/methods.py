@@ -194,16 +194,7 @@ def format_gendf_to_dataframe(input_path: Path):
                     energylist = [line[i * 11 : (i + 1) * 11].replace(" ", "") for i in range(6)]
                     energylist = [x for x in energylist[:] if x != ""]
                     for energy in energylist:
-                        if re.search("-", energy[-3:]):
-                            valE = energy[:-3] + energy[-3:].split("-")[0] + "E-" + energy[-3:].split("-")[1]
-                            valE = float(valE)
-                        elif re.search(r"\+", energy):
-                            valE = energy[:-3] + energy[-3:].split("+")[0] + "E+" + energy[-3:].split("+")[1]
-                            valE = float(valE)
-                        else:
-                            valE = float(energy)
-
-                        e_bins.append(valE)
+                        e_bins.append(_parse_endf_float(energy))
 
                 e_bins = np.flip(e_bins)
                 dikt_cov["ISO_H"].append(0)
@@ -221,16 +212,7 @@ def format_gendf_to_dataframe(input_path: Path):
                     LIST_MF3 = [line[i * 11 : (i + 1) * 11].replace(" ", "") for i in range(6)]
                     LIST_MF3 = [x for x in LIST_MF3[:] if x != ""]
                     for CrossSec_str in LIST_MF3:
-                        if re.search("-", CrossSec_str[-3:]):
-                            valXS = CrossSec_str[:-3] + CrossSec_str[-3:].split("-")[0] + "E-" + CrossSec_str[-3:].split("-")[1]
-                            valXS = float(valXS)
-                        elif re.search(r"\+", CrossSec_str):
-                            valXS = CrossSec_str[:-3] + CrossSec_str[-3:].split("+")[0] + "E+" + CrossSec_str[-3:].split("+")[1]
-                            valXS = float(valXS)
-                        else:
-                            valXS = float(CrossSec_str)
-
-                        crossSectionLine.append(valXS)
+                        crossSectionLine.append(_parse_endf_float(CrossSec_str))
 
                 dikt_cov["ISO_H"].append(int(iMAT))
                 dikt_cov["REAC_H"].append(int(iMT))
@@ -264,14 +246,7 @@ def format_gendf_to_dataframe(input_path: Path):
                     continue
 
                 for val_str in splited_part:
-                    if re.search("-", val_str[-3:]):
-                        val = val_str[:-3] + val_str[-3:].split("-")[0] + "E-" + val_str[-3:].split("-")[1]
-                        val = float(val)
-                    elif re.search(r"\+", val_str):
-                        val = val_str[:-3] + val_str[-3:].split("+")[0] + "E+" + val_str[-3:].split("+")[1]
-                        val = float(val)
-                    else:
-                        val = float(val_str)
+                    val = _parse_endf_float(val_str)
 
                     if val > 100:
                         dikt_100["ISO_H"].append(int(iso_1_id))
@@ -312,6 +287,22 @@ def format_gendf_to_dataframe(input_path: Path):
         raise errors.EmptyParsingError(f"No data was extracted from your var-covar matrix file : {input_path}")
 
     return cov_df, e_bins, group_nb, None
+
+
+def _parse_endf_float(s):
+    """Parse an ENDF-6 formatted float string (e.g. '1.234567-3' -> 1.234567e-3)."""
+    s = s.strip()
+    if not s:
+        return 0.0
+    # ENDF shorthand: '1.234567+3' means 1.234567e+3, '1.234567-3' means 1.234567e-3
+    # Check for sign in the exponent part (positions after the mantissa)
+    if 'E' in s.upper():
+        return float(s)
+    # Look for +/- sign that is NOT at position 0 (which would be a negative mantissa)
+    for i in range(len(s) - 1, 0, -1):
+        if s[i] in '+-' and s[i - 1] not in 'eE':
+            return float(s[:i] + 'E' + s[i:])
+    return float(s)
 
 
 @log_exec()
@@ -2047,8 +2038,7 @@ def calcul_Ck(
     if denom == 0:
         Ck = 0
     else:
-        Ck = ((sensi_vec1 @ cov_mat @ sensi_vec2) ** 2) / denom
-        Ck = sqrt(abs(Ck))
+        Ck = (sensi_vec1 @ cov_mat @ sensi_vec2) / sqrt(denom)
 
     if return_partial:
         partial = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY": []}
@@ -2065,8 +2055,7 @@ def calcul_Ck(
             if denom == 0:
                 Ck_sub = 0
             else:
-                Ck_sub = ((sub_sensi_vec1 @ sub_cov_mat @ sub_sensi_vec2) ** 2) / (denom)
-                Ck_sub = sqrt(abs(Ck_sub))
+                Ck_sub = (sub_sensi_vec1 @ sub_cov_mat @ sub_sensi_vec2) / sqrt(denom)
 
             partial["ISO"].append(iso)
             partial["REAC"].append(reac)

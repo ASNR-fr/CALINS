@@ -34,7 +34,7 @@ $$ E = \frac{S_1 \cdot S_2^t}{||S_1|| \cdot ||S_2||} $$
 **Similarity index $C_k$ (value between 0 and 1):**
 This index weights the dot product with covariance values.
 
-$$ C_k = \sqrt{\frac{(S_1 \cdot Cov \cdot S_2^t)^2}{(S_1 \cdot Cov \cdot S_1^t)(S_2 \cdot Cov \cdot S_2^t)}} $$
+$$ C_k = \\frac{S_1 \cdot Cov \cdot S_2^t}{sqrt{(S_1 \cdot Cov \cdot S_1^t)}sqrt{(S_2 \cdot Cov \cdot S_2^t)}} $$
 
 **Similarity index G (SCALE formula Eq. 6.8.49):**
 This index measures the similarity between two sensitivity vectors. Unlike E which indicates maximum similarity when vectors are proportional, G equals unity only when the two vectors are identical.
