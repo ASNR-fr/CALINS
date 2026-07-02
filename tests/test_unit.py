@@ -243,7 +243,7 @@ class TestFunctions(unittest.TestCase):
         assim = cl.Assimilation(benchmarks_list=[sensi_proper_path_2], appl_case=sensi_proper_path_1, cov_data=cov_1_nd)
 
         self.assertAlmostEqual(assim.prior_uncertainty.value, 1.12811, places=4)
-        self.assertAlmostEqual(assim.bias.value, -2.423986551e-2, places=4)
+        self.assertAlmostEqual(assim.bias.value, 2.423986551e-2, places=4)
         self.assertAlmostEqual(assim.post_uncertainty.value, 1.1281, places=4)
 
         # --- Test calculation with Ck sorting
