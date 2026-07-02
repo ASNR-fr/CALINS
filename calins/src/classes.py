@@ -1154,15 +1154,15 @@ class Assimilation:
         bench_sigma_expe = [bench.sigma_resp_expe for bench in self.bench_cases]
         bench_resp_calc = [bench.resp_calc for bench in self.bench_cases]
         bench_sigma_calc = [bench.sigma_resp_calc for bench in self.bench_cases]
-        bench_EC_prior = [round((bench.resp_expe - bench.resp_calc) * 1e5) for bench in self.bench_cases]
+        bench_CE_prior = [round((bench.resp_calc - bench.resp_expe) * 1e5) for bench in self.bench_cases]
 
         (
             self.bench_list["RESP EXPE"],
             self.bench_list["SIGMA RESP EXPE"],
             self.bench_list["RESP CALC"],
             self.bench_list["SIGMA RESP CALC"],
-            self.bench_list["E - C_PRIOR (pcm)"],
-        ) = (bench_resp_expe, bench_sigma_expe, bench_resp_calc, bench_sigma_calc, bench_EC_prior)
+            self.bench_list["C_PRIOR - E (pcm)"],
+        ) = (bench_resp_expe, bench_sigma_expe, bench_resp_calc, bench_sigma_calc, bench_CE_prior)
 
         self.appl_case = appl_case
 
@@ -1549,8 +1549,8 @@ class Assimilation:
         for b in range(len(self.bench_list)):
             if self.bench_list["REMOVED"][b] == False:
                 sigma_expe = self.bench_list["SIGMA RESP EXPE"].to_list()[b]
-                resp_expe, EC_post = self.bench_list["RESP EXPE"].to_list()[b], self.bench_list["E - C_POST (pcm)"].to_list()[b]
-                resp_calc_post = resp_expe - EC_post * 1e-5
+                resp_expe, CE_post = self.bench_list["RESP EXPE"].to_list()[b], self.bench_list["C_POST - E (pcm)"].to_list()[b]
+                resp_calc_post = resp_expe - CE_post * 1e-5
                 expe_mat_post[b_present, b_present] = sigma_expe**2 / resp_calc_post**2
                 delta_CE_vec_post[b_present] = (resp_calc_post - self.bench_list["RESP EXPE"].to_list()[b]) / resp_calc_post
                 b_present += 1
@@ -1586,18 +1586,20 @@ class Assimilation:
     def calcul_bias(self):
 
         bench_biases = self.bench_sensi_mat @ self.delta_mu
+        # Convert to C-E unit
+        bench_biases *= -1
 
-        bench_EC_post = []
+        bench_CE_post = []
         idx_present = 0
         for b in range(len(self.bench_list)):
             bench = self.bench_cases[b]
             if self.bench_list["REMOVED"][b] == False:
-                bench_EC_post.append(round((bench.resp_expe - (bench.resp_calc + bench_biases[idx_present] * bench.resp_calc)) * 1e5))
+                bench_CE_post.append(round(((bench.resp_calc - bench_biases[idx_present] * bench.resp_calc) - bench.resp_expe) * 1e5))
                 idx_present += 1
             else:
-                bench_EC_post.append("Not calculated")
+                bench_CE_post.append("Not calculated")
 
-        self.bench_list["E - C_POST (pcm)"] = bench_EC_post
+        self.bench_list["C_POST - E (pcm)"] = bench_CE_post
 
         if self.appl_case != None:
             self.bias = Bias(
@@ -1710,11 +1712,11 @@ class Assimilation:
 
         bias = self.bias.value / 1e5
         K = self._coverage_factor_os_tdist(coverage=coverage, confidence=confidence, N=N)
-        CM = bias + (K * self.bias_std)
+        CM = -bias + (K * self.bias_std)
         USL = 1.0 - CM - self.MOS
 
         self.USL_gllsm = {
-            "bias": (self.bias.value / 1e5),
+            "bias": bias,
             "std": self.bias_std,
             "K": K,
             "calculational_margin": CM,
@@ -2146,8 +2148,8 @@ class Assimilation:
             "ND Uncertainty a priori",
             "ND Uncertainty a posteriori",
             "Application bias population std",
-            "Estimated application bias (C<sub>post</sub> - C<sub>prior</sub>)",
-            "Calc. Margin (Bias<sub>appl.</sub> + K x sigma<sub>bias</sub><sup>appl, pop</sup>)",
+            "Estimated application bias (C<sub>prior</sub> - C<sub>post</sub>)",
+            "Calc. Margin (-Bias<sub>appl.</sub> + K x sigma<sub>bias</sub><sup>appl, pop</sup>)",
             "Chi2 a priori ",
             "Chi2 a posteriori",
             "Nb of benchmark cases removed",
@@ -2234,7 +2236,7 @@ class Assimilation:
             f"{tip('Assumes C/E values follow a normal distribution. Uses a weighted mean bias and a tolerance factor κ from the noncentral t-distribution.')}Parametric",
         ]
         summary_values = [
-            f"{self.USL_gllsm['calculational_margin']*1E5:.0f} pcm" if self.USL_gllsm['calculational_margin'] is not None else "<span style='color:red'>N/A (N&lt;2)</span>",
+            f"{gllsm['calculational_margin']*1E5:.0f} pcm" if gllsm['calculational_margin'] is not None else "<span style='color:red'>N/A (N&lt;2)</span>",
             f"{pr['calculational_margin']*1E5:.0f} pcm" if pr['calculational_margin'] is not None else "<span style='color:red'>N/A (N&lt;2)</span>",
         ]
         if npr["USL"] is not None:
@@ -2565,7 +2567,7 @@ class Assimilation:
                 pd.DataFrame(
                     {
                         "PATH": bench_list_included["PATH"],
-                        "E - C (pcm)": bench_list_included["E - C_PRIOR (pcm)"],
+                        "C - E (pcm)": bench_list_included["C_PRIOR - E (pcm)"],
                         "PRIOR/POST": "PRIOR",
                         "3SIGMA EXPE+ND (pcm)": 3
                         * np.sqrt(
@@ -2577,7 +2579,7 @@ class Assimilation:
                 pd.DataFrame(
                     {
                         "PATH": bench_list_included["PATH"],
-                        "E - C (pcm)": bench_list_included["E - C_POST (pcm)"],
+                        "C - E (pcm)": bench_list_included["C_POST - E (pcm)"],
                         "PRIOR/POST": "POST",
                         "3SIGMA EXPE+ND (pcm)": 3
                         * np.sqrt(
@@ -2593,14 +2595,14 @@ class Assimilation:
         trace_bias = px.scatter(
             bench_list_custom,
             x="PATH",
-            y="E - C (pcm)",
+            y="C - E (pcm)",
             error_y="3SIGMA EXPE+ND (pcm)",
             color="PRIOR/POST",
             symbol="PRIOR/POST",
             hover_name="PATH",
             title="Benchmark cases bias progression",
         )
-        trace_bias.update_yaxes(title_text="E - C (pcm) (3 sigma=sqrt(expe²+ND²))")
+        trace_bias.update_yaxes(title_text="C - E (pcm) (3 sigma=sqrt(expe²+ND²))")
         trace_bias.update_traces(marker_size=8, error_y_thickness=0.5)
         trace_bias.update_xaxes(tickvals=bench_list_custom["PATH"], ticktext=[os.path.basename(path) for path in bench_list_custom["PATH"]])
         plots.apply_default_layout(trace_bias, height=800)
@@ -2638,8 +2640,8 @@ class Assimilation:
             "Resp calc (post)",
             "ND uncertainty (prior) (pcm)",
             "ND uncertainty (post) (pcm)",
-            "E - C<sub>prior</sub> (pcm)",
-            "E - C<sub>post</sub> (pcm)",
+            "C - E<sub>prior</sub> (pcm)",
+            "C - E<sub>post</sub> (pcm)",
             "Chi2 individual",
             "Ck",
         ]
@@ -2648,13 +2650,13 @@ class Assimilation:
             [f"{round(x.resp_expe, 5)} +/- {round(x.sigma_resp_expe, 5)}" for x in self.bench_cases],
             [f"{round(x.resp_calc, 5)} +/- {round(x.sigma_resp_calc, 5)}" for x in self.bench_cases],
             [
-                f"{round(x_case.resp_expe - EC_post/1E5, 5)} +/- {round(x_case.sigma_resp_calc, 5)}" if type(EC_post) is not str else None
-                for x_case, EC_post in zip(self.bench_cases, self.bench_list["E - C_POST (pcm)"])
+                f"{round(x_case.resp_expe - CE_post/1E5, 5)} +/- {round(x_case.sigma_resp_calc, 5)}" if type(CE_post) is not str else None
+                for x_case, CE_post in zip(self.bench_cases, self.bench_list["C_POST - E (pcm)"])
             ],
             [int(round(x)) for x in self.bench_list["UNC_PRIOR (pcm)"]],
             [int(round(x)) if type(x) is not str else None for x in self.bench_list["UNC_POST (pcm)"]],
-            [int(round(x)) for x in self.bench_list["E - C_PRIOR (pcm)"]],
-            [int(round(x)) if type(x) is not str else None for x in self.bench_list["E - C_POST (pcm)"]],
+            [int(round(x)) for x in self.bench_list["C_PRIOR - E (pcm)"]],
+            [int(round(x)) if type(x) is not str else None for x in self.bench_list["C_POST - E (pcm)"]],
             [round(chi2, 5) if chi2 != None else None for chi2 in self.bench_list["INDIVIDUAL CHI2"]],
             [round(ck, 4) if ck != None else None for ck in self.bench_list["Ck"]],
         ]
@@ -3552,6 +3554,8 @@ class Bias:
             decomp_vec += bias_partial_detail
 
             bias_partial = sub_sensi_vec @ sub_delta_mu
+            # Convert to C-E unit
+            bias_partial *= -1
 
             sum += bias_partial
 

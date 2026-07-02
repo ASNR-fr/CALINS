@@ -255,7 +255,7 @@ class TestFunctions(unittest.TestCase):
         )
 
         self.assertAlmostEqual(assim.prior_uncertainty.value, 1.12811, places=4)
-        self.assertAlmostEqual(assim.bias.value, -2.423986551e-2, places=4)
+        self.assertAlmostEqual(assim.bias.value, 2.423986551e-2, places=4)
         self.assertAlmostEqual(assim.post_uncertainty.value, 1.1281, places=4)
 
         assim.export_to_html(output_html_path="./assim_test.html")
@@ -264,7 +264,7 @@ class TestFunctions(unittest.TestCase):
         assim_nd = cl.Assimilation(benchmarks_list=[sensi_proper_path_2], appl_case=sensi_proper_path_1, cov_data=cov_1_nd)
 
         self.assertAlmostEqual(assim_nd.prior_uncertainty.value, 1.12811, places=4)
-        self.assertAlmostEqual(assim_nd.bias.value, -2.423986551e-2, places=4)
+        self.assertAlmostEqual(assim_nd.bias.value, 2.423986551e-2, places=4)
         self.assertAlmostEqual(assim_nd.post_uncertainty.value, 1.1281, places=4)
 
         print("Test successfull for calculation type GLLSM")

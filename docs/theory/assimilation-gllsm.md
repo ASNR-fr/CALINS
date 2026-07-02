@@ -86,7 +86,7 @@ ${S_{ref}}$: reference sensitivity vector  ${S_{comp}}$: comparison sensitivity 
 
 **Global nuclear data variation vector (from assimilated benchmarks) $\Delta\mu_{ND}$:**
 
-$$ \Delta\mu_{ND} = Cov \cdot S_{\text{bench}}^t \cdot  (C_{\text{bench}}+S_{\text{bench}} \cdot Cov \cdot S_{\text{bench}}^t)^{-1} \cdot (- \Delta k_{C/E \text{ bench}}) $$
+$$ \Delta\mu_{ND} = Cov \cdot S_{\text{bench}}^t \cdot  (C_{\text{bench}}+S_{\text{bench}} \cdot Cov \cdot S_{\text{bench}}^t)^{-1} \cdot (- \Delta k_{C-E \text{ bench}}) $$
 
 **Application case to experiments weighting vector:** dimmesion: J = number of experiments
 
@@ -102,11 +102,11 @@ The required inversion is not always mathematically possible. The impact of inve
 
 ***
 
-**A posteriori bias Δresp<sup>post</sup>**, deviation $(resp^{expe}-resp^{calc}) \over resp^{calc}$ (unit: %, value relative to the calculated response):
+**A posteriori bias Δresp<sup>post</sup>**, deviation $(resp^{calc}-resp^{exp}) \over resp^{calc}$ (unit: %, value relative to the calculated response):
 
-$$ \Delta \text{resp}^{\text{post}} = S_{\text{appl}} \cdot \Delta\mu_{ND} $$
+$$ \Delta \text{resp}^{\text{post}} = S_{\text{appl}} \cdot (- \Delta\mu_{ND}) $$
 
-$$ \Delta \text{resp}^{\text{post}} = \lambda_{B} \cdot (- \Delta k_{C/E \text{ bench}}) $$
+$$ \Delta \text{resp}^{\text{post}} = \lambda_{B} \cdot \Delta k_{C-E \text{ bench}} $$
 
 **Application bias population standard deviation**
 
