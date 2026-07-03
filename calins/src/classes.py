@@ -3547,6 +3547,8 @@ class Bias:
         for i, (iso, reac) in enumerate(iso_reac_list):
 
             sub_delta_mu = delta_mu[i * self.group_nb : (i + 1) * self.group_nb]
+            # Convert to C-E unit
+            sub_delta_mu *= -1
 
             sub_sensi_vec = sensi_vec[i * self.group_nb : (i + 1) * self.group_nb]
 
@@ -3554,18 +3556,10 @@ class Bias:
             decomp_vec += bias_partial_detail
 
             bias_partial = sub_sensi_vec @ sub_delta_mu
-            # Convert to C-E unit
-            bias_partial *= -1
 
             sum += bias_partial
 
             sensi_df = appl_case.sensitivities
-
-            row = sensi_df[(sensi_df["ISO"] == iso) & (sensi_df["REAC"] == reac)]
-            if len(row) != 0:
-                integral = list(row["SENSI_INTEGRAL"])[0]
-            else:
-                integral = None
 
             if bias_partial != 0.0:
 
