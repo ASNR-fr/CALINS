@@ -84,6 +84,11 @@ function openCity(evt, cityName) {
   document.getElementById(cityName).style.display = "block";
   evt.currentTarget.className += " active";
 }
+
+window.addEventListener('DOMContentLoaded', function() {
+  var firstTab = document.querySelector('.tablinks');
+  if (firstTab) { firstTab.click(); }
+});
 </script>
    
 </body>
