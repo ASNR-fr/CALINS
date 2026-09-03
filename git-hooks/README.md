@@ -1,30 +1,30 @@
 # Git Hooks
 
-Ce dossier contient les scripts git hooks du projet.
+This folder contains the project's Git hook scripts.
 
 ## Installation
 
-Après avoir cloné le repo, exécutez **une seule fois** le script de configuration approprié :
+After cloning the repository, run the appropriate setup script **once**:
 
-### Sur Linux/Mac :
+### On Linux/Mac:
 ```bash
 bash git-hooks/setup-hooks.sh
 ```
 
-### Sur Windows (PowerShell) :
+### On Windows (PowerShell):
 ```powershell
 .\git-hooks\setup-hooks.ps1
 ```
 
-Cette commande configure Git pour utiliser les hooks depuis ce dossier.
+This command configures Git to use hooks from this folder.
 
-## Hooks disponibles
+## Available Hooks
 
 ### `pre-commit`
-S'exécute automatiquement **avant chaque commit**.
+Runs automatically **before each commit**.
 
-**Fonctionnalité :**
-- Génère automatiquement le numéro de version
-- Format : `{baseVersion}.dev0+{hash}.{date}`
-- Met à jour `calins/src/version.py`
-- Inclut le hash du commit précédent
+**Features:**
+- Automatically generates the version number
+- Format: `{baseVersion}.dev0+{hash}.{date}`
+- Updates `calins/src/version.py`
+- Includes the previous commit hash
