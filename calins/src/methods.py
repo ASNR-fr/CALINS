@@ -1107,7 +1107,10 @@ def make_cov_matrix(cov_data, iso_reac_list: list):
 
     # ----- Loop over col_idx and line_idx coordinates (iso-reac_Horizontal and iso-reac_Vertical) and insert a submatrix (or its transpose) if the input covariance matrix contains values for this iso-reac pair
 
-    cov_inter_iso = [(row["ISO_H"], row["ISO_V"]) for _, row in cov_dataf[(cov_dataf["ISO_H"] != cov_dataf["ISO_V"])].iterrows()]
+    cov_inter_iso = set(
+        (row.ISO_H, row.ISO_V)
+        for row in cov_dataf.loc[cov_dataf["ISO_H"] != cov_dataf["ISO_V"], ["ISO_H", "ISO_V"]].itertuples(index=False)
+    )
 
     # Create new submatrices for versatile isotopes (e.g., H-poly / 1901) and isotopes not present but associated with their natural isotope
 
@@ -1181,6 +1184,12 @@ def make_cov_matrix(cov_data, iso_reac_list: list):
     cov_dim = len(iso_reac_inter) * group_nb
     cov_mat = lil_matrix((cov_dim, cov_dim), dtype=float)
 
+    # Pre-index covariance blocks once to avoid repeated DataFrame filtering in the nested loops.
+    cov_block_lookup = {
+        (row.ISO_H, row.REAC_H, row.ISO_V, row.REAC_V): row.STD
+        for row in cov_dataf[["ISO_H", "REAC_H", "ISO_V", "REAC_V", "STD"]].itertuples(index=False)
+    }
+
     for col_idx, (iso_H, reac_H) in enumerate(iso_reac_inter):
         for line_idx, (iso_V, reac_V) in enumerate(iso_reac_inter):
 
@@ -1190,22 +1199,18 @@ def make_cov_matrix(cov_data, iso_reac_list: list):
             if iso_H != iso_V and (iso_H, iso_V) not in cov_inter_iso and (iso_V, iso_H) not in cov_inter_iso:
                 continue
 
-            row = cov_dataf[
-                (cov_dataf["ISO_H"] == iso_H) & (cov_dataf["REAC_H"] == reac_H) & (cov_dataf["ISO_V"] == iso_V) & (cov_dataf["REAC_V"] == reac_V)
-            ]
-            if len(row) != 0:
+            std_block = cov_block_lookup.get((iso_H, reac_H, iso_V, reac_V))
+            if std_block is not None:
                 cov_mat[line_idx * group_nb : (line_idx + 1) * group_nb, col_idx * group_nb : (col_idx + 1) * group_nb] = np.array(
-                    list(row["STD"])[0]
+                    std_block
                 )
 
             else:
 
-                row = cov_dataf[
-                    (cov_dataf["ISO_H"] == iso_V) & (cov_dataf["REAC_H"] == reac_V) & (cov_dataf["ISO_V"] == iso_H) & (cov_dataf["REAC_V"] == reac_H)
-                ]
-                if len(row) != 0:
+                std_block = cov_block_lookup.get((iso_V, reac_V, iso_H, reac_H))
+                if std_block is not None:
                     cov_mat[line_idx * group_nb : (line_idx + 1) * group_nb, col_idx * group_nb : (col_idx + 1) * group_nb] = np.array(
-                        list(row["STD"])[0]
+                        std_block
                     ).T
 
     return cov_mat, iso_reac_inter
@@ -1306,6 +1311,7 @@ def make_sensi_vectors(
 ):
 
     common_list = get_common_iso_reac_list(**locals())
+    common_list_set = set(common_list)
 
     # Check dimensions :
     group_nb = None
@@ -1326,15 +1332,26 @@ def make_sensi_vectors(
         sensi_df = sensi_case.sensitivities
         sensi_vec = []
         iso_reac_notfound = []
+
+        # Build a lightweight per-case lookup only for requested pairs.
+        target_pairs = common_list_set.intersection(set(sensi_case.iso_reac_list))
+        sensi_row_index_lookup = {}
+        if len(target_pairs) > 0:
+            for row in sensi_df[["ISO", "REAC"]].itertuples():
+                pair = (row.ISO, row.REAC)
+                if pair in target_pairs:
+                    sensi_row_index_lookup[pair] = row.Index
+
+        sensi_col = sensi_df["SENSI"]
+
         for iso, reac in common_list:
-            # iso, reac = str(iso), str(reac)
-            row = sensi_df[(sensi_df["ISO"] == iso) & (sensi_df["REAC"] == reac)]
-            if len(row) != 0:
-                sensi_vec += list(row["SENSI"])[0]
+            pair = (iso, reac)
+            if pair in sensi_row_index_lookup:
+                sensi_vec += list(sensi_col.at[sensi_row_index_lookup[pair]])
                 found_element = True
             else:
                 sensi_vec += [0.0] * group_nb
-                iso_reac_notfound.append((iso, reac))
+                iso_reac_notfound.append(pair)
 
         iso_reac_notfound = [convert_iso_id_to_string(iso) + " " + str(reac) for iso, reac in iso_reac_notfound]
         if len(iso_reac_notfound) > 0:
