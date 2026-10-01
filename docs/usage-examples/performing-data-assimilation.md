@@ -60,6 +60,11 @@ print(f"Trending USL: {assimilation.USL_trending['USL']:.5f}")
 print(f"  Slope (beta_1): {assimilation.USL_trending['beta_1']:.6f}")
 print(f"  Trend significant (t-test): {assimilation.USL_trending['trend_significant']}")
 print(f"  Pooled std S_p: {assimilation.USL_trending['S_p']:.6f}")
+
+# Export only the interactive sensitivity report of the application case
+assimilation.export_appl_case_sensi_to_html(
+    output_html_path='application_case_sensitivities.html'
+)
 ```
 
 ## Accounting for experimental correlations

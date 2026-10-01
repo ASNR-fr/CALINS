@@ -267,6 +267,8 @@ class TestFunctions(unittest.TestCase):
         self.assertAlmostEqual(assim_nd.bias.value, 2.423986551e-2, places=4)
         self.assertAlmostEqual(assim_nd.post_uncertainty.value, 1.1281, places=4)
 
+        assim_nd.export_appl_case_sensi_to_html(output_html_path="./assim_application_case_sensitivities_test.html")
+
         print("Test successfull for calculation type GLLSM")
 
     def test_USL_gllsm(self):

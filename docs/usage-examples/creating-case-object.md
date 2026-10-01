@@ -19,6 +19,10 @@ my_case.export_to_html(
     plotting_unit='pcm'  # Options: 'pcm' or 'relative'
 )
 
+# Generate publication-level static plots
+my_case.plot_integrals(output_path='./case_integrals.png')
+my_case.plot_profiles(iso_reac_list=[('U-235', 1), ('U-235', 18), ('U-238', 101)], dashed_traces= [True, False, True], traces_colors=['black', 'red', 'green'],  output_path='./case_U5.png')
+
 # Access case attributes
 print(f"Case name: {my_case.casename}")
 print(f"Energy groups: {my_case.group_nb}")

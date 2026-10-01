@@ -1479,6 +1479,41 @@ def convert_iso_string_to_id(iso_str):
 
     return id
 
+def normalize_iso_reac(iso_reac):
+    """
+    Normalize an isotope-reaction pair to integer identifiers.
+
+    Parameters
+    ----------
+    iso_reac : tuple
+        Tuple ``(iso, reac)`` where ``iso`` can be an isotope ID (int) or
+        isotope name (str, e.g. ``"U235"``), and ``reac`` can be a reaction
+        ID (int) or reaction label (str, e.g. ``"FISSION"``).
+
+    Returns
+    -------
+    tuple
+        Normalized tuple ``(iso_id, reac_id)`` with integer identifiers.
+
+    Raises
+    ------
+    errors.UserInputError
+        If the isotope or reaction cannot be interpreted.
+    """
+    iso, reac = iso_reac
+
+    if isinstance(iso, str):
+        iso = convert_iso_string_to_id(iso)
+    elif not isinstance(iso, int):
+        raise errors.UserInputError(f"The isotope '{iso}' should be an integer or a recognized isotope string.")
+
+    if not isinstance(reac, int):
+        reac_key = str(reac).upper()
+        if reac_key not in reac_trad_inv:
+            raise errors.UserInputError(f"The reaction '{reac}' is not recognized.")
+        reac = int(reac_trad_inv[reac_key])
+
+    return (iso, reac)
 
 # ====================================================================================================
 

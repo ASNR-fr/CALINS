@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import os, re
+import matplotlib.pyplot as plt
 
 
 from . import errors, methods
@@ -22,7 +23,7 @@ color_map_reac = {
 }
 
 
-def plot_integrals_per_iso_reac(vector, iso_reac_list, group_nb, factor=1.0, output_html_path: str = None, show=False, title="", yaxis_title=None):
+def plot_integrals_per_iso_reac(vector, iso_reac_list, group_nb, factor=1.0, output_html_path: str = None, show=False, title="", yaxis_title=None, xaxis_title=None):
 
     if len(vector) != group_nb * len(iso_reac_list):
         raise errors.DimError(
@@ -45,11 +46,8 @@ def plot_integrals_per_iso_reac(vector, iso_reac_list, group_nb, factor=1.0, out
     df = df.sort_values(by="value", ascending=False, key=lambda col: abs(col))
 
     fig = px.bar(df, x="isotope", y="value", hover_data=["reaction"], color="reaction", color_discrete_map=color_map_reac, title=title)
-    fig.update_xaxes(categoryorder="sum descending", title="Isotope")
-    if yaxis_title == None:
-        fig.update_yaxes(title=title)
-    else:
-        fig.update_yaxes(title=yaxis_title)
+    fig.update_xaxes(categoryorder="sum descending", title=xaxis_title if xaxis_title else "Isotope")
+    fig.update_yaxes(title=yaxis_title if yaxis_title else title)
 
     if show:
         fig.show()
@@ -63,7 +61,19 @@ def plot_integrals_per_iso_reac(vector, iso_reac_list, group_nb, factor=1.0, out
     return fig
 
 
-def plot_profiles_per_iso_reac(vector, iso_reac_list, e_bins: list, factor=1.0, output_html_path: str = None, show=False, title="", yaxis_title=None):
+def plot_profiles_per_iso_reac(
+    vector,
+    iso_reac_list,
+    e_bins: list,
+    factor=1.0,
+    output_html_path: str = None,
+    show=False,
+    title="",
+    yaxis_title=None,
+    xaxis_title=None,
+    traces_colors=None,
+    dashed_traces=None,
+):
 
     group_nb = len(e_bins) - 1
 
@@ -72,31 +82,50 @@ def plot_profiles_per_iso_reac(vector, iso_reac_list, e_bins: list, factor=1.0, 
             f"The dimmensions of the sensi vector, the isotope/reaction list and the number of groups is not consistent to plot\n {len(vector)} != {group_nb} x {len(iso_reac_list)}"
         )
 
-    e_bins.sort(reverse=True)
+    if traces_colors not in [None, []] and len(traces_colors) != len(iso_reac_list):
+        raise errors.UserInputError("The length of traces_colors must be equal to the length of iso_reac_list")
+
+    if dashed_traces not in [None, []] and len(dashed_traces) != len(iso_reac_list):
+        raise errors.UserInputError("The length of dashed_traces must be equal to the length of iso_reac_list")
+
+    e_bins = sorted(e_bins, reverse=True)
 
     fig = go.Figure()
-
-    iso_reac_list = [(methods.convert_iso_id_to_string(iso), methods.reac_trad[str(reac)]) for iso, reac in iso_reac_list]
 
     vector = [val * factor for val in vector]
     vector_iso_reac = [vector[i * group_nb : (i + 1) * group_nb] for i in range(len(iso_reac_list))]
     dikt_sensi = {i_r: vec for i_r, vec in zip(iso_reac_list, vector_iso_reac)}
-    dikt_sensi = dict(sorted(dikt_sensi.items(), key=lambda item: item[0][0] + item[0][1]))
+    dikt_sensi = dict(
+        sorted(
+            dikt_sensi.items(),
+            key=lambda item: methods.convert_iso_id_to_string(item[0][0]) + methods.reac_trad.get(str(item[0][1]), f"REAC_{item[0][1]}"),
+        )
+    )
 
-    for iso_reac, vec in dikt_sensi.items():
+    style_by_iso_reac = {}
+    for idx, iso_reac in enumerate(iso_reac_list):
+        color = traces_colors[idx] if traces_colors not in [None, []] else None
+        dashed = bool(dashed_traces[idx]) if dashed_traces not in [None, []] else False
+        style_by_iso_reac[iso_reac] = {"color": color, "dash": "3px,2px" if dashed else "solid"}
+
+    for (iso, reac), vec in dikt_sensi.items():
 
         sensis = list(vec)
         sensis.append(0)
 
-        trace = go.Scatter(x=e_bins, y=sensis, name=f"{iso_reac[0]} - {iso_reac[1]}", line_shape="hv")
+        iso_str = methods.convert_iso_id_to_string(iso)
+        reac_str = methods.reac_trad.get(str(reac), f"REAC_{reac}")
+        line_style = {"dash": style_by_iso_reac[(iso, reac)]["dash"]}
+        if style_by_iso_reac[(iso, reac)]["color"] is not None:
+            line_style["color"] = style_by_iso_reac[(iso, reac)]["color"]
+
+        trace = go.Scatter(x=e_bins, y=sensis, name=f"{iso_str} - {reac_str}", line_shape="hv", line=line_style, showlegend=True)
         fig.add_trace(trace)
 
     fig.update_layout(title=title)
-    fig.update_xaxes(title="Energy (eV)", type="log", tickformat="e")
-    if yaxis_title == None:
-        fig.update_yaxes(title=title)
-    else:
-        fig.update_yaxes(title=yaxis_title)
+    fig.update_xaxes(title=xaxis_title if xaxis_title else "Energy (eV)", type="log", tickformat=".0e")
+    fig.update_yaxes(title=yaxis_title if yaxis_title else title)
+
 
     if show:
         fig.show()
@@ -163,8 +192,6 @@ def plot_submatrix(
     output_html_path: str = None,
     show=False,
 ):
-
-    # Penser à gerer un dataframe en input aussi
 
     ((iso1, reac1), (iso2, reac2)) = iso_reac_pair_to_plot
 
@@ -243,6 +270,114 @@ def plot_submatrix(
         return fig, (zmin, zmax)
 
 
+def plot_specific_covariance_matrix(
+    covariance_block,
+    e_bins,
+    title="",
+    covariance_horizontal=None,
+    covariance_vertical=None,
+    horizontal_label=None,
+    vertical_label=None,
+):
+
+    group_nb = covariance_block.shape[0]
+    is_cross_covariance = covariance_vertical is not None
+
+    std_horizontal = np.sqrt(np.diag(covariance_horizontal if covariance_horizontal is not None else covariance_block)) * 100
+    std_vertical = np.sqrt(np.diag(covariance_vertical if covariance_vertical is not None else covariance_block)) * 100
+
+    correlation_matrix = np.zeros_like(covariance_block)
+    for row_idx in range(group_nb):
+        for col_idx in range(group_nb):
+            if std_vertical[row_idx] > 0 and std_horizontal[col_idx] > 0:
+                correlation_matrix[row_idx, col_idx] = covariance_block[row_idx, col_idx] / (
+                    std_vertical[row_idx] / 100 * std_horizontal[col_idx] / 100
+                )
+    
+    if len(e_bins) == group_nb : e_bins.append(1E-6)
+    if len(e_bins) != group_nb + 1:
+        raise errors.DimError(f"The length of the energy bins list must be equal to the number of groups + 1. {len(e_bins)} != {group_nb} + 1")
+    e_bins_sorted = np.sort(e_bins)
+    log_edges = np.log10(e_bins_sorted)
+
+
+    std_horizontal_ascending = std_horizontal[::-1]
+    std_vertical_ascending = std_vertical[::-1]
+    correlation_matrix_ascending = correlation_matrix[::-1, ::-1]
+
+    if is_cross_covariance:
+        fig_width, fig_height = 10.0, 9.0
+        matrix_x0, matrix_y0, matrix_h = 0.09, 0.08, 0.62
+        matrix_w = matrix_h * fig_height / fig_width
+        top_y0, top_h = matrix_y0 + matrix_h + 0.05, 0.13
+    else:
+        fig_width, fig_height = 8.0, 9.0
+        matrix_x0, matrix_y0, matrix_h = 0.10, 0.08, 0.65
+        matrix_w = matrix_h * fig_height / fig_width
+        top_y0, top_h = matrix_y0 + matrix_h + 0.04, 0.13
+
+    fig = plt.figure(figsize=(fig_width, fig_height))
+
+    ax_top = fig.add_axes([matrix_x0, top_y0, matrix_w, top_h])
+    ax_top.step(log_edges[:-1], std_horizontal_ascending, where="post", color="blue", linewidth=1.5)
+    ax_top.hlines(std_horizontal_ascending[-1], log_edges[-2], log_edges[-1], color="blue", linewidth=1.5)
+    ax_top.set_xlim(log_edges[0], log_edges[-1])
+    ax_top.set_ylabel("Δσ/σ (%)")
+    if is_cross_covariance and horizontal_label is not None:
+        ax_top.set_title(horizontal_label, fontsize=12)
+    else:
+        ax_top.set_title(title, fontsize=14)
+    ax_top.tick_params(axis="x", labelbottom=False)
+    ax_top.grid(True, alpha=0.3)
+
+    ax_matrix = fig.add_axes([matrix_x0, matrix_y0, matrix_w, matrix_h], sharex=ax_top)
+    x_mesh, y_mesh = np.meshgrid(log_edges, log_edges)
+    pcm = ax_matrix.pcolormesh(x_mesh, y_mesh, correlation_matrix_ascending, cmap="RdYlGn", vmin=-1, vmax=1, shading="flat")
+    ax_matrix.set_xlim(log_edges[0], log_edges[-1])
+    ax_matrix.set_ylim(log_edges[0], log_edges[-1])
+    ax_matrix.set_aspect("equal")
+
+    if is_cross_covariance and horizontal_label is not None:
+        ax_matrix.set_xlabel(f"Energy (eV) — {horizontal_label}")
+    else:
+        ax_matrix.set_xlabel("Energy (eV)")
+    if is_cross_covariance and vertical_label is not None:
+        ax_matrix.set_ylabel(f"Energy (eV) — {vertical_label}")
+    else:
+        ax_matrix.set_ylabel("Energy (eV)")
+
+    tick_values = np.arange(np.ceil(log_edges[0]), np.floor(log_edges[-1]) + 1)
+    tick_labels = [f"$10^{{{int(val)}}}$" for val in tick_values]
+    ax_top.set_xticks(tick_values)
+    ax_matrix.set_xticks(tick_values)
+    ax_matrix.set_xticklabels(tick_labels)
+    ax_matrix.set_yticks(tick_values)
+    ax_matrix.set_yticklabels(tick_labels)
+
+    if is_cross_covariance:
+        right_x0 = matrix_x0 + matrix_w + 0.015
+        right_w = 0.09
+        ax_right = fig.add_axes([right_x0, matrix_y0, right_w, matrix_h], sharey=ax_matrix)
+        x_points, y_points = [], []
+        for group_idx in range(group_nb):
+            y_points += [log_edges[group_idx], log_edges[group_idx + 1]]
+            x_points += [std_vertical_ascending[group_idx], std_vertical_ascending[group_idx]]
+        ax_right.plot(x_points, y_points, color="blue", linewidth=1.5)
+        ax_right.set_ylim(log_edges[0], log_edges[-1])
+        ax_right.set_xlabel("Δσ/σ (%)")
+        ax_right.tick_params(axis="y", labelleft=False)
+        ax_right.grid(True, alpha=0.3)
+        if vertical_label is not None:
+            ax_right.set_title(vertical_label, fontsize=10)
+
+        cax = fig.add_axes([right_x0 + right_w + 0.05, matrix_y0, 0.025, matrix_h])
+    else:
+        cax = fig.add_axes([matrix_x0 + matrix_w + 0.02, matrix_y0, 0.025, matrix_h])
+
+    plt.colorbar(pcm, cax=cax, label="Correlation")
+    return fig
+
+
 def html_setup():
 
     with open(os.path.join(os.path.dirname(__file__), "html_outputfile", "html.model"), "r") as f:
@@ -280,19 +415,28 @@ def create_html_tip(txt):
     return f'<span class="tip">?<span class="tiptext">{safe}</span></span>'
 
 
-def apply_default_layout(fig, **overrides):
-    """Apply the standard CALINS layout to a plotly figure. Any key can be overridden."""
+def apply_interactive_report_layout(fig, **overrides):
+    """Apply the standard layout for a Plotly figure embedded in a CALINS HTML report."""
     layout = {
         "height": 500,
         "width": 1200,
-        "font_size": 10,
+        "font_size": 14,
+        "font_family":"Times New Roman",
         "template": "plotly_white",
         "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
+        "xaxis_showgrid":True,
+        "xaxis_gridcolor":"lightgrey",
+        "xaxis_minor":dict(showgrid=True, gridcolor='#f0f0f0'),
+        "yaxis_showgrid":True,
+        "yaxis_gridcolor":"lightgrey",
+        "legend":dict(
+            bordercolor='black',
+            borderwidth=1,
+            font=dict(size=11))
     }
     layout.update(overrides)
     fig.update_layout(layout)
     return fig
-
 
 def create_html_table(headers=None, lines=None, color_per_lines=None, table_attrs=None, header_style=None, centered=True):
     if color_per_lines is None:

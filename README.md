@@ -53,6 +53,7 @@
     - [Bias](#bias)
     - [Assimilation](#assimilation)
   - [plots.py](#plotspy)
+  - [class_plot_helpers.py](#class_plot_helperspy)
   - [errors.py](#errorspy)
   - [logs.py](#logspy)
 - [**Contributing**](#contributing)
@@ -158,11 +159,14 @@ sensi_file_path = 'path/to/sensitivity.sdf'
 #   Options: "first", "last", "sum" (default)
 my_case = cl.Case(sdf_path=sensi_file_path, occurrences_rule="sum")
 
-# Generate HTML visualization of sensitivities
+# Generate HTML interactive visualization of sensitivities
 my_case.export_to_html(
     output_html_path='case_sensitivities.html',
     plotting_unit='pcm'  # Options: 'pcm' or 'relative'
 )
+# Generate publication-level static plots
+my_case.plot_integrals(output_path='./case_integrals.png')
+my_case.plot_profiles(iso_reac_list=[('U-235', 1), ('U-235', 18), ('U-238', 101)], dashed_traces= [True, False, True], traces_colors=['black', 'red', 'green'],  output_path='./case_U5.png')
 
 # Access case attributes
 print(f"Case name: {my_case.casename}")
@@ -170,6 +174,23 @@ print(f"Energy groups: {my_case.group_nb}")
 print(f"Calculated k_eff: {my_case.resp_calc} ± {my_case.sigma_resp_calc}")
 if my_case.resp_expe:
     print(f"Experimental k_eff: {my_case.resp_expe} ± {my_case.sigma_resp_expe}")
+```
+
+## Creating a Nuclear Data Covariance Object
+
+```python
+import calins as cl
+
+# Load covariance data using NDCovariances object
+scale_file_path = 'path/to/scale_44g'
+cov_data = cl.NDCovariances(input_path=scale_file_path, format='coverx')
+# Alternative formats: 'coverx_text', 'comac', 'gendf', 'xlsx', or 'auto' for auto-detection
+
+# Access NDCovariances attributes
+print(f"Reaction uncertainties available: {cov_data.reac_list}")
+
+# Generate publication-level static plots
+cov_data.plot_specific(iso_reac_horizontal=('U-235', 18), iso_reac_vertical=('U-235', 18), output_path='scale_44g_U5_18.png')
 ```
 
 ## Calculating Uncertainty
@@ -269,6 +290,11 @@ print(f"Prior uncertainty: {assimilation.prior_uncertainty.value} pcm")
 print(f"Posterior uncertainty: {assimilation.post_uncertainty.value} pcm")
 print(f"Bias: {assimilation.bias.value} pcm")
 print(f"Chi-squared: {assimilation.chi2_initial} → {assimilation.chi2_final}")
+
+# Export only the interactive sensitivity report of the application case
+assimilation.export_appl_case_sensi_to_html(
+  output_html_path='application_case_sensitivities.html'
+)
 ```
 
 ## Sensitivity Analysis and Case Screening

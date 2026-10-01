@@ -88,6 +88,10 @@ ${S_{ref}}$: reference sensitivity vector  ${S_{comp}}$: comparison sensitivity 
 
 $$ \Delta\mu_{ND} = Cov \cdot S_{\text{bench}}^t \cdot  (C_{\text{bench}}+S_{\text{bench}} \cdot Cov \cdot S_{\text{bench}}^t)^{-1} \cdot (- \Delta k_{C-E \text{ bench}}) $$
 
+In CALINS, this vector is the relative nuclear-data adjustment from prior to posterior values:
+
+$$ \Delta\mu_{ND} = \frac{ND_{post} - ND_{prior}}{ND_{prior}} $$
+
 **Application case to experiments weighting vector:** dimmesion: J = number of experiments
 
 $$ \lambda_{J} =  S_{\text{appl}} \cdot Cov \cdot S_{\text{bench}}^t \cdot  (C_{\text{bench}}+S_{\text{bench}} \cdot Cov \cdot S_{\text{bench}}^t)^{-1} $$

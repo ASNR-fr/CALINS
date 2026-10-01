@@ -119,8 +119,8 @@ Initialization of an *Assimilation* object consists of several main steps:
 8. *self.calcul_post_uncertainty()*: calculation and creation of an *Uncertainty* object;
 9. *self.calcul_USL_gllsm()*, *self.calcul_USL_parametric()*, *self.calcul_USL_nonparametric()*: computation of three independent Upper Safety Limits (see section below).
 
-The *Assimilation* object has two functions to display and/or save several analysis elements in *.html* format:
-- the sensitivity vector of the application case;
+The *Assimilation* object exposes two HTML exports:
+- *Assimilation.export_appl_case_sensi_to_html()* exports an interactive sensitivity report for the application case only;
 - an output file including all assimilation parameters:
   - prior and posterior uncertainties, as well as bias;
   - initial and final \(\chi^2\) values;
@@ -132,6 +132,10 @@ The *Assimilation* object has two functions to display and/or save several analy
   - histograms of covariance matrix integrals per isotope-reaction pair, and of \(\Delta Cov_{assim}\) for comparison;
   - sub-matrices of covariances and \(\Delta Cov_{assim}\) for user-selected isotope-reaction pairs.
   - list of isotope-reaction pair included in benchmark cases, in covariances-data and in calculation for verification;
+
+It also exposes two static plotting methods for the relative nuclear-data adjustment inferred by assimilation:
+- *Assimilation.plot_delta_mu_profiles()* exports energy profiles for selected isotope-reaction pairs;
+- *Assimilation.plot_delta_mu_integrals()* exports integral adjustments, defaulting to the 20 pairs with the largest absolute integrals.
 
 ### USL Validation Methods
 

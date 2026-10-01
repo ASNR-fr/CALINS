@@ -27,6 +27,7 @@ nav:
     - methods.py: developer-manual/methods.md
     - classes.py: developer-manual/classes.md
     - plots.py: developer-manual/plots.md
+    - class_plot_helpers.py: developer-manual/class_plot_helpers.md
     - errors.py: developer-manual/errors.md
     - logs.py: developer-manual/logs.md
   - Contributing: contributing.md

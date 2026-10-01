@@ -130,8 +130,8 @@ def log_exec():
 
             ret = func(*args, **kwargs)
 
-            calcul_exceptions = ["USL"]
-            if "calcul" in func.__name__ and not "calcul" in inspect.stack()[1][3] and not any(exc in func.__name__ for exc in calcul_exceptions):
+            return_exceptions = ["USL", "plot"]
+            if "calcul" in func.__name__ and not "calcul" in inspect.stack()[1][3] and not any(exc in func.__name__ for exc in return_exceptions):
                 write_and_print(f"{tab_str}    -> {ret.value if re.search('Uncertainty|Bias',ret.__class__.__name__) else ret}")
 
             return ret

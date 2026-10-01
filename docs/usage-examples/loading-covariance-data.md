@@ -64,6 +64,17 @@ for iso, reac in cov_data.iso_reac_list[:5]:
     print(f"  Isotope: {iso}, Reaction: {reac}")
 ```
 
+
+## Generate publication-level static plots
+```python
+import calins as cl
+
+# Load covariance data with auto-detection
+cov_data = cl.NDCovariances(input_path='path/to/covariance', format='auto')
+
+cov_data.plot_specific(iso_reac_horizontal=('U-235', 18), iso_reac_vertical=('U-235', 18), output_path='scale_44g_U5_18.png')
+```
+
 ## Exporting Covariance Data
 
 ### Export to Excel

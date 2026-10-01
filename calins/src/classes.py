@@ -9,11 +9,13 @@ import os, copy, re
 import plotly.offline as po
 import plotly.graph_objects as go
 import plotly.express as px
+import matplotlib.pyplot as plt
 from pathlib import Path
 from math import ceil, sqrt
 from importlib.metadata import version
 
 from . import methods, errors, plots
+from . import class_plot_helpers as cph
 from logs import log_exec, warn, write_and_print
 
 global HTML_intro
@@ -97,6 +99,10 @@ class Case:
     --------
     export_to_html(output_html_path: str, plotting_unit="pcm", show=False):
         Exports the sensitivity data for the case to an HTML file with interactive plots.
+    plot_profiles(output_path: str, per_unit_lethargy=True, plotting_unit="relative", format="png", iso_reac_list=[], iso_list=None, traces_colors=[], dashed_traces=[], title=None, yaxis_title=None, xaxis_title=None, height=600, width=1100, show=False):
+        Exports static sensitivity profile plots for selected isotope-reaction pairs.
+    plot_integrals(output_path: str, plotting_unit="relative", format="png", iso_reac_list=[], iso_list=None, reac_list=None, nb_top_iso_reac=20, title=None, yaxis_title=None, xaxis_title=None, height=600, width=1100, show=False):
+        Exports static integral sensitivity plots for selected or top-contributing isotope-reaction pairs.
     condense_sensi(output_ebins: list):
         Condenses the sensitivity coefficients and std to a specified energy binning (if compatible).
     create_sdf(output_sdf_path="", header=""):
@@ -292,12 +298,8 @@ class Case:
         show : bool, optional
             Flag to display the plot (if possible).
         """
-        if not output_html_path.endswith(".html"):
-            output_html_path = output_html_path + ".html"
-        with open(output_html_path, "w") as f:
-            None
-        if plotting_unit not in ["relative", "pcm"]:
-            raise errors.UserInputError("Unit must be either 'relative' or 'pcm'")
+        output_html_path = cph.validate_html_output_path(output_html_path)
+        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc)
 
         # --------------------------------
         logo_path = os.path.join(os.path.dirname(__file__), "html_outputfile", "Logo.PNG")
@@ -322,52 +324,26 @@ class Case:
 
         table_res = plots.create_html_table(headers=[], lines=[headers, results])
 
-        if plotting_unit == "relative":
-            val_factor = 1.0
-            unit_str = "%[resp]"
-        elif plotting_unit == "pcm":
-            val_factor = self.resp_calc * 1e5
-            unit_str = "pcm"
-
         [case_vec], iso_reac_list = methods.make_sensi_vectors(cases_list=[self])
-        trace_sensi_integrals = plots.plot_integrals_per_iso_reac(
+        case_vec_per_unit_lethargy = cph.build_lethargy_vector(
+            reference_iso_reac_list=iso_reac_list,
+            group_nb=self.group_nb,
+            getter=self.get_normalized_lethargy_sensitivity,
+        )
+
+        trace_sensi_integrals, trace_sensi_profiles, trace_sensi_profiles_lethargy = cph.build_interactive_sensitivity_figures(
             vector=case_vec,
+            lethargy_vector=case_vec_per_unit_lethargy,
             iso_reac_list=iso_reac_list,
             group_nb=self.group_nb,
-            factor=val_factor,
-            show=show,
-            title="Sensitivities (group-wise integrals)",
-            yaxis_title=f"Sensitivity ({unit_str}/%[ND] - group-wise integral)",
-        )
-        plots.apply_default_layout(trace_sensi_integrals)
-
-        case_vec_per_unit_lethargy = []
-        for iso, reac in iso_reac_list:
-            case_vec_per_unit_lethargy += self.get_normalized_lethargy_sensitivity(iso, reac)
-
-        case_vec_per_unit_lethargy = np.array(case_vec_per_unit_lethargy)
-
-        trace_sensi_profiles = plots.plot_profiles_per_iso_reac(
-            vector=case_vec,
-            iso_reac_list=iso_reac_list,
             e_bins=self.e_bins,
             factor=val_factor,
-            show=show,
-            title="Sensitivities",
-            yaxis_title=f"Sensitivity ({unit_str}/%[ND])",
+            unit_str=unit_str,
         )
-        plots.apply_default_layout(trace_sensi_profiles)
 
-        trace_sensi_profiles_lethargy = plots.plot_profiles_per_iso_reac(
-            vector=case_vec_per_unit_lethargy,
-            iso_reac_list=iso_reac_list,
-            e_bins=self.e_bins,
-            factor=val_factor,
-            show=show,
-            title="Sensitivities per unit lethargy",
-            yaxis_title=f"Sensitivity ({unit_str}/%[ND] per unit lethargy)",
-        )
-        plots.apply_default_layout(trace_sensi_profiles_lethargy)
+        if show:
+            for fig in (trace_sensi_integrals, trace_sensi_profiles, trace_sensi_profiles_lethargy):
+                fig.show()
 
         with open(output_html_path, "a", encoding="utf-8") as f:
 
@@ -386,6 +362,110 @@ class Case:
             f.write("</div>\n")
 
             f.writelines(HTML_end)
+
+    @log_exec()
+    def plot_profiles(self, output_path: str, per_unit_lethargy=True, plotting_unit="relative",format="png",iso_reac_list=[], iso_list=None, traces_colors=[], dashed_traces=[], title=None, yaxis_title=None, xaxis_title=None, height=600, width=1100, show=False):
+        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
+        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc)
+
+        final_iso_reac_list, normalized_input_iso_reac_list = cph.normalize_filter_iso_reac_list(
+            reference_iso_reac_list=self.iso_reac_list,
+            iso_reac_list=iso_reac_list,
+            iso_list=iso_list,
+            require_target=True,
+        )
+
+        traces_colors, dashed_traces = cph.align_trace_styles(
+            final_iso_reac_list=final_iso_reac_list,
+            requested_iso_reac_list=normalized_input_iso_reac_list,
+            traces_colors=traces_colors,
+            dashed_traces=dashed_traces,
+        )
+
+        case_vec = []
+        for (iso,reac) in final_iso_reac_list :
+            if not per_unit_lethargy : sub_vec = self.get_sensitivity_values(iso, reac)
+            else : sub_vec = self.get_normalized_lethargy_sensitivity(iso, reac)
+            case_vec += sub_vec
+
+        if not per_unit_lethargy :
+            title=title if title else 'Energy-dependent Sensitivity Profiles'
+            yaxis_title=yaxis_title if yaxis_title else f"Sensitivity ({unit_str}/%[ND])"
+        else :
+            title=title if title else "Energy-dependent Sensitivity Profiles (per unit lethargy)"
+            yaxis_title=yaxis_title if yaxis_title else f"Sensitivity ({unit_str}/%[ND] per unit lethargy)"
+
+        fig = plots.plot_profiles_per_iso_reac(
+            vector=case_vec,
+            iso_reac_list=final_iso_reac_list,
+            e_bins=self.e_bins,
+            factor=val_factor,
+            traces_colors=traces_colors,
+            dashed_traces=dashed_traces,
+            title=title,
+            xaxis_title=xaxis_title,
+            yaxis_title=yaxis_title,
+        )
+
+        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
+
+    @log_exec()
+    def plot_integrals(
+        self,
+        output_path: str,
+        plotting_unit="relative",
+        format="png",
+        iso_reac_list=[],
+        iso_list=None,
+        reac_list=None,
+        nb_top_iso_reac=20,
+        title=None,
+        yaxis_title=None,
+        xaxis_title=None,
+        height=600,
+        width=1100,
+        show=False,
+    ):
+
+        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
+        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc)
+
+        if nb_top_iso_reac is not None and (not isinstance(nb_top_iso_reac, int) or nb_top_iso_reac <= 0):
+            raise errors.UserInputError("nb_top_iso_reac must be a strictly positive integer or None")
+
+        if reac_list in [None, []]:
+            reac_list = [int(x) for x in methods.reac_trad.keys() if x != "1"]
+
+        final_iso_reac_list, _ = cph.normalize_filter_iso_reac_list(
+            reference_iso_reac_list=self.iso_reac_list,
+            iso_reac_list=iso_reac_list,
+            iso_list=iso_list,
+            reac_list=reac_list,
+            default_to_all=True,
+        )
+
+        if iso_reac_list in [None, []] and iso_list in [None, []]:
+            final_iso_reac_list = sorted(
+                final_iso_reac_list,
+                key=lambda pair: abs(self.get_integral_sensitivity_value(pair[0], pair[1], absolute_value=True)),
+                reverse=True,
+            )[:nb_top_iso_reac]
+
+        case_vec = []
+        for iso, reac in final_iso_reac_list:
+            case_vec += self.get_sensitivity_values(iso, reac)
+
+        fig = plots.plot_integrals_per_iso_reac(
+            vector=case_vec,
+            iso_reac_list=final_iso_reac_list,
+            group_nb=self.group_nb,
+            factor=val_factor,
+            title=title if title else "Integral Sensitivity Profiles",
+            yaxis_title=yaxis_title if yaxis_title else f"Sensitivity ({unit_str}/%[ND] - group-wise integral)",
+        )
+
+        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
+
 
     @log_exec()
     def condense_sensi(self, output_ebins: list):
@@ -759,6 +839,8 @@ class NDCovariances:
         Writes the covariance data to an Excel file.
     write_txt(output_path, header):
         Writes the covariance data to a text file in COVERX format.
+    plot_specific(iso_reac_horizontal: tuple, iso_reac_vertical: tuple, output_path: str, format="png", title=None, show=False, dpi=300):
+        Exports a static plot of a specific auto- or cross-covariance block.
     """
 
     @log_exec()
@@ -945,6 +1027,142 @@ class NDCovariances:
                         output_file.write(f"{std: >15}")
                     output_file.write("\n")
 
+    def get_covariance_block(self, iso_reac_horizontal: tuple, iso_reac_vertical: tuple):
+        """
+        Retrieve a covariance submatrix for two isotope-reaction pairs.
+
+        The function first searches for the block in direct orientation
+        ``(H -> V)`` and, if not found, searches the transposed orientation
+        ``(V -> H)`` and returns its transpose.
+
+        Parameters
+        ----------
+        iso_reac_horizontal : tuple
+            Horizontal isotope-reaction pair ``(ISO_H, REAC_H)``.
+        iso_reac_vertical : tuple
+            Vertical isotope-reaction pair ``(ISO_V, REAC_V)``.
+
+        Returns
+        -------
+        np.ndarray or None
+            Covariance block as a 2D array if found, else ``None``.
+        """
+        iso_h, reac_h = iso_reac_horizontal
+        iso_v, reac_v = iso_reac_vertical
+
+        cov_dataf = self.cov_dataf
+
+        selected_rows = cov_dataf[
+            (cov_dataf["ISO_H"] == iso_h)
+            & (cov_dataf["REAC_H"] == reac_h)
+            & (cov_dataf["ISO_V"] == iso_v)
+            & (cov_dataf["REAC_V"] == reac_v)
+        ]
+        if len(selected_rows) > 0:
+            return np.array(selected_rows["STD"].values[0])
+
+        selected_rows = cov_dataf[
+            (cov_dataf["ISO_H"] == iso_v)
+            & (cov_dataf["REAC_H"] == reac_v)
+            & (cov_dataf["ISO_V"] == iso_h)
+            & (cov_dataf["REAC_V"] == reac_h)
+        ]
+        if len(selected_rows) > 0:
+            return np.array(selected_rows["STD"].values[0]).T
+
+        return None
+
+
+    @log_exec()
+    def plot_specific(self, iso_reac_horizontal: tuple, iso_reac_vertical: tuple, output_path: str, format="png",title=None, show=False, dpi=300):
+        """
+        Plot a specific auto- or cross-covariance block.
+
+        Parameters
+        ----------
+        iso_reac_horizontal : tuple
+            Horizontal isotope-reaction pair ``(ISO, REAC)``. Each item can be
+            provided either as identifier (int) or recognized string.
+        iso_reac_vertical : tuple
+            Vertical isotope-reaction pair ``(ISO, REAC)``. Each item can be
+            provided either as identifier (int) or recognized string.
+        output_path : str, optional
+            Path to save the generated matplotlib figure.
+        title : str, optional
+            Custom figure title. If ``None``, an automatic title is generated.
+        show : bool, optional
+            If ``True``, displays the figure.
+        dpi : int, optional
+            Resolution used when saving the figure. Default is 300.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+            Generated covariance figure.
+        """
+        if format not in ["png", "jpg", "jpeg", "pdf"]:
+            raise errors.UserInputError("Format must be either 'png', 'jpg', 'jpeg' or 'pdf'")
+        if not output_path.endswith(f".{format}"):
+            output_path = output_path + f".{format}"
+        with open(output_path, "w") as f:
+            None
+
+        iso_reac_horizontal = methods.normalize_iso_reac(iso_reac_horizontal)
+        iso_reac_vertical = methods.normalize_iso_reac(iso_reac_vertical)
+
+        covariance_block = self.get_covariance_block(iso_reac_horizontal, iso_reac_vertical)
+        if covariance_block is None:
+            raise errors.MissingDataError(
+                f"Couldn't find covariance data for horizontal pair {iso_reac_horizontal} and vertical pair {iso_reac_vertical}"
+            )
+
+        same_pair = iso_reac_horizontal == iso_reac_vertical
+        covariance_horizontal = None
+        covariance_vertical = None
+        horizontal_label = None
+        vertical_label = None
+
+        if not same_pair:
+            covariance_horizontal = self.get_covariance_block(iso_reac_horizontal, iso_reac_horizontal)
+            covariance_vertical = self.get_covariance_block(iso_reac_vertical, iso_reac_vertical)
+
+            if covariance_horizontal is None or covariance_vertical is None:
+                raise errors.MissingDataError(
+                    "Couldn't find the auto-covariance blocks required to build the cross-covariance margins."
+                )
+
+            horizontal_label = (
+                f"{methods.convert_iso_id_to_string(iso_reac_horizontal[0])} ({methods.reac_trad.get(str(iso_reac_horizontal[1]), f'REAC_{iso_reac_horizontal[1]}').lower()})"
+            )
+            vertical_label = (
+                f"{methods.convert_iso_id_to_string(iso_reac_vertical[0])} ({methods.reac_trad.get(str(iso_reac_vertical[1]), f'REAC_{iso_reac_vertical[1]}').lower()})"
+            )
+
+        if title == None :
+            title = (
+                f"Covariances {methods.convert_iso_id_to_string(iso_reac_horizontal[0])} {methods.reac_trad.get(str(iso_reac_horizontal[1]), f'REAC_{iso_reac_horizontal[1]}').lower()} [{self.group_nb}g]"
+                if same_pair
+                else f"Cross-covariances {methods.convert_iso_id_to_string(iso_reac_horizontal[0])} [{self.group_nb}g]"
+            )
+
+        fig = plots.plot_specific_covariance_matrix(
+            covariance_block=covariance_block,
+            e_bins=self.e_bins,
+            title=title,
+            covariance_horizontal=covariance_horizontal,
+            covariance_vertical=covariance_vertical,
+            horizontal_label=horizontal_label,
+            vertical_label=vertical_label,
+        )
+
+        if output_path is not None:
+            fig.savefig(output_path, dpi=dpi)
+        if show:
+            plt.show()
+
+        plt.close(fig)
+
+        return fig
 
 class Assimilation:
     """
@@ -1016,8 +1234,12 @@ class Assimilation:
     --------
     export_to_html(output_html_path, plotting_unit="pcm", isotopes_to_detail=[]):
         Exports the results of the assimilation process to an HTML file with interactive plots.
-    plot_appl_case_sensi(output_html_path, show=False):
-        Plots the sensitivity data for the application case in HTML.
+    export_appl_case_sensi_to_html(output_html_path, show=False):
+        Exports the application-case sensitivity data to an interactive HTML file.
+    plot_delta_mu_profiles(output_path, ...):
+        Exports static energy profiles of the nuclear-data adjustment.
+    plot_delta_mu_integrals(output_path, ...):
+        Exports static integral plots of the nuclear-data adjustment.
     [+ explicit internal methods...]
     """
 
@@ -2091,9 +2313,9 @@ class Assimilation:
 
         return self.USL_trending
 
-    def plot_appl_case_sensi(self, output_html_path: str = None, show=False):
+    def export_appl_case_sensi_to_html(self, output_html_path: str = None, show=False):
         """
-        Plot the sensitivity of the application case.
+        Export the sensitivity data of the application case to an interactive HTML file.
 
         Parameters
         -----------
@@ -2103,6 +2325,114 @@ class Assimilation:
             Flag to display the plot. Defaults to False.
         """
         self.appl_case.export_to_html(output_html_path=output_html_path, show=show)
+
+    @log_exec()
+    def plot_delta_mu_profiles(
+        self,
+        output_path: str,
+        format="png",
+        iso_reac_list=None,
+        traces_colors=None,
+        dashed_traces=None,
+        iso_list=None,
+        title=None,
+        yaxis_title=None,
+        xaxis_title=None,
+        height=600,
+        width=1100,
+        show=False,
+    ):
+        """Export static energy profiles of the ND adjustment.
+
+        ``delta_mu`` is the relative nuclear-data correction
+        $({ND}_{post} - {ND}_{prior}) / {ND}_{prior}$ inferred by the
+        assimilation.
+        """
+        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
+
+        final_iso_reac_list, normalized_input_iso_reac_list = cph.normalize_filter_iso_reac_list(
+            reference_iso_reac_list=self.iso_reac_list,
+            iso_reac_list=iso_reac_list,
+            iso_list=iso_list,
+            require_target=True,
+        )
+        traces_colors, dashed_traces = cph.align_trace_styles(
+            final_iso_reac_list=final_iso_reac_list,
+            requested_iso_reac_list=normalized_input_iso_reac_list,
+            traces_colors=traces_colors,
+            dashed_traces=dashed_traces,
+        )
+        vector = cph.build_vector_from_decomp(
+            decomp_vec=self.delta_mu,
+            full_iso_reac_list=self.iso_reac_list,
+            selected_iso_reac_list=final_iso_reac_list,
+            group_nb=self.group_nb,
+        )
+        fig = plots.plot_profiles_per_iso_reac(
+            vector=vector,
+            iso_reac_list=final_iso_reac_list,
+            e_bins=self.e_bins,
+            traces_colors=traces_colors,
+            dashed_traces=dashed_traces,
+            title=title if title else "Relative ND adjustment",
+            xaxis_title=xaxis_title,
+            yaxis_title=yaxis_title if yaxis_title else "(ND post - ND prior) / ND prior",
+        )
+
+        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
+
+    @log_exec()
+    def plot_delta_mu_integrals(
+        self,
+        output_path: str,
+        format="png",
+        iso_reac_list=None,
+        iso_list=None,
+        reac_list=None,
+        nb_top_iso_reac=20,
+        title=None,
+        yaxis_title=None,
+        xaxis_title=None,
+        height=600,
+        width=1100,
+        show=False,
+    ):
+        """Export static integral plots of the posterior-minus-prior ND adjustment."""
+        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
+        if nb_top_iso_reac is not None and (not isinstance(nb_top_iso_reac, int) or nb_top_iso_reac <= 0):
+            raise errors.UserInputError("nb_top_iso_reac must be a strictly positive integer or None")
+
+        final_iso_reac_list, _ = cph.normalize_filter_iso_reac_list(
+            reference_iso_reac_list=self.iso_reac_list,
+            iso_reac_list=iso_reac_list,
+            iso_list=iso_list,
+            reac_list=reac_list,
+            default_to_all=True,
+        )
+        if iso_reac_list in [None, []] and iso_list in [None, []]:
+            final_iso_reac_list = cph.select_top_iso_reac_pairs_by_vector(
+                vector=self.delta_mu,
+                candidate_iso_reac_list=final_iso_reac_list,
+                full_iso_reac_list=self.iso_reac_list,
+                group_nb=self.group_nb,
+                nb_top_iso_reac=nb_top_iso_reac,
+            )
+        vector = cph.build_vector_from_decomp(
+            decomp_vec=self.delta_mu,
+            full_iso_reac_list=self.iso_reac_list,
+            selected_iso_reac_list=final_iso_reac_list,
+            group_nb=self.group_nb,
+        )
+        fig = plots.plot_integrals_per_iso_reac(
+            vector=vector,
+            iso_reac_list=final_iso_reac_list,
+            group_nb=self.group_nb,
+            title=title if title else "Integral relative ND adjustment",
+            xaxis_title=xaxis_title,
+            yaxis_title=yaxis_title if yaxis_title else "Integral of (ND post - ND prior) / ND prior",
+        )
+
+        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
 
     @log_exec()
     def export_to_html(self, output_html_path: str, plotting_unit="pcm", isotopes_to_detail=[]):
@@ -2118,12 +2448,8 @@ class Assimilation:
         isotopes_to_detail : list, optional
             List of isotopes (ID) to provide detailed variances-covariances (as heatmaps) in the HTML outputfile.
         """
-        if output_html_path is not None:
-            if not output_html_path.endswith(".html"):
-                output_html_path = output_html_path + ".html"
-            with open(output_html_path, "w") as f:
-                None
-        else:
+        output_html_path = cph.validate_html_output_path(output_html_path)
+        if output_html_path is None:
             return None
 
         if not isinstance(isotopes_to_detail, list):
@@ -2193,31 +2519,31 @@ class Assimilation:
         write_and_print("\n" + tabulate(np.array([["Casename", *headers], [self.appl_case.casename, *results]]).T))
 
         resp_threshold_2 = self.appl_case.resp_calc + (self.bias.value / 1e5) + (2 * self.bias_std)
-        C3_str = '<hr width="60%" /><div style="display: block; font-size:14px; padding-left: 80px; padding-right: 80px;">'
+        validation_str = '<hr width="60%" /><div style="display: block; font-size:14px; padding-left: 80px; padding-right: 80px;">'
         usl_gllsm_CM = self.USL_gllsm["calculational_margin"]
         usl_gllsm_K = self.USL_gllsm["K"]
         usl_gllsm_p = self.USL_gllsm["coverage"]
         usl_gllsm_q = self.USL_gllsm["confidence"]
         if self.post_chi2 < 1.2:
 
-            C3_str += (
+            validation_str += (
                 f"The adjustment shows an <u>acceptable consistency</u> among the benchmark biases (Χ² a priori : {self.prior_chi2:.2f} < 1.2).<br>"
             )
             if usl_gllsm_CM is not None and usl_gllsm_K is not None:
-                C3_str += f"With a coverage parameter K<sub>{usl_gllsm_p*1E2:.0f}/{usl_gllsm_q*1E2:.0f}</sub> of {usl_gllsm_K:.2f} ({usl_gllsm_q*1E2:.0f}% quantile of noncentral t-distribution), there is <u>{usl_gllsm_p*1E2:.0f}% confidence that at least {usl_gllsm_q*1E2:.0f}% of the population of the application responses satisfy:</u><br>\n<b>RESPONSE < Resp<sup>calc</sup> + CM = {self.appl_case.resp_calc + usl_gllsm_CM:.5f} </b><br>\n\
+                validation_str += f"With a coverage parameter K<sub>{usl_gllsm_p*1E2:.0f}/{usl_gllsm_q*1E2:.0f}</sub> of {usl_gllsm_K:.2f} ({usl_gllsm_q*1E2:.0f}% quantile of noncentral t-distribution), there is <u>{usl_gllsm_p*1E2:.0f}% confidence that at least {usl_gllsm_q*1E2:.0f}% of the population of the application responses satisfy:</u><br>\n<b>RESPONSE < Resp<sup>calc</sup> + CM = {self.appl_case.resp_calc + usl_gllsm_CM:.5f} </b><br>\n\
                 For a conservative coverage parameter K of 2: RESPONSE < {resp_threshold_2:.5f}\n"
             else:
-                C3_str += "GLLSM USL not calculable (insufficient benchmarks N < 2).<br>\n"
+                validation_str += "GLLSM USL not calculable (insufficient benchmarks N < 2).<br>\n"
         else:
-            C3_str += f"The adjustment shows a poor consistency among the benchmark biases (Χ² a priori : {self.prior_chi2:.2f} > 1.2).<br>Consider checking your covariance data, or increasing your targetted chi2 threshold to remove more inconsistent benchmarks from the assimilation process.\n"
-        C3_str += "</div><hr width='60%' />"
+            validation_str += f"The adjustment shows a poor consistency among the benchmark biases (Χ² a priori : {self.prior_chi2:.2f} > 1.2).<br>Consider checking your covariance data, or increasing your targetted chi2 threshold to remove more inconsistent benchmarks from the assimilation process.\n"
+        validation_str += "</div><hr width='60%' />"
 
         # --------------------------------
         # Validation methods results (Parametric, Nonparametric, Trending)
         # --------------------------------
         tip = plots.create_html_tip
-        C3_str += '<div class="calins-vm" style="display: block; font-size:14px; padding-left: 40px; padding-right: 40px;">'
-        C3_str += "<h3>Validation methods</h3>"
+        validation_str += '<div class="calins-vm" style="display: block; font-size:14px; padding-left: 40px; padding-right: 40px;">'
+        validation_str += "<h3>Validation methods</h3>"
 
         # --- Get k_tilde data for figures ---
         k_tilde_fig, sigma_fig = self._get_scaled_k_and_sigma()
@@ -2256,8 +2582,8 @@ class Assimilation:
             summary_labels.append(f"{tip('Linear trending method. Cannot compute: insufficient benchmarks (N < 3).')}Trending")
             summary_values.append("<span style='color:red'>Additional data needed</span>")
 
-        C3_str += "<h4>Summary comparison</h4>"
-        C3_str += plots.create_html_table(
+        validation_str += "<h4>Summary comparison</h4>"
+        validation_str += plots.create_html_table(
             headers=[
                 "Method",
                 f"{tip('Calculational Margin (CM) is a penalty applied to keff=1 to define the USL. It accounts for the computational bias, its uncertainty, and any additional margins. USL = 1 − CM − MOS.')}Calculational Margin",
@@ -2531,34 +2857,34 @@ class Assimilation:
         html_fig_trend = fig_trend.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include, config={"displayModeBar": False})
 
         # Outer flex row
-        C3_str += "<div style='display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;'>"
+        validation_str += "<div style='display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;'>"
 
-        C3_str += "<div style='flex:1; min-width:280px; display:flex; flex-direction:column; align-items:flex-start; padding:0 8px;'>"
-        C3_str += "<h4 style='font-size:13px;'>1. Parametric Method</h4>"
-        C3_str += plots.create_html_table(lines=[param_labels, param_values], table_attrs=vm_table_attrs, centered=False)
-        C3_str += "<div style='margin-top:6px;'>" + html_fig_param + "</div>"
-        C3_str += "</div>"
+        validation_str += "<div style='flex:1; min-width:280px; display:flex; flex-direction:column; align-items:flex-start; padding:0 8px;'>"
+        validation_str += "<h4 style='font-size:13px;'>1. Parametric Method</h4>"
+        validation_str += plots.create_html_table(lines=[param_labels, param_values], table_attrs=vm_table_attrs, centered=False)
+        validation_str += "<div style='margin-top:6px;'>" + html_fig_param + "</div>"
+        validation_str += "</div>"
 
-        C3_str += "<div style='flex:1; min-width:280px; display:flex; flex-direction:column; align-items:flex-start; padding:0 8px;'>"
-        C3_str += "<h4 style='font-size:13px;'>2. Nonparametric Rank-Order</h4>"
-        C3_str += plots.create_html_table(lines=[nparam_labels, nparam_values], table_attrs=vm_table_attrs, centered=False)
-        C3_str += "<div style='margin-top:6px;'>" + html_fig_nparam + "</div>"
-        C3_str += "</div>"
+        validation_str += "<div style='flex:1; min-width:280px; display:flex; flex-direction:column; align-items:flex-start; padding:0 8px;'>"
+        validation_str += "<h4 style='font-size:13px;'>2. Nonparametric Rank-Order</h4>"
+        validation_str += plots.create_html_table(lines=[nparam_labels, nparam_values], table_attrs=vm_table_attrs, centered=False)
+        validation_str += "<div style='margin-top:6px;'>" + html_fig_nparam + "</div>"
+        validation_str += "</div>"
 
 
         # Close outer flex row (parametric + nonparametric)
-        C3_str += "</div>"
+        validation_str += "</div>"
 
         # --- Trending section: full-width below, table + large figure side by side ---
-        C3_str += "<h4 style='font-size:13px; margin-top:18px;'>3. Linear Trending</h4>"
-        C3_str += "<div style='display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start;'>"
-        C3_str += "<div style='min-width:240px; max-width:300px;'>"
-        C3_str += plots.create_html_table(lines=[trend_labels, trend_values], table_attrs=vm_table_attrs, centered=False)
-        C3_str += "</div>"
-        C3_str += "<div style='flex:1; min-width:400px;'>" + html_fig_trend + "</div>"
-        C3_str += "</div>"
+        validation_str += "<h4 style='font-size:13px; margin-top:18px;'>3. Linear Trending</h4>"
+        validation_str += "<div style='display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start;'>"
+        validation_str += "<div style='min-width:240px; max-width:300px;'>"
+        validation_str += plots.create_html_table(lines=[trend_labels, trend_values], table_attrs=vm_table_attrs, centered=False)
+        validation_str += "</div>"
+        validation_str += "<div style='flex:1; min-width:400px;'>" + html_fig_trend + "</div>"
+        validation_str += "</div>"
 
-        C3_str += "</div><hr width='60%' />"
+        validation_str += "</div><hr width='60%' />"
 
         # --------------------------------
         bench_list_included = self.bench_list[self.bench_list["REMOVED"] == False]
@@ -2605,7 +2931,7 @@ class Assimilation:
         trace_bias.update_yaxes(title_text="C - E (pcm) (3 sigma=sqrt(expe²+ND²))")
         trace_bias.update_traces(marker_size=8, error_y_thickness=0.5)
         trace_bias.update_xaxes(tickvals=bench_list_custom["PATH"], ticktext=[os.path.basename(path) for path in bench_list_custom["PATH"]])
-        plots.apply_default_layout(trace_bias, height=800)
+        plots.apply_interactive_report_layout(trace_bias, height=800)
 
         # --------------------------------
         # Experimental correlation matrix heatmap (if provided)
@@ -2630,7 +2956,7 @@ class Assimilation:
                 xaxis=dict(tickangle=45),
                 yaxis=dict(autorange="reversed"),
             )
-            plots.apply_default_layout(trace_expe_corr, width=600, height=600)
+            plots.apply_interactive_report_layout(trace_expe_corr, width=600, height=600)
 
         # --------------------------------
         headers = [
@@ -2670,194 +2996,102 @@ class Assimilation:
         write_and_print("\n" + tabulate(np.array(lines).T, headers=headers))
 
         # --------------------------------
-        if plotting_unit == "relative":
-            val_factor = 1.0
-            unit_str = "%[resp]"
-        elif plotting_unit == "pcm":
-            val_factor = self.appl_case.resp_calc * 1e5
-            unit_str = "pcm"
-
         if self.appl_case != None:
-
-            trace_case_sensi_integrals = plots.plot_integrals_per_iso_reac(
+            val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.appl_case.resp_calc)
+            case_vec_per_unit_lethargy = cph.build_lethargy_vector(
+                reference_iso_reac_list=self.iso_reac_list,
+                group_nb=self.group_nb,
+                getter=self.appl_case.get_normalized_lethargy_sensitivity,
+                fallback_to_zeros=True,
+            )
+            trace_case_sensi_integrals, trace_case_sensi_profiles, trace_case_sensi_profiles_lethargy = cph.build_interactive_sensitivity_figures(
                 vector=self.case_vec,
+                lethargy_vector=case_vec_per_unit_lethargy,
                 iso_reac_list=self.iso_reac_list,
                 group_nb=self.group_nb,
-                factor=val_factor,
-                title="Application case sensitivities (integrals)",
-                yaxis_title=f"Sensitivity ({unit_str}/%[ND] - group-wise integral)",
-            )
-            plots.apply_default_layout(trace_case_sensi_integrals)
-
-            trace_case_sensi_profiles = plots.plot_profiles_per_iso_reac(
-                vector=self.case_vec,
-                iso_reac_list=self.iso_reac_list,
                 e_bins=self.e_bins,
                 factor=val_factor,
-                title="Application case sensitivities",
-                yaxis_title=f"Sensitivity ({unit_str}/%[ND])",
+                unit_str=unit_str,
+                title_prefix="Application case",
             )
-            plots.apply_default_layout(trace_case_sensi_profiles)
-
-            case_vec_per_unit_lethargy = []
-            for iso, reac in self.iso_reac_list:
-                if (iso, reac) in self.appl_case.iso_reac_list:
-                    case_vec_per_unit_lethargy += self.appl_case.get_normalized_lethargy_sensitivity(iso, reac)
-                else:
-                    case_vec_per_unit_lethargy += [0 for i in range(self.group_nb)]
-            case_vec_per_unit_lethargy = np.array(case_vec_per_unit_lethargy)
-
-            trace_case_sensi_profiles_lethargy = plots.plot_profiles_per_iso_reac(
-                vector=case_vec_per_unit_lethargy,
-                iso_reac_list=self.iso_reac_list,
-                e_bins=self.e_bins,
-                factor=val_factor,
-                title="Sensitivities per unit lethargy",
-                yaxis_title=f"Sensitivity ({unit_str}/%[ND] per unit lethargy)",
-            )
-            plots.apply_default_layout(trace_case_sensi_profiles_lethargy)
 
             # --------------------------------
-            dec_prior_trace_integ = plots.plot_integrals_per_iso_reac(
+            dec_prior_trace_integ, dec_prior_trace = cph.build_interactive_integral_profile_figures(
                 vector=self.prior_uncertainty.decomp_vec,
                 iso_reac_list=self.iso_reac_list,
                 group_nb=self.group_nb,
-                factor=val_factor**2,
-                title="Integral contribution to relative a priori uncertainy² (covariances included)",
-                yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
-            )
-
-            plots.apply_default_layout(dec_prior_trace_integ)
-
-            dec_prior_trace = plots.plot_profiles_per_iso_reac(
-                vector=self.prior_uncertainty.decomp_vec,
-                iso_reac_list=self.iso_reac_list,
                 e_bins=self.e_bins,
                 factor=val_factor**2,
-                title="Contribution to relative a priori uncertainy² (covariances included)",
-                yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
+                integral_title="Integral contribution to relative a priori uncertainy² (covariances included)",
+                profile_title="Contribution to relative a priori uncertainy² (covariances included)",
+                integral_yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
+                profile_yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
             )
-            plots.apply_default_layout(dec_prior_trace)
 
             # --------------------------------
-            dec_post_trace_integ = plots.plot_integrals_per_iso_reac(
+            dec_post_trace_integ, dec_post_trace = cph.build_interactive_integral_profile_figures(
                 vector=self.post_uncertainty.decomp_vec,
                 iso_reac_list=self.iso_reac_list,
                 group_nb=self.group_nb,
-                factor=val_factor**2,
-                title="Integral contribution to relative a posteriori uncertainy² (covariances included)",
-                yaxis_title=f"Unc² ({unit_str}²)",
-            )
-
-            plots.apply_default_layout(dec_post_trace_integ)
-
-            dec_post_trace = plots.plot_profiles_per_iso_reac(
-                vector=self.post_uncertainty.decomp_vec,
-                iso_reac_list=self.iso_reac_list,
                 e_bins=self.e_bins,
                 factor=val_factor**2,
-                title="Contribution to relative a posteriori uncertainy² (covariances included)",
-                yaxis_title=f"Unc² ({unit_str}²)",
+                integral_title="Integral contribution to relative a posteriori uncertainy² (covariances included)",
+                profile_title="Contribution to relative a posteriori uncertainy² (covariances included)",
+                integral_yaxis_title=f"Unc² ({unit_str}²)",
+                profile_yaxis_title=f"Unc² ({unit_str}²)",
             )
-            plots.apply_default_layout(dec_post_trace)
 
             # --------------------------------
-            dec_bias_trace_integ = plots.plot_integrals_per_iso_reac(
+            dec_bias_trace_integ, dec_bias_trace = cph.build_interactive_integral_profile_figures(
                 vector=self.bias.decomp_vec,
                 iso_reac_list=self.iso_reac_list,
                 group_nb=self.group_nb,
-                factor=val_factor,
-                title="Integral contribution to relative bias",
-                yaxis_title=f"Bias ({unit_str})",
-            )
-            plots.apply_default_layout(dec_bias_trace_integ)
-
-            dec_bias_trace = plots.plot_profiles_per_iso_reac(
-                vector=self.bias.decomp_vec,
-                iso_reac_list=self.iso_reac_list,
                 e_bins=self.e_bins,
                 factor=val_factor,
-                title="Contribution to relative bias",
-                yaxis_title=f"Bias ({unit_str})",
+                integral_title="Integral contribution to relative bias",
+                profile_title="Contribution to relative bias",
+                integral_yaxis_title=f"Bias ({unit_str})",
+                profile_yaxis_title=f"Bias ({unit_str})",
             )
-            plots.apply_default_layout(dec_bias_trace)
 
         # --------------------------------
-        trace_cov_prior_integrals = plots.plot_matrix_integrals_per_iso_reac(
+        trace_cov_prior_integrals, trace_matrix_profiles, trace_matrix_profiles_cov = cph.build_interactive_covariance_figures(
             cov_mat=self.cov_mat,
             iso_reac_list=self.iso_reac_list,
             group_nb=self.group_nb,
-            title="Variances-covariances matrix before assimilation (group-wise integrals - covariances included)",
-            yaxis_title="Unc(%)² (group-wise integral - covariances included)",
-        )
-        plots.apply_default_layout(trace_cov_prior_integrals)
-
-        matrix_diag = np.diag(self.cov_mat.toarray())
-        trace_matrix_profiles = plots.plot_profiles_per_iso_reac(
-            vector=matrix_diag,
-            iso_reac_list=self.iso_reac_list,
             e_bins=self.e_bins,
-            title="Variances-covariances matrix before assimilation (diagonal elements)",
-            yaxis_title="Unc(%)²",
+            integral_title="Variances-covariances matrix before assimilation (group-wise integrals - covariances included)",
+            profile_title="Variances-covariances matrix before assimilation (diagonal elements)",
+            covariance_profile_title="Variances-covariances matrix before assimilation (covariances included)",
+            integral_yaxis_title="Unc(%)² (group-wise integral - covariances included)",
+            profile_yaxis_title="Unc(%)²",
+            covariance_profile_yaxis_title="Unc(%)² (covariances included)",
         )
-        plots.apply_default_layout(trace_matrix_profiles)
 
-        matrix_prof_covar = [np.sum(x) for x in self.cov_mat]
-        trace_matrix_profiles_cov = plots.plot_profiles_per_iso_reac(
-            vector=matrix_prof_covar,
-            iso_reac_list=self.iso_reac_list,
-            e_bins=self.e_bins,
-            title="Variances-covariances matrix before assimilation (covariances included)",
-            yaxis_title="Unc(%)² (covariances included)",
-        )
-        plots.apply_default_layout(trace_matrix_profiles_cov)
-
-        trace_cov_delta_integrals = plots.plot_matrix_integrals_per_iso_reac(
+        trace_cov_delta_integrals, trace_matrix_delta_profiles, trace_matrix_delta_profiles_cov = cph.build_interactive_covariance_figures(
             cov_mat=-1 * self.cov_mat_delta,
             iso_reac_list=self.iso_reac_list,
             group_nb=self.group_nb,
-            title="Variances-covariances matrix deltas (Cov_post - Cov_prior) after assimilation (group-wise integrals - covariances included)",
-            yaxis_title="Variance & Covariance (group-wise integral - covariances included)",
-        )
-        plots.apply_default_layout(trace_cov_delta_integrals)
-
-        matrix_delta_diag = np.diag(-1 * self.cov_mat_delta.toarray())
-        trace_matrix_delta_profiles = plots.plot_profiles_per_iso_reac(
-            vector=matrix_delta_diag,
-            iso_reac_list=self.iso_reac_list,
             e_bins=self.e_bins,
-            title="Variances-covariances matrix deltas (Cov_post - Cov_prior) after assimilation (diagonal elements)",
-            yaxis_title="Unc(%)²",
+            integral_title="Variances-covariances matrix deltas (Cov_post - Cov_prior) after assimilation (group-wise integrals - covariances included)",
+            profile_title="Variances-covariances matrix deltas (Cov_post - Cov_prior) after assimilation (diagonal elements)",
+            covariance_profile_title="Variances-covariances matrix deltas (Cov_post - Cov_prior) after assimilation (covariances included)",
+            integral_yaxis_title="Variance & Covariance (group-wise integral - covariances included)",
+            profile_yaxis_title="Unc(%)²",
+            covariance_profile_yaxis_title="Unc(%)² (covariances included)",
         )
-        plots.apply_default_layout(trace_matrix_delta_profiles)
 
-        matrix_delta_prof_covar = [np.sum(x) for x in -1 * self.cov_mat_delta]
-        trace_matrix_delta_profiles_cov = plots.plot_profiles_per_iso_reac(
-            vector=matrix_delta_prof_covar,
-            iso_reac_list=self.iso_reac_list,
-            e_bins=self.e_bins,
-            title="Variances-covariances matrix deltas (Cov_post - Cov_prior) after assimilation (covariances included)",
-            yaxis_title="Unc(%)² (covariances included)",
-        )
-        plots.apply_default_layout(trace_matrix_delta_profiles_cov)
-
-        delta_mu_integrals = plots.plot_integrals_per_iso_reac(
+        delta_mu_integrals, delta_mu_profiles = cph.build_interactive_integral_profile_figures(
             vector=self.delta_mu,
             iso_reac_list=self.iso_reac_list,
             group_nb=self.group_nb,
-            title="Relative change in ND (group-wise integrals)",
-            yaxis_title=f"Relative change in ND (group-wise integral) - Delta[ND]/ND",
-        )
-        plots.apply_default_layout(delta_mu_integrals)
-
-        delta_mu_profiles = plots.plot_profiles_per_iso_reac(
-            vector=self.delta_mu,
-            iso_reac_list=self.iso_reac_list,
             e_bins=self.e_bins,
-            title="Relative change in ND",
-            yaxis_title=f"Relative change in ND - Delta[ND]/ND",
+            factor=1.0,
+            integral_title="Relative ND adjustment (group-wise integrals)",
+            profile_title="Relative ND adjustment ",
+            integral_yaxis_title="Integral of (ND post - ND prior) / ND prior",
+            profile_yaxis_title="(ND post - ND prior) / ND prior",
         )
-        plots.apply_default_layout(delta_mu_profiles)
         # --------------------------------
         case_iso_reac = []
         if self.appl_case != None:
@@ -2916,7 +3150,7 @@ class Assimilation:
                 )
             ]
         )
-        plots.apply_default_layout(table_iso_reac, height=None, paper_bgcolor="rgba(255, 255, 255, 0.3)", margin=dict(l=20, r=20, t=20, b=20))
+        plots.apply_interactive_report_layout(table_iso_reac, height=None, paper_bgcolor="rgba(255, 255, 255, 0.3)", margin=dict(l=20, r=20, t=20, b=20))
 
         # --------------------------------
         valid_gap_str = ""
@@ -2962,7 +3196,7 @@ class Assimilation:
             f.write('<div class="calins-vm">')
             f.write(table_res)
             f.write("</div>")
-            f.write(C3_str)
+            f.write(validation_str)
             f.write(valid_gap_str)
 
             if self.appl_case != None:
@@ -3056,13 +3290,13 @@ class Assimilation:
 
                     if trace_cov_prior_submat != None:
                         write_div = True
-                        plots.apply_default_layout(trace_cov_prior_submat)
+                        plots.apply_interactive_report_layout(trace_cov_prior_submat)
                         html_plot = trace_cov_prior_submat.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include)
                         f.write(f'<section style="border: 4px solid #4B0082; border-radius: 25px ; margin:{block_margin}; padding:10">\n')
                         f.write(html_plot + "<br>\n")
 
                     if trace_cov_delta_submat != None:
-                        plots.apply_default_layout(trace_cov_delta_submat)
+                        plots.apply_interactive_report_layout(trace_cov_delta_submat)
 
                         html_plot = trace_cov_delta_submat.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include)
                         if not write_div:
@@ -3130,6 +3364,10 @@ class Uncertainty:
     --------
     export_to_html(output_html_path, plotting_unit="pcm", isotopes_to_detail=[])
         Exports the results of the uncertainty calculation to an HTML file with interactive plots.
+    plot_profiles(output_path: str, plotting_unit="relative", format="png", iso_reac_list=None, traces_colors=None, dashed_traces=None, iso_list=None, title=None, yaxis_title=None, xaxis_title=None, height=600, width=1100, show=False):
+        Exports static uncertainty decomposition profiles for selected isotope-reaction pairs.
+    plot_integrals(output_path: str, plotting_unit="relative", format="png", iso_reac_list=None, iso_list=None, reac_list=None, nb_top_iso_reac=20, title=None, yaxis_title=None, xaxis_title=None, height=600, width=1100, show=False):
+        Exports static integral uncertainty-contribution plots for selected or top-contributing isotope-reaction pairs.
     """
 
     def __init__(
@@ -3226,6 +3464,153 @@ class Uncertainty:
             self.export_to_html(output_html_path=self.output_html_path, plotting_unit=plotting_unit, isotopes_to_detail=isotopes_to_detail)
 
     @log_exec()
+    def plot_profiles(
+        self,
+        output_path: str,
+        plotting_unit="relative",
+        format="png",
+        iso_reac_list=None,
+        traces_colors=None,
+        dashed_traces=None,
+        iso_list=None,
+        title=None,
+        yaxis_title=None,
+        xaxis_title=None,
+        height=600,
+        width=1100,
+        show=False,
+    ):
+        """
+        Export a static uncertainty profile plot.
+
+        Parameters
+        ----------
+        output_path : str
+            Output image path.
+        plotting_unit : str, optional
+            Either ``"relative"`` or ``"pcm"``.
+        format : str, optional
+            Output format among ``png``, ``jpg``, ``jpeg`` and ``pdf``.
+        iso_reac_list : list, optional
+            Subset of isotope-reaction pairs to plot.
+        traces_colors : list, optional
+            List of trace colors.
+        dashed_traces : list, optional
+            Boolean list controlling dashed traces.
+        iso_list : list, optional
+            Restrict to a subset of isotopes.
+        title : str, optional
+            Custom title.
+        yaxis_title : str, optional
+            Custom y-axis label.
+        xaxis_title : str, optional
+            Custom x-axis label.
+        height : int, optional
+            Plot height.
+        width : int, optional
+            Plot width.
+        show : bool, optional
+            If ``True``, display the figure.
+        """
+        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
+        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc, squared=True)
+
+        final_iso_reac_list, normalized_input_iso_reac_list = cph.normalize_filter_iso_reac_list(
+            reference_iso_reac_list=self.iso_reac_list,
+            iso_reac_list=iso_reac_list,
+            iso_list=iso_list,
+            require_target=True,
+        )
+
+        traces_colors, dashed_traces = cph.align_trace_styles(
+            final_iso_reac_list=final_iso_reac_list,
+            requested_iso_reac_list=normalized_input_iso_reac_list,
+            traces_colors=traces_colors,
+            dashed_traces=dashed_traces,
+        )
+
+        vector = cph.build_vector_from_decomp(
+            decomp_vec=self.decomp_vec,
+            full_iso_reac_list=self.iso_reac_list,
+            selected_iso_reac_list=final_iso_reac_list,
+            group_nb=self.group_nb,
+        )
+
+        fig = plots.plot_profiles_per_iso_reac(
+            vector=vector,
+            iso_reac_list=final_iso_reac_list,
+            e_bins=self.e_bins,
+            factor=val_factor,
+            traces_colors=traces_colors,
+            dashed_traces=dashed_traces,
+            title=title if title else "Uncertainty decomposition profiles",
+            xaxis_title=xaxis_title,
+            yaxis_title=yaxis_title if yaxis_title else f"Unc² ({unit_str}²) (covariances included)",
+        )
+
+        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
+
+    @log_exec()
+    def plot_integrals(
+        self,
+        output_path: str,
+        plotting_unit="relative",
+        format="png",
+        iso_reac_list=None,
+        iso_list=None,
+        reac_list=None,
+        nb_top_iso_reac=20,
+        title=None,
+        yaxis_title=None,
+        xaxis_title=None,
+        height=600,
+        width=1100,
+        show=False,
+    ):
+        """Export a static uncertainty integral plot."""
+
+        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
+        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc, squared=True)
+
+        if nb_top_iso_reac is not None and (not isinstance(nb_top_iso_reac, int) or nb_top_iso_reac <= 0):
+            raise errors.UserInputError("nb_top_iso_reac must be a strictly positive integer or None")
+
+        final_iso_reac_list, _ = cph.normalize_filter_iso_reac_list(
+            reference_iso_reac_list=self.iso_reac_list,
+            iso_reac_list=iso_reac_list,
+            iso_list=iso_list,
+            reac_list=reac_list,
+            default_to_all=True,
+        )
+        if iso_reac_list in [None, []] and iso_list in [None, []]:
+            final_iso_reac_list = cph.select_top_iso_reac_pairs(
+                decomposition=self.decomposition,
+                candidate_iso_reac_list=final_iso_reac_list,
+                contrib_col="CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)",
+                nb_top_iso_reac=nb_top_iso_reac,
+            )
+
+        vector = cph.build_vector_from_decomp(
+            decomp_vec=self.decomp_vec,
+            full_iso_reac_list=self.iso_reac_list,
+            selected_iso_reac_list=final_iso_reac_list,
+            group_nb=self.group_nb,
+        )
+
+
+        fig = plots.plot_integrals_per_iso_reac(
+            vector=vector,
+            iso_reac_list=final_iso_reac_list,
+            group_nb=self.group_nb,
+            factor=val_factor,
+            title=title if title else "Integral contribution to relative uncertainty²",
+            xaxis_title=xaxis_title,
+            yaxis_title=yaxis_title if yaxis_title else f"Unc² ({unit_str}²) (covariances included)",
+        )
+
+        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
+
+    @log_exec()
     def export_to_html(self, output_html_path: str, plotting_unit="pcm", isotopes_to_detail=[]):
         """
         Export the results of the uncertainty calculation to an HTML file.
@@ -3240,18 +3625,13 @@ class Uncertainty:
         isotopes_to_detail : list, optional
             List of isotopes (ID) to provide detailed variances-covariances (as heatmaps) in the HTML outputfile.
         """
-        if output_html_path is not None:
-            if not output_html_path.endswith(".html"):
-                output_html_path = output_html_path + ".html"
-            with open(output_html_path, "w") as f:
-                None
-        else:
+        output_html_path = cph.validate_html_output_path(output_html_path)
+        if output_html_path is None:
             return None
 
         if not isinstance(isotopes_to_detail, list):
             isotopes_to_detail = [isotopes_to_detail]
 
-        # --------------------------------
         logo_path = os.path.join(os.path.dirname(__file__), "html_outputfile", "Logo.PNG")
         text_intro = ""
         text_intro += (
@@ -3261,7 +3641,6 @@ class Uncertainty:
         text_intro += f"<h2><center><u>Sandwich formula results</u></center></h2>"
         text_intro += f"<h3>Application case : {self.appl_case.casename}</h3>"
 
-        # --------------------------------
         headers = [
             "Calculated response of application case",
             "Uncertainty a priori",
@@ -3277,109 +3656,56 @@ class Uncertainty:
 
         table_res = plots.create_html_table(headers=[], lines=[headers, results])
 
-        # --------------------------------
-        if plotting_unit == "relative":
-            val_factor = 1.0
-            unit_str = "%[resp]"
-        elif plotting_unit == "pcm":
-            val_factor = self.resp_calc * 1e5
-            unit_str = "pcm"
+        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc)
 
-        trace_case_sensi_integrals = plots.plot_integrals_per_iso_reac(
+        case_vec_per_unit_lethargy = cph.build_lethargy_vector(
+            reference_iso_reac_list=self.iso_reac_list,
+            group_nb=self.group_nb,
+            getter=self.appl_case.get_normalized_lethargy_sensitivity,
+            fallback_to_zeros=True,
+        )
+
+        trace_case_sensi_integrals, trace_case_sensi_profiles, trace_case_sensi_profiles_lethargy = cph.build_interactive_sensitivity_figures(
             vector=self.__sensi_vec,
+            lethargy_vector=case_vec_per_unit_lethargy,
             iso_reac_list=self.iso_reac_list,
             group_nb=self.group_nb,
-            factor=val_factor,
-            title="Application case sensitivities (integrals)",
-            yaxis_title=f"Sensitivity ({unit_str}/%[ND] - group-wise integral)",
-        )
-        plots.apply_default_layout(trace_case_sensi_integrals)
-
-        trace_case_sensi_profiles = plots.plot_profiles_per_iso_reac(
-            vector=self.__sensi_vec,
-            iso_reac_list=self.iso_reac_list,
             e_bins=self.e_bins,
             factor=val_factor,
-            title="Application case sensitivities",
-            yaxis_title=f"Sensitivity ({unit_str}/%[ND])",
+            unit_str=unit_str,
+            title_prefix="Application case",
         )
-        plots.apply_default_layout(trace_case_sensi_profiles)
 
-        case_vec_per_unit_lethargy = []
-        for iso, reac in self.iso_reac_list:
-            try:
-                case_vec_per_unit_lethargy += self.appl_case.get_normalized_lethargy_sensitivity(iso, reac)
-            except errors.MissingDataError:
-                case_vec_per_unit_lethargy += [0 for i in range(self.group_nb)]
-        case_vec_per_unit_lethargy = np.array(case_vec_per_unit_lethargy)
-
-        trace_case_sensi_profiles_lethargy = plots.plot_profiles_per_iso_reac(
-            vector=case_vec_per_unit_lethargy,
-            iso_reac_list=self.iso_reac_list,
-            e_bins=self.e_bins,
-            factor=val_factor,
-            title="Sensitivities per unit lethargy",
-            yaxis_title=f"Sensitivity ({unit_str}/%[ND] per unit lethargy)",
-        )
-        plots.apply_default_layout(trace_case_sensi_profiles_lethargy)
-
-        # --------------------------------
-        dec_trace_integ = plots.plot_integrals_per_iso_reac(
+        dec_trace_integ, dec_trace = cph.build_interactive_integral_profile_figures(
             vector=self.decomp_vec,
             iso_reac_list=self.iso_reac_list,
             group_nb=self.group_nb,
-            factor=val_factor**2,
-            title="Integral contribution to relative uncertainy² (covariances included)",
-            yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
-        )
-
-        plots.apply_default_layout(dec_trace_integ)
-
-        dec_trace = plots.plot_profiles_per_iso_reac(
-            vector=self.decomp_vec,
-            iso_reac_list=self.iso_reac_list,
             e_bins=self.e_bins,
             factor=val_factor**2,
-            title="Contribution to relative uncertainy² (covariances included)",
-            yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
+            integral_title="Integral contribution to relative uncertainy² (covariances included)",
+            profile_title="Contribution to relative uncertainy² (covariances included)",
+            integral_yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
+            profile_yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
         )
-        plots.apply_default_layout(dec_trace)
-        # --------------------------------
-        trace_cov_integrals = plots.plot_matrix_integrals_per_iso_reac(
+
+        trace_cov_integrals, trace_matrix_profiles, trace_matrix_profiles_cov = cph.build_interactive_covariance_figures(
             cov_mat=self.__cov_mat,
             iso_reac_list=self.iso_reac_list,
             group_nb=self.group_nb,
-            title="Variances-covariances matrix (group-wise integrals - covariances included)",
-            yaxis_title="Unc(%)² (group-wise integral - covariances included)",
-        )
-        plots.apply_default_layout(trace_cov_integrals)
-
-        matrix_diag = np.diag(self.__cov_mat.toarray())
-        trace_matrix_profiles = plots.plot_profiles_per_iso_reac(
-            vector=matrix_diag,
-            iso_reac_list=self.iso_reac_list,
             e_bins=self.e_bins,
-            title="Variances-covariances matrix (diagonal elements)",
-            yaxis_title="Unc(%)²",
+            integral_title="Variances-covariances matrix (group-wise integrals - covariances included)",
+            profile_title="Variances-covariances matrix (diagonal elements)",
+            covariance_profile_title="Variances-covariances matrix (covariances included)",
+            integral_yaxis_title="Unc(%)² (group-wise integral - covariances included)",
+            profile_yaxis_title="Unc(%)²",
+            covariance_profile_yaxis_title="Unc(%)² (covariances included)",
         )
-        plots.apply_default_layout(trace_matrix_profiles)
 
-        matrix_prof_covar = [np.sum(x) for x in self.__cov_mat]
-        trace_matrix_profiles_cov = plots.plot_profiles_per_iso_reac(
-            vector=matrix_prof_covar,
-            iso_reac_list=self.iso_reac_list,
-            e_bins=self.e_bins,
-            title="Variances-covariances matrix (covariances included)",
-            yaxis_title="Unc(%)² (covariances included)",
-        )
-        plots.apply_default_layout(trace_matrix_profiles_cov)
-        # --------------------------------
         case_iso = [iso for iso, reac in self.appl_case.iso_reac_list if reac != 1]
         case_reac = [reac for iso, reac in self.appl_case.iso_reac_list if reac != 1]
         case_iso_str = [methods.convert_iso_id_to_string(iso) for iso in case_iso]
         case_reac_str = [methods.reac_trad.get(str(reac), f"REAC_{reac}") for reac in case_reac]
 
-        # Get iso_reac_list from cov_data
         if isinstance(self.cov_data, NDCovariances):
             cov_iso_reac_list = self.cov_data.iso_reac_list
         elif isinstance(self.cov_data, Assimilation):
@@ -3389,16 +3715,7 @@ class Uncertainty:
         calc_present = [True if (iso, reac) in self.iso_reac_list else False for iso, reac in zip(case_iso, case_reac)]
 
         headers = [["Isotope"], ["Reaction"], ["Iso_ID"], ["Reac_ID"], ["Covariance_data"], ["Used_in_calculation"]]
-
-        results = [
-            case_iso_str,
-            case_reac_str,
-            case_iso,
-            case_reac,
-            cov_present,
-            calc_present,
-        ]
-
+        results = [case_iso_str, case_reac_str, case_iso, case_reac, cov_present, calc_present]
         fill_colors = [
             "white",
             "white",
@@ -3416,19 +3733,14 @@ class Uncertainty:
                 )
             ]
         )
-        plots.apply_default_layout(table_iso_reac, height=None, paper_bgcolor="rgba(255, 255, 255, 0.3)", margin=dict(l=20, r=20, t=20, b=20))
+        plots.apply_interactive_report_layout(table_iso_reac, height=None, paper_bgcolor="rgba(255, 255, 255, 0.3)", margin=dict(l=20, r=20, t=20, b=20))
 
         with open(output_html_path, "a", encoding="utf-8") as f:
-
             offline_control()
             f.writelines(HTML_intro)
             f.write(text_intro)
             f.write(table_res)
-            f.write(
-                plots.create_html_tabs(
-                    ["Application case sensitivities", "Uncertainty decomposition", "Covariances matrix", "Isotopes and reactions"]
-                )
-            )
+            f.write(plots.create_html_tabs(["Application case sensitivities", "Uncertainty decomposition", "Covariances matrix", "Isotopes and reactions"]))
 
             f.write('<div id="Application case sensitivities" class="tabcontent">\n')
             f.write(f'<section style="background:linear-gradient(#a8b0af, white)">\n' + "<br>\n")
@@ -3453,7 +3765,6 @@ class Uncertainty:
 
             iso_reac_to_plot = []
             for isotope in isotopes_to_detail:
-
                 try:
                     isotope_id = methods.convert_iso_string_to_id(isotope)
                 except:
@@ -3463,8 +3774,6 @@ class Uncertainty:
 
             for iso_reac_1 in iso_reac_to_plot:
                 for iso_reac_2 in iso_reac_to_plot:
-
-                    write_div = False
                     trace_cov_submat, color_scale = plots.plot_submatrix(
                         cov_mat=self.__cov_mat,
                         iso_reac_list=self.iso_reac_list,
@@ -3474,7 +3783,7 @@ class Uncertainty:
                     )
 
                     if trace_cov_submat != None:
-                        plots.apply_default_layout(trace_cov_submat)
+                        plots.apply_interactive_report_layout(trace_cov_submat)
                         f.write(trace_cov_submat.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
 
             f.write("</section>\n")
@@ -3521,6 +3830,13 @@ class Bias:
         Number of energy groups.
     output_html_path : str, optional
         Path to save the output HTML file.
+
+    Methods
+    --------
+    plot_profiles(output_path: str, plotting_unit="relative", format="png", iso_reac_list=None, traces_colors=None, dashed_traces=None, iso_list=None, title=None, yaxis_title=None, xaxis_title=None, height=600, width=1100, show=False):
+        Exports static bias decomposition profiles for selected isotope-reaction pairs.
+    plot_integrals(output_path: str, plotting_unit="relative", format="png", iso_reac_list=None, iso_list=None, reac_list=None, nb_top_iso_reac=20, title=None, yaxis_title=None, xaxis_title=None, height=600, width=1100, show=False):
+        Exports static integral bias-contribution plots for selected or top-contributing isotope-reaction pairs.
     """
 
     def __init__(self, appl_case, sensi_vec, resp_calc, delta_mu, iso_reac_list) -> None:
@@ -3546,7 +3862,7 @@ class Bias:
         decomp_vec = []
         for i, (iso, reac) in enumerate(iso_reac_list):
 
-            sub_delta_mu = delta_mu[i * self.group_nb : (i + 1) * self.group_nb]
+            sub_delta_mu = delta_mu[i * self.group_nb : (i + 1) * self.group_nb].copy()
             # Convert to C-E unit
             sub_delta_mu *= -1
 
@@ -3575,3 +3891,121 @@ class Bias:
         self.decomposition = pd.DataFrame(dikt)
 
         self.value = sum * 1e5 * resp_calc
+
+    @log_exec()
+    def plot_profiles(
+        self,
+        output_path: str,
+        plotting_unit="relative",
+        format="png",
+        iso_reac_list=None,
+        traces_colors=None,
+        dashed_traces=None,
+        iso_list=None,
+        title=None,
+        yaxis_title=None,
+        xaxis_title=None,
+        height=600,
+        width=1100,
+        show=False,
+    ):
+        """Export a static bias profile plot."""
+
+        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
+        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc)
+
+        final_iso_reac_list, normalized_input_iso_reac_list = cph.normalize_filter_iso_reac_list(
+            reference_iso_reac_list=self.iso_reac_list,
+            iso_reac_list=iso_reac_list,
+            iso_list=iso_list,
+            require_target=True,
+        )
+
+        traces_colors, dashed_traces = cph.align_trace_styles(
+            final_iso_reac_list=final_iso_reac_list,
+            requested_iso_reac_list=normalized_input_iso_reac_list,
+            traces_colors=traces_colors,
+            dashed_traces=dashed_traces,
+        )
+
+        vector = cph.build_vector_from_decomp(
+            decomp_vec=self.decomp_vec,
+            full_iso_reac_list=self.iso_reac_list,
+            selected_iso_reac_list=final_iso_reac_list,
+            group_nb=self.group_nb,
+        )
+
+
+        fig = plots.plot_profiles_per_iso_reac(
+            vector=vector,
+            iso_reac_list=final_iso_reac_list,
+            e_bins=self.e_bins,
+            factor=val_factor,
+            traces_colors=traces_colors,
+            dashed_traces=dashed_traces,
+            title=title if title else "Bias contribution profiles",
+            xaxis_title=xaxis_title,
+            yaxis_title=yaxis_title if yaxis_title else f"Bias ({unit_str})",
+        )
+
+        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
+
+    @log_exec()
+    def plot_integrals(
+        self,
+        output_path: str,
+        plotting_unit="relative",
+        format="png",
+        iso_reac_list=None,
+        iso_list=None,
+        reac_list=None,
+        nb_top_iso_reac=20,
+        title=None,
+        yaxis_title=None,
+        xaxis_title=None,
+        height=600,
+        width=1100,
+        show=False,
+    ):
+        """Export a static bias integral plot."""
+
+        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
+        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc)
+
+        if nb_top_iso_reac is not None and (not isinstance(nb_top_iso_reac, int) or nb_top_iso_reac <= 0):
+            raise errors.UserInputError("nb_top_iso_reac must be a strictly positive integer or None")
+
+        final_iso_reac_list, _ = cph.normalize_filter_iso_reac_list(
+            reference_iso_reac_list=self.iso_reac_list,
+            iso_reac_list=iso_reac_list,
+            iso_list=iso_list,
+            reac_list=reac_list,
+            default_to_all=True,
+        )
+        if iso_reac_list in [None, []] and iso_list in [None, []]:
+            final_iso_reac_list = cph.select_top_iso_reac_pairs(
+                decomposition=self.decomposition,
+                candidate_iso_reac_list=final_iso_reac_list,
+                contrib_col="CONTRIBUTION INTEGRAL TO RELATIVE BIAS",
+                nb_top_iso_reac=nb_top_iso_reac,
+            )
+
+        vector = cph.build_vector_from_decomp(
+            decomp_vec=self.decomp_vec,
+            full_iso_reac_list=self.iso_reac_list,
+            selected_iso_reac_list=final_iso_reac_list,
+            group_nb=self.group_nb,
+        )
+
+
+        fig = plots.plot_integrals_per_iso_reac(
+            vector=vector,
+            iso_reac_list=final_iso_reac_list,
+            group_nb=self.group_nb,
+            factor=val_factor,
+            title=title if title else "Integral Bias Profiles",
+            xaxis_title=xaxis_title,
+            yaxis_title=yaxis_title if yaxis_title else f"Bias ({unit_str})",
+        )
+
+        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
