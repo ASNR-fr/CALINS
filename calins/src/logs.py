@@ -1,4 +1,4 @@
-import os, re, time, inspect
+import os, re, sys, time, inspect
 from functools import wraps
 from importlib.metadata import version
 
@@ -65,7 +65,14 @@ def write_in_log(msg, type=None):
 
 
 def print_in_terminal(msg, type=None):
-    print(f"[CALINS] {type+' : ' if type is not None else ''}{msg}")
+    """Print a message without failing on a legacy terminal encoding."""
+    message = f"[CALINS] {type+' : ' if type is not None else ''}{msg}"
+    try:
+        print(message)
+    except UnicodeEncodeError:
+        encoding = sys.stdout.encoding or "utf-8"
+        terminal_safe_message = message.encode(encoding, errors="backslashreplace").decode(encoding)
+        print(terminal_safe_message)
 
 
 def write_and_print(msg, type=None, bypass_verbose=False):
