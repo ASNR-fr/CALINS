@@ -9,7 +9,7 @@ exclude = ["images", "tests"]
 
 [tool.setuptools.package-data]
 "calins.src.isotopes_reactions" = ["*.json"]
-"calins.src.html_outputfile" = ["*.model"]
+"calins.src.html_outputfile" = ["*.model", "*.PNG"]
 
 [project]
 name = "calins"
