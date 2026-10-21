@@ -50,7 +50,7 @@ def format_comac_to_dataframe(input_path: str):
     cov_root = os.path.join(input_path)
 
     if not os.path.isdir(cov_root):
-        raise errors.UserInputError(f"Path {cov_root} is not a folder. Select a folder containing .gendf files.")
+        raise errors.UserInputError(f"Path {cov_root} is not a folder. Select a folder containing COMAC files.")
 
     for file in os.listdir(cov_root):
 
