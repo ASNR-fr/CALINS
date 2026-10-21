@@ -23,7 +23,17 @@ color_map_reac = {
 }
 
 
-def plot_integrals_per_iso_reac(vector, iso_reac_list, group_nb, factor=1.0, output_html_path: str = None, show=False, title="", yaxis_title=None, xaxis_title=None):
+def plot_integrals_per_iso_reac(
+    vector,
+    iso_reac_list,
+    group_nb,
+    factor=1.0,
+    output_html_path: str = None,
+    show=False,
+    title="",
+    yaxis_title=None,
+    xaxis_title=None,
+):
 
     if len(vector) != group_nb * len(iso_reac_list):
         raise errors.DimError(
@@ -45,8 +55,18 @@ def plot_integrals_per_iso_reac(vector, iso_reac_list, group_nb, factor=1.0, out
     df = pd.DataFrame(dikt)
     df = df.sort_values(by="value", ascending=False, key=lambda col: abs(col))
 
-    fig = px.bar(df, x="isotope", y="value", hover_data=["reaction"], color="reaction", color_discrete_map=color_map_reac, title=title)
-    fig.update_xaxes(categoryorder="sum descending", title=xaxis_title if xaxis_title else "Isotope")
+    fig = px.bar(
+        df,
+        x="isotope",
+        y="value",
+        hover_data=["reaction"],
+        color="reaction",
+        color_discrete_map=color_map_reac,
+        title=title,
+    )
+    fig.update_xaxes(
+        categoryorder="sum descending", title=xaxis_title if xaxis_title else "Isotope"
+    )
     fig.update_yaxes(title=yaxis_title if yaxis_title else title)
 
     if show:
@@ -83,22 +103,29 @@ def plot_profiles_per_iso_reac(
         )
 
     if traces_colors not in [None, []] and len(traces_colors) != len(iso_reac_list):
-        raise errors.UserInputError("The length of traces_colors must be equal to the length of iso_reac_list")
+        raise errors.UserInputError(
+            "The length of traces_colors must be equal to the length of iso_reac_list"
+        )
 
     if dashed_traces not in [None, []] and len(dashed_traces) != len(iso_reac_list):
-        raise errors.UserInputError("The length of dashed_traces must be equal to the length of iso_reac_list")
+        raise errors.UserInputError(
+            "The length of dashed_traces must be equal to the length of iso_reac_list"
+        )
 
     e_bins = sorted(e_bins, reverse=True)
 
     fig = go.Figure()
 
     vector = [val * factor for val in vector]
-    vector_iso_reac = [vector[i * group_nb : (i + 1) * group_nb] for i in range(len(iso_reac_list))]
+    vector_iso_reac = [
+        vector[i * group_nb : (i + 1) * group_nb] for i in range(len(iso_reac_list))
+    ]
     dikt_sensi = {i_r: vec for i_r, vec in zip(iso_reac_list, vector_iso_reac)}
     dikt_sensi = dict(
         sorted(
             dikt_sensi.items(),
-            key=lambda item: methods.convert_iso_id_to_string(item[0][0]) + methods.reac_trad.get(str(item[0][1]), f"REAC_{item[0][1]}"),
+            key=lambda item: methods.convert_iso_id_to_string(item[0][0])
+            + methods.reac_trad.get(str(item[0][1]), f"REAC_{item[0][1]}"),
         )
     )
 
@@ -106,7 +133,10 @@ def plot_profiles_per_iso_reac(
     for idx, iso_reac in enumerate(iso_reac_list):
         color = traces_colors[idx] if traces_colors not in [None, []] else None
         dashed = bool(dashed_traces[idx]) if dashed_traces not in [None, []] else False
-        style_by_iso_reac[iso_reac] = {"color": color, "dash": "3px,2px" if dashed else "solid"}
+        style_by_iso_reac[iso_reac] = {
+            "color": color,
+            "dash": "3px,2px" if dashed else "solid",
+        }
 
     for (iso, reac), vec in dikt_sensi.items():
 
@@ -119,13 +149,23 @@ def plot_profiles_per_iso_reac(
         if style_by_iso_reac[(iso, reac)]["color"] is not None:
             line_style["color"] = style_by_iso_reac[(iso, reac)]["color"]
 
-        trace = go.Scatter(x=e_bins, y=sensis, name=f"{iso_str} - {reac_str}", line_shape="hv", line=line_style, showlegend=True)
+        trace = go.Scatter(
+            x=e_bins,
+            y=sensis,
+            name=f"{iso_str} - {reac_str}",
+            line_shape="hv",
+            line=line_style,
+            showlegend=True,
+        )
         fig.add_trace(trace)
 
     fig.update_layout(title=title)
-    fig.update_xaxes(title=xaxis_title if xaxis_title else "Energy (eV)", type="log", tickformat=".0e")
+    fig.update_xaxes(
+        title=xaxis_title if xaxis_title else "Energy (eV)",
+        type="log",
+        tickformat=".0e",
+    )
     fig.update_yaxes(title=yaxis_title if yaxis_title else title)
-
 
     if show:
         fig.show()
@@ -139,10 +179,23 @@ def plot_profiles_per_iso_reac(
     return fig
 
 
-def plot_matrix_integrals_per_iso_reac(cov_mat, iso_reac_list, group_nb, title, output_html_path: str = None, show=False, yaxis_title=None):
+def plot_matrix_integrals_per_iso_reac(
+    cov_mat,
+    iso_reac_list,
+    group_nb,
+    title,
+    output_html_path: str = None,
+    show=False,
+    yaxis_title=None,
+):
 
-    if np.shape(cov_mat) != (group_nb * len(iso_reac_list), group_nb * len(iso_reac_list)):
-        raise errors.DimError("The dimmensions of the covar matrix, the isotope/reaction list and the number of groups is not consistent to plot")
+    if np.shape(cov_mat) != (
+        group_nb * len(iso_reac_list),
+        group_nb * len(iso_reac_list),
+    ):
+        raise errors.DimError(
+            "The dimmensions of the covar matrix, the isotope/reaction list and the number of groups is not consistent to plot"
+        )
 
     # Sum along axis 0, reshape by group_nb, then sum along axis 1
     if hasattr(cov_mat, "sum"):
@@ -152,16 +205,28 @@ def plot_matrix_integrals_per_iso_reac(cov_mat, iso_reac_list, group_nb, title, 
     var_ints = np.sum(var_ints.reshape(len(iso_reac_list), group_nb), axis=1)
 
     iso_strings = [methods.convert_iso_id_to_string(iso) for iso, _ in iso_reac_list]
-    reac_strings = [methods.reac_trad.get(str(reac), f"REAC_{reac}") for _, reac in iso_reac_list]
+    reac_strings = [
+        methods.reac_trad.get(str(reac), f"REAC_{reac}") for _, reac in iso_reac_list
+    ]
 
-    dikt = {"isotope": iso_strings, "reaction": reac_strings, "var_and_covar_integral": var_ints.tolist()}
+    dikt = {
+        "isotope": iso_strings,
+        "reaction": reac_strings,
+        "var_and_covar_integral": var_ints.tolist(),
+    }
 
     df = pd.DataFrame(dikt)
 
     title = title
 
     fig = px.bar(
-        df, x="isotope", y="var_and_covar_integral", hover_data=["reaction"], title=title, color="reaction", color_discrete_map=color_map_reac
+        df,
+        x="isotope",
+        y="var_and_covar_integral",
+        hover_data=["reaction"],
+        title=title,
+        color="reaction",
+        color_discrete_map=color_map_reac,
     )
     fig.update_xaxes(categoryorder="sum descending", title="Isotope")
     if yaxis_title == None:
@@ -193,7 +258,7 @@ def plot_submatrix(
     show=False,
 ):
 
-    ((iso1, reac1), (iso2, reac2)) = iso_reac_pair_to_plot
+    (iso1, reac1), (iso2, reac2) = iso_reac_pair_to_plot
 
     try:
         iso1 = methods.convert_iso_string_to_id(iso1)
@@ -212,17 +277,29 @@ def plot_submatrix(
     iso_reac_idx_h = iso_reac_list.index((iso1, reac1))
     iso_reac_idx_v = iso_reac_list.index((iso2, reac2))
 
-    if iso_reac_idx_h > len(iso_reac_list) + 1 or iso_reac_idx_v > len(iso_reac_list) + 1:
-        raise errors.DimError("The iso-reac index you're targetting is too high for the iso-reac list")
+    if (
+        iso_reac_idx_h > len(iso_reac_list) + 1
+        or iso_reac_idx_v > len(iso_reac_list) + 1
+    ):
+        raise errors.DimError(
+            "The iso-reac index you're targetting is too high for the iso-reac list"
+        )
 
-    sub_mat = cov_mat[iso_reac_idx_v * group_nb : (iso_reac_idx_v + 1) * group_nb, iso_reac_idx_h * group_nb : (iso_reac_idx_h + 1) * group_nb]
+    sub_mat = cov_mat[
+        iso_reac_idx_v * group_nb : (iso_reac_idx_v + 1) * group_nb,
+        iso_reac_idx_h * group_nb : (iso_reac_idx_h + 1) * group_nb,
+    ]
     sub_mat = sub_mat.toarray()
 
     iso_reac_str_H = (
-        methods.convert_iso_id_to_string(iso_reac_list[iso_reac_idx_h][0]) + " " + methods.reac_trad[str(iso_reac_list[iso_reac_idx_h][1])]
+        methods.convert_iso_id_to_string(iso_reac_list[iso_reac_idx_h][0])
+        + " "
+        + methods.reac_trad[str(iso_reac_list[iso_reac_idx_h][1])]
     )
     iso_reac_str_V = (
-        methods.convert_iso_id_to_string(iso_reac_list[iso_reac_idx_v][0]) + " " + methods.reac_trad[str(iso_reac_list[iso_reac_idx_v][1])]
+        methods.convert_iso_id_to_string(iso_reac_list[iso_reac_idx_v][0])
+        + " "
+        + methods.reac_trad[str(iso_reac_list[iso_reac_idx_v][1])]
     )
 
     if color_scale != None:
@@ -283,23 +360,43 @@ def plot_specific_covariance_matrix(
     group_nb = covariance_block.shape[0]
     is_cross_covariance = covariance_vertical is not None
 
-    std_horizontal = np.sqrt(np.diag(covariance_horizontal if covariance_horizontal is not None else covariance_block)) * 100
-    std_vertical = np.sqrt(np.diag(covariance_vertical if covariance_vertical is not None else covariance_block)) * 100
+    std_horizontal = (
+        np.sqrt(
+            np.diag(
+                covariance_horizontal
+                if covariance_horizontal is not None
+                else covariance_block
+            )
+        )
+        * 100
+    )
+    std_vertical = (
+        np.sqrt(
+            np.diag(
+                covariance_vertical
+                if covariance_vertical is not None
+                else covariance_block
+            )
+        )
+        * 100
+    )
 
     correlation_matrix = np.zeros_like(covariance_block)
     for row_idx in range(group_nb):
         for col_idx in range(group_nb):
             if std_vertical[row_idx] > 0 and std_horizontal[col_idx] > 0:
-                correlation_matrix[row_idx, col_idx] = covariance_block[row_idx, col_idx] / (
-                    std_vertical[row_idx] / 100 * std_horizontal[col_idx] / 100
-                )
-    
-    if len(e_bins) == group_nb : e_bins.append(1E-6)
+                correlation_matrix[row_idx, col_idx] = covariance_block[
+                    row_idx, col_idx
+                ] / (std_vertical[row_idx] / 100 * std_horizontal[col_idx] / 100)
+
+    if len(e_bins) == group_nb:
+        e_bins.append(1e-6)
     if len(e_bins) != group_nb + 1:
-        raise errors.DimError(f"The length of the energy bins list must be equal to the number of groups + 1. {len(e_bins)} != {group_nb} + 1")
+        raise errors.DimError(
+            f"The length of the energy bins list must be equal to the number of groups + 1. {len(e_bins)} != {group_nb} + 1"
+        )
     e_bins_sorted = np.sort(e_bins)
     log_edges = np.log10(e_bins_sorted)
-
 
     std_horizontal_ascending = std_horizontal[::-1]
     std_vertical_ascending = std_vertical[::-1]
@@ -319,8 +416,20 @@ def plot_specific_covariance_matrix(
     fig = plt.figure(figsize=(fig_width, fig_height))
 
     ax_top = fig.add_axes([matrix_x0, top_y0, matrix_w, top_h])
-    ax_top.step(log_edges[:-1], std_horizontal_ascending, where="post", color="blue", linewidth=1.5)
-    ax_top.hlines(std_horizontal_ascending[-1], log_edges[-2], log_edges[-1], color="blue", linewidth=1.5)
+    ax_top.step(
+        log_edges[:-1],
+        std_horizontal_ascending,
+        where="post",
+        color="blue",
+        linewidth=1.5,
+    )
+    ax_top.hlines(
+        std_horizontal_ascending[-1],
+        log_edges[-2],
+        log_edges[-1],
+        color="blue",
+        linewidth=1.5,
+    )
     ax_top.set_xlim(log_edges[0], log_edges[-1])
     ax_top.set_ylabel("Δσ/σ (%)")
     if is_cross_covariance and horizontal_label is not None:
@@ -332,7 +441,15 @@ def plot_specific_covariance_matrix(
 
     ax_matrix = fig.add_axes([matrix_x0, matrix_y0, matrix_w, matrix_h], sharex=ax_top)
     x_mesh, y_mesh = np.meshgrid(log_edges, log_edges)
-    pcm = ax_matrix.pcolormesh(x_mesh, y_mesh, correlation_matrix_ascending, cmap="RdYlGn", vmin=-1, vmax=1, shading="flat")
+    pcm = ax_matrix.pcolormesh(
+        x_mesh,
+        y_mesh,
+        correlation_matrix_ascending,
+        cmap="RdYlGn",
+        vmin=-1,
+        vmax=1,
+        shading="flat",
+    )
     ax_matrix.set_xlim(log_edges[0], log_edges[-1])
     ax_matrix.set_ylim(log_edges[0], log_edges[-1])
     ax_matrix.set_aspect("equal")
@@ -357,11 +474,16 @@ def plot_specific_covariance_matrix(
     if is_cross_covariance:
         right_x0 = matrix_x0 + matrix_w + 0.015
         right_w = 0.09
-        ax_right = fig.add_axes([right_x0, matrix_y0, right_w, matrix_h], sharey=ax_matrix)
+        ax_right = fig.add_axes(
+            [right_x0, matrix_y0, right_w, matrix_h], sharey=ax_matrix
+        )
         x_points, y_points = [], []
         for group_idx in range(group_nb):
             y_points += [log_edges[group_idx], log_edges[group_idx + 1]]
-            x_points += [std_vertical_ascending[group_idx], std_vertical_ascending[group_idx]]
+            x_points += [
+                std_vertical_ascending[group_idx],
+                std_vertical_ascending[group_idx],
+            ]
         ax_right.plot(x_points, y_points, color="blue", linewidth=1.5)
         ax_right.set_ylim(log_edges[0], log_edges[-1])
         ax_right.set_xlabel("Δσ/σ (%)")
@@ -380,7 +502,9 @@ def plot_specific_covariance_matrix(
 
 def html_setup():
 
-    with open(os.path.join(os.path.dirname(__file__), "html_outputfile", "html.model"), "r") as f:
+    with open(
+        os.path.join(os.path.dirname(__file__), "html_outputfile", "html.model"), "r"
+    ) as f:
         lines = f.readlines()
     global HTML_intro
     global HTML_tab
@@ -421,24 +545,29 @@ def apply_interactive_report_layout(fig, **overrides):
         "height": 500,
         "width": 1200,
         "font_size": 14,
-        "font_family":"Times New Roman",
+        "font_family": "Times New Roman",
         "template": "plotly_white",
         "paper_bgcolor": "rgba(255, 255, 255, 0.8)",
-        "xaxis_showgrid":True,
-        "xaxis_gridcolor":"lightgrey",
-        "xaxis_minor":dict(showgrid=True, gridcolor='#f0f0f0'),
-        "yaxis_showgrid":True,
-        "yaxis_gridcolor":"lightgrey",
-        "legend":dict(
-            bordercolor='black',
-            borderwidth=1,
-            font=dict(size=11))
+        "xaxis_showgrid": True,
+        "xaxis_gridcolor": "lightgrey",
+        "xaxis_minor": dict(showgrid=True, gridcolor="#f0f0f0"),
+        "yaxis_showgrid": True,
+        "yaxis_gridcolor": "lightgrey",
+        "legend": dict(bordercolor="black", borderwidth=1, font=dict(size=11)),
     }
     layout.update(overrides)
     fig.update_layout(layout)
     return fig
 
-def create_html_table(headers=None, lines=None, color_per_lines=None, table_attrs=None, header_style=None, centered=True):
+
+def create_html_table(
+    headers=None,
+    lines=None,
+    color_per_lines=None,
+    table_attrs=None,
+    header_style=None,
+    centered=True,
+):
     if color_per_lines is None:
         color_per_lines = ["white" for i in range(len(lines[0]))]
 

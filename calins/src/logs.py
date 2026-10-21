@@ -2,7 +2,6 @@ import os, re, sys, time, inspect
 from functools import wraps
 from importlib.metadata import version
 
-
 global LOG_DIR
 global VERBOSE
 global session_init
@@ -34,7 +33,9 @@ def check_folder_space():
 
     len_log_files = len(log_files_path)
     if len_log_files > max_files_nb:
-        warn(f"Log directory {LOG_DIR} contains too many files ({len_log_files} > max log file nb ({max_files_nb})), removing oldest log files.")
+        warn(
+            f"Log directory {LOG_DIR} contains too many files ({len_log_files} > max log file nb ({max_files_nb})), removing oldest log files."
+        )
     while len_log_files > max_files_nb:
         oldest_file = min(log_files_path, key=os.path.getctime)
         log_files_path.remove(oldest_file)
@@ -54,14 +55,30 @@ def init_big_header(pkg_name):
     first_line = f"{len_header*'_'}" + "\n" + f"|{(len_header-2)*' '}|"
     end_line = f"|{(len_header-2)*'_'}|"
     info_str = f"(package : {pkg_fullname}) - python session"
-    big_header = "\n" + first_line + "\n" + "CALINS".center(len_header) + "\n" + info_str.center(len_header) + "\n" + end_line + "\n"
+    big_header = (
+        "\n"
+        + first_line
+        + "\n"
+        + "CALINS".center(len_header)
+        + "\n"
+        + info_str.center(len_header)
+        + "\n"
+        + end_line
+        + "\n"
+    )
 
     return big_header
 
 
 def write_in_log(msg, type=None):
-    with open(os.path.join(LOG_DIR, f'CALINS_{time.strftime("%Y-%m-%d")}.log'), "a", encoding="utf-8") as f:
-        f.write(f"{time.strftime('%H:%M:%S')} - {type+' : ' if type is not None else ''}{msg}\n")
+    with open(
+        os.path.join(LOG_DIR, f'CALINS_{time.strftime("%Y-%m-%d")}.log'),
+        "a",
+        encoding="utf-8",
+    ) as f:
+        f.write(
+            f"{time.strftime('%H:%M:%S')} - {type+' : ' if type is not None else ''}{msg}\n"
+        )
 
 
 def print_in_terminal(msg, type=None):
@@ -71,7 +88,9 @@ def print_in_terminal(msg, type=None):
         print(message)
     except UnicodeEncodeError:
         encoding = sys.stdout.encoding or "utf-8"
-        terminal_safe_message = message.encode(encoding, errors="backslashreplace").decode(encoding)
+        terminal_safe_message = message.encode(
+            encoding, errors="backslashreplace"
+        ).decode(encoding)
         print(terminal_safe_message)
 
 
@@ -87,7 +106,9 @@ def warn(msg, bypass_verbose=False):
 
     if not session_init:
         session_init = True
-        pkg_name = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        pkg_name = os.path.basename(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        )
         init_session(pkg_name=pkg_name)
 
     write_and_print(msg, "WARNING", bypass_verbose=bypass_verbose)
@@ -138,8 +159,14 @@ def log_exec():
             ret = func(*args, **kwargs)
 
             return_exceptions = ["USL", "plot"]
-            if "calcul" in func.__name__ and not "calcul" in inspect.stack()[1][3] and not any(exc in func.__name__ for exc in return_exceptions):
-                write_and_print(f"{tab_str}    -> {ret.value if re.search('Uncertainty|Bias',ret.__class__.__name__) else ret}")
+            if (
+                "calcul" in func.__name__
+                and not "calcul" in inspect.stack()[1][3]
+                and not any(exc in func.__name__ for exc in return_exceptions)
+            ):
+                write_and_print(
+                    f"{tab_str}    -> {ret.value if re.search('Uncertainty|Bias',ret.__class__.__name__) else ret}"
+                )
 
             return ret
 

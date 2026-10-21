@@ -22,7 +22,11 @@ global HTML_intro
 global HTML_tab
 global HTML_end
 
-HTML_intro, HTML_tab, HTML_end = plots.HTML_intro.copy(), plots.HTML_tab.copy(), plots.HTML_end.copy()
+HTML_intro, HTML_tab, HTML_end = (
+    plots.HTML_intro.copy(),
+    plots.HTML_tab.copy(),
+    plots.HTML_end.copy(),
+)
 
 global plotlyjs_fig_include
 global OFFLINE_EXPORT
@@ -164,7 +168,11 @@ class Case:
         self.sigma_resp_expe = sigma_resp_expe
 
         self._sensitivities = methods.format_sensi_to_dataframe(
-            input_sdf_path=sdf_path, filter_min_ratio_sensi_abs=filter_min_ratio_sensi_abs, occurrences_rule=occurrences_rule, mcnp=mcnp, std=std
+            input_sdf_path=sdf_path,
+            filter_min_ratio_sensi_abs=filter_min_ratio_sensi_abs,
+            occurrences_rule=occurrences_rule,
+            mcnp=mcnp,
+            std=std,
         )
 
         self.read_group_number()
@@ -175,7 +183,13 @@ class Case:
 
         self.read_energy_bins()
 
-        self._iso_reac_list = [(iso, reac) for (iso, reac) in zip(self.sensitivities["ISO"].to_list(), self.sensitivities["REAC"].to_list())]
+        self._iso_reac_list = [
+            (iso, reac)
+            for (iso, reac) in zip(
+                self.sensitivities["ISO"].to_list(),
+                self.sensitivities["REAC"].to_list(),
+            )
+        ]
         self._iso_list = list(set(v[0] for v in self._iso_reac_list))
         self._reac_list = list(set(v[1] for v in self._iso_reac_list))
 
@@ -190,16 +204,22 @@ class Case:
     @property
     def sensitivities(self):
         return self._sensitivities
-    
+
     @sensitivities.setter
     def sensitivities(self, new_sensi_df):
         self._sensitivities = new_sensi_df
-        self.iso_reac_list = [(iso, reac) for (iso, reac) in zip(self.sensitivities["ISO"].to_list(), self.sensitivities["REAC"].to_list())]
-    
+        self.iso_reac_list = [
+            (iso, reac)
+            for (iso, reac) in zip(
+                self.sensitivities["ISO"].to_list(),
+                self.sensitivities["REAC"].to_list(),
+            )
+        ]
+
     @property
     def iso_reac_list(self):
         return self._iso_reac_list
-    
+
     @iso_reac_list.setter
     def iso_reac_list(self, value):
         self._iso_reac_list = value
@@ -234,7 +254,12 @@ class Case:
 
         for i, line in enumerate(lines_sensi):
             if re.search("energy boundaries", line):
-                self.e_bins = [float(x) for x in "".join(lines_sensi[i + 1 : i + 1 + ceil((self.group_nb + 1) / 5)]).split()]
+                self.e_bins = [
+                    float(x)
+                    for x in "".join(
+                        lines_sensi[i + 1 : i + 1 + ceil((self.group_nb + 1) / 5)]
+                    ).split()
+                ]
                 break
 
             if i > 500:
@@ -254,13 +279,21 @@ class Case:
                 self.resp_calc = float(lines_sensi[3].split()[0])
                 self.sigma_resp_calc = 0
 
-            if self.resp_calc > 2 or self.resp_calc < 0 or self.sigma_resp_calc > 2 or self.sigma_resp_calc < 0:
+            if (
+                self.resp_calc > 2
+                or self.resp_calc < 0
+                or self.sigma_resp_calc > 2
+                or self.sigma_resp_calc < 0
+            ):
                 raise errors.EmptyParsingError(
                     f"The sdf case file {self.casename} doesn't have the right format for calculated response value \n\
                     The format should be on line 4 as : [resp calc] +/- [sigma resp calc] [...] [response type] from the forward case"
                 )
         except:
-            warn(f"No calculated response was extracted from the file {self.sdf_path}.", bypass_verbose=True)
+            warn(
+                f"No calculated response was extracted from the file {self.sdf_path}.",
+                bypass_verbose=True,
+            )
             None
 
     def read_resp_expe(self):
@@ -275,13 +308,21 @@ class Case:
                 self.resp_expe = float(lines_sensi[3].split()[3])
                 self.sigma_resp_expe = float(lines_sensi[3].split()[4])
 
-            if self.resp_expe > 2 or self.resp_expe < 0 or self.sigma_resp_expe > 2 or self.sigma_resp_expe < 0:
+            if (
+                self.resp_expe > 2
+                or self.resp_expe < 0
+                or self.sigma_resp_expe > 2
+                or self.sigma_resp_expe < 0
+            ):
                 raise errors.EmptyParsingError(
                     f"The sdf case file {self.casename} doesn't have the right format for experimental response value \n\
                     The format should be on line 1 as : [response type] expe : [resp expe] +/- [sigma response]"
                 )
         except:
-            warn(f"No experimental response was extracted from the file {self.sdf_path}.", bypass_verbose=True)
+            warn(
+                f"No experimental response was extracted from the file {self.sdf_path}.",
+                bypass_verbose=True,
+            )
             None
 
     @log_exec()
@@ -299,14 +340,16 @@ class Case:
             Flag to display the plot (if possible).
         """
         output_html_path = cph.validate_html_output_path(output_html_path)
-        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc)
+        val_factor, unit_str = cph.resolve_plotting_unit(
+            plotting_unit=plotting_unit, resp_calc=self.resp_calc
+        )
 
         # --------------------------------
-        logo_path = os.path.join(os.path.dirname(__file__), "html_outputfile", "Logo.PNG")
-        text_intro = ""
-        text_intro += (
-            f'<div style="display:flex; align-items:center; justify-content:center; gap:20px;"><img src="{logo_path}" width="110" height="110"></div>'
+        logo_path = os.path.join(
+            os.path.dirname(__file__), "html_outputfile", "Logo.PNG"
         )
+        text_intro = ""
+        text_intro += f'<div style="display:flex; align-items:center; justify-content:center; gap:20px;"><img src="{logo_path}" width="110" height="110"></div>'
         text_intro += f"<h3><center>{pkg_fullname}</center></h3>"
         text_intro += f"<h3>Application case : {self.casename}</h3>"
 
@@ -331,18 +374,24 @@ class Case:
             getter=self.get_normalized_lethargy_sensitivity,
         )
 
-        trace_sensi_integrals, trace_sensi_profiles, trace_sensi_profiles_lethargy = cph.build_interactive_sensitivity_figures(
-            vector=case_vec,
-            lethargy_vector=case_vec_per_unit_lethargy,
-            iso_reac_list=iso_reac_list,
-            group_nb=self.group_nb,
-            e_bins=self.e_bins,
-            factor=val_factor,
-            unit_str=unit_str,
+        trace_sensi_integrals, trace_sensi_profiles, trace_sensi_profiles_lethargy = (
+            cph.build_interactive_sensitivity_figures(
+                vector=case_vec,
+                lethargy_vector=case_vec_per_unit_lethargy,
+                iso_reac_list=iso_reac_list,
+                group_nb=self.group_nb,
+                e_bins=self.e_bins,
+                factor=val_factor,
+                unit_str=unit_str,
+            )
         )
 
         if show:
-            for fig in (trace_sensi_integrals, trace_sensi_profiles, trace_sensi_profiles_lethargy):
+            for fig in (
+                trace_sensi_integrals,
+                trace_sensi_profiles,
+                trace_sensi_profiles_lethargy,
+            ):
                 fig.show()
 
         with open(output_html_path, "a", encoding="utf-8") as f:
@@ -354,25 +403,65 @@ class Case:
             f.write(plots.create_html_tabs(["Application case sensitivities"]))
 
             f.write('<div id="Application case sensitivities" class="tabcontent">\n')
-            f.write(f'<section style="background:linear-gradient(#a8b0af, white)">\n' + "<br>\n")
-            f.write(trace_sensi_integrals.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-            f.write(trace_sensi_profiles.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "\n<br>\n")
-            f.write(trace_sensi_profiles_lethargy.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + " \n")
+            f.write(
+                f'<section style="background:linear-gradient(#a8b0af, white)">\n'
+                + "<br>\n"
+            )
+            f.write(
+                trace_sensi_integrals.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
+            f.write(
+                trace_sensi_profiles.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "\n<br>\n"
+            )
+            f.write(
+                trace_sensi_profiles_lethargy.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + " \n"
+            )
             f.write("</section>\n")
             f.write("</div>\n")
 
             f.writelines(HTML_end)
 
     @log_exec()
-    def plot_profiles(self, output_path: str, per_unit_lethargy=True, plotting_unit="relative",format="png",iso_reac_list=[], iso_list=None, traces_colors=[], dashed_traces=[], title=None, yaxis_title=None, xaxis_title=None, height=600, width=1100, show=False):
-        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
-        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc)
+    def plot_profiles(
+        self,
+        output_path: str,
+        per_unit_lethargy=True,
+        plotting_unit="relative",
+        format="png",
+        iso_reac_list=[],
+        iso_list=None,
+        traces_colors=[],
+        dashed_traces=[],
+        title=None,
+        yaxis_title=None,
+        xaxis_title=None,
+        height=600,
+        width=1100,
+        show=False,
+    ):
+        output_path = cph.validate_image_output_path(
+            output_path=output_path, format=format
+        )
+        val_factor, unit_str = cph.resolve_plotting_unit(
+            plotting_unit=plotting_unit, resp_calc=self.resp_calc
+        )
 
-        final_iso_reac_list, normalized_input_iso_reac_list = cph.normalize_filter_iso_reac_list(
-            reference_iso_reac_list=self.iso_reac_list,
-            iso_reac_list=iso_reac_list,
-            iso_list=iso_list,
-            require_target=True,
+        final_iso_reac_list, normalized_input_iso_reac_list = (
+            cph.normalize_filter_iso_reac_list(
+                reference_iso_reac_list=self.iso_reac_list,
+                iso_reac_list=iso_reac_list,
+                iso_list=iso_list,
+                require_target=True,
+            )
         )
 
         traces_colors, dashed_traces = cph.align_trace_styles(
@@ -383,17 +472,29 @@ class Case:
         )
 
         case_vec = []
-        for (iso,reac) in final_iso_reac_list :
-            if not per_unit_lethargy : sub_vec = self.get_sensitivity_values(iso, reac)
-            else : sub_vec = self.get_normalized_lethargy_sensitivity(iso, reac)
+        for iso, reac in final_iso_reac_list:
+            if not per_unit_lethargy:
+                sub_vec = self.get_sensitivity_values(iso, reac)
+            else:
+                sub_vec = self.get_normalized_lethargy_sensitivity(iso, reac)
             case_vec += sub_vec
 
-        if not per_unit_lethargy :
-            title=title if title else 'Energy-dependent Sensitivity Profiles'
-            yaxis_title=yaxis_title if yaxis_title else f"Sensitivity ({unit_str}/%[ND])"
-        else :
-            title=title if title else "Energy-dependent Sensitivity Profiles (per unit lethargy)"
-            yaxis_title=yaxis_title if yaxis_title else f"Sensitivity ({unit_str}/%[ND] per unit lethargy)"
+        if not per_unit_lethargy:
+            title = title if title else "Energy-dependent Sensitivity Profiles"
+            yaxis_title = (
+                yaxis_title if yaxis_title else f"Sensitivity ({unit_str}/%[ND])"
+            )
+        else:
+            title = (
+                title
+                if title
+                else "Energy-dependent Sensitivity Profiles (per unit lethargy)"
+            )
+            yaxis_title = (
+                yaxis_title
+                if yaxis_title
+                else f"Sensitivity ({unit_str}/%[ND] per unit lethargy)"
+            )
 
         fig = plots.plot_profiles_per_iso_reac(
             vector=case_vec,
@@ -407,7 +508,14 @@ class Case:
             yaxis_title=yaxis_title,
         )
 
-        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
+        return cph.export_static_plotly_figure(
+            fig=fig,
+            output_path=output_path,
+            format=format,
+            width=width,
+            height=height,
+            show=show,
+        )
 
     @log_exec()
     def plot_integrals(
@@ -427,11 +535,19 @@ class Case:
         show=False,
     ):
 
-        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
-        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc)
+        output_path = cph.validate_image_output_path(
+            output_path=output_path, format=format
+        )
+        val_factor, unit_str = cph.resolve_plotting_unit(
+            plotting_unit=plotting_unit, resp_calc=self.resp_calc
+        )
 
-        if nb_top_iso_reac is not None and (not isinstance(nb_top_iso_reac, int) or nb_top_iso_reac <= 0):
-            raise errors.UserInputError("nb_top_iso_reac must be a strictly positive integer or None")
+        if nb_top_iso_reac is not None and (
+            not isinstance(nb_top_iso_reac, int) or nb_top_iso_reac <= 0
+        ):
+            raise errors.UserInputError(
+                "nb_top_iso_reac must be a strictly positive integer or None"
+            )
 
         if reac_list in [None, []]:
             reac_list = [int(x) for x in methods.reac_trad.keys() if x != "1"]
@@ -447,7 +563,11 @@ class Case:
         if iso_reac_list in [None, []] and iso_list in [None, []]:
             final_iso_reac_list = sorted(
                 final_iso_reac_list,
-                key=lambda pair: abs(self.get_integral_sensitivity_value(pair[0], pair[1], absolute_value=True)),
+                key=lambda pair: abs(
+                    self.get_integral_sensitivity_value(
+                        pair[0], pair[1], absolute_value=True
+                    )
+                ),
                 reverse=True,
             )[:nb_top_iso_reac]
 
@@ -461,11 +581,21 @@ class Case:
             group_nb=self.group_nb,
             factor=val_factor,
             title=title if title else "Integral Sensitivity Profiles",
-            yaxis_title=yaxis_title if yaxis_title else f"Sensitivity ({unit_str}/%[ND] - group-wise integral)",
+            yaxis_title=(
+                yaxis_title
+                if yaxis_title
+                else f"Sensitivity ({unit_str}/%[ND] - group-wise integral)"
+            ),
         )
 
-        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
-
+        return cph.export_static_plotly_figure(
+            fig=fig,
+            output_path=output_path,
+            format=format,
+            width=width,
+            height=height,
+            show=show,
+        )
 
     @log_exec()
     def condense_sensi(self, output_ebins: list):
@@ -503,7 +633,9 @@ class Case:
 
         for i, row in self.sensitivities.iterrows():
             sensis = row["SENSI"]
-            self.sensitivities.at[i, "SENSI"] = methods.condense_binning(sensis, i_ebins=energy_bins, o_ebins=output_ebins)
+            self.sensitivities.at[i, "SENSI"] = methods.condense_binning(
+                sensis, i_ebins=energy_bins, o_ebins=output_ebins
+            )
 
         self.e_bins = output_ebins
         self.group_nb = len(output_ebins) - 1
@@ -545,10 +677,14 @@ class Case:
             integral_abs = np.sum(np.abs(means))
             if integral > 0:
                 integral_oppose = np.sum([m for m in means if m < 0])
-                sigma_oppose = np.sqrt(np.sum([stds[i] ** 2 for i in range(len(means)) if means[i] < 0]))
+                sigma_oppose = np.sqrt(
+                    np.sum([stds[i] ** 2 for i in range(len(means)) if means[i] < 0])
+                )
             elif integral < 0:
                 integral_oppose = np.sum([m for m in means if m > 0])
-                sigma_oppose = np.sqrt(np.sum([stds[i] ** 2 for i in range(len(means)) if means[i] > 0]))
+                sigma_oppose = np.sqrt(
+                    np.sum([stds[i] ** 2 for i in range(len(means)) if means[i] > 0])
+                )
             else:
                 integral_oppose = 0
                 sigma_oppose = 0
@@ -591,10 +727,14 @@ class Case:
             iso_idx = iso_reac.split()[0]
             reac_idx = iso_reac.split()[1]
             iso_trad_str = methods.convert_iso_id_to_string(iso_idx).lower()
-            reac_trad_str = methods.reac_trad.get(str(int(reac_idx)), f"REAC_{int(reac_idx)}").lower()
+            reac_trad_str = methods.reac_trad.get(
+                str(int(reac_idx)), f"REAC_{int(reac_idx)}"
+            ).lower()
             integral_abs = sensi_nuclide["means"]
 
-            text += f"{iso_trad_str: <13}{reac_trad_str: <17}{iso_idx: >5}{reac_idx: >7}\n"
+            text += (
+                f"{iso_trad_str: <13}{reac_trad_str: <17}{iso_idx: >5}{reac_idx: >7}\n"
+            )
             text += "      0      0\n"
             text += "  0.000000E+00  0.000000E+00      0      0\n"
             text += f"{sensi_nuclide['integral']: >14}{sensi_nuclide['integral_std']: >14}{sensi_nuclide['integral_abs']: >14}{sensi_nuclide['integral_oppose']: >14}{sensi_nuclide['sigma_oppose']: >14}\n"
@@ -636,17 +776,23 @@ class Case:
         if isinstance(isotope, str):
             isotope = methods.convert_iso_string_to_id(isotope)
         elif not isinstance(isotope, int):
-            raise errors.UserInputError(f"isotope must be a str or an int and was provided as {type(isotope).__name__}")
+            raise errors.UserInputError(
+                f"isotope must be a str or an int and was provided as {type(isotope).__name__}"
+            )
 
         if not isinstance(reaction, int):
-            raise errors.UserInputError(f"reaction must be an int, but was provided as {type(reaction).__name__}")
+            raise errors.UserInputError(
+                f"reaction must be an int, but was provided as {type(reaction).__name__}"
+            )
 
         try:
             df = self.sensitivities
             filtered_df = df[(df["ISO"] == isotope) & (df["REAC"] == reaction)]
             sensi_values = filtered_df["SENSI"].values[0]
         except:
-            raise errors.MissingDataError(f"Couldn't find any data for isotope {isotope} and reaction {reaction}")
+            raise errors.MissingDataError(
+                f"Couldn't find any data for isotope {isotope} and reaction {reaction}"
+            )
 
         return sensi_values
 
@@ -672,10 +818,14 @@ class Case:
         if isinstance(isotope, str):
             isotope = methods.convert_iso_string_to_id(isotope)
         elif not isinstance(isotope, int):
-            raise errors.UserInputError(f"isotope must be a str or an int and was provided as {type(isotope).__name__}")
+            raise errors.UserInputError(
+                f"isotope must be a str or an int and was provided as {type(isotope).__name__}"
+            )
 
         if not isinstance(reaction, int):
-            raise errors.UserInputError(f"reaction must be an int, but was provided as {type(reaction).__name__}")
+            raise errors.UserInputError(
+                f"reaction must be an int, but was provided as {type(reaction).__name__}"
+            )
 
         try:
             df = self.sensitivities
@@ -685,7 +835,9 @@ class Case:
             else:
                 sensi_value = filtered_df["SENSI_INTEGRAL_ABS"].values[0]
         except:
-            raise errors.MissingDataError(f"Couldn't find any data for isotope {isotope} and reaction {reaction}")
+            raise errors.MissingDataError(
+                f"Couldn't find any data for isotope {isotope} and reaction {reaction}"
+            )
         return sensi_value
 
     def get_normalized_lethargy_sensitivity(self, isotope, reaction):
@@ -710,16 +862,22 @@ class Case:
         if isinstance(isotope, str):
             isotope = methods.convert_iso_string_to_id(isotope)
         elif not isinstance(isotope, int):
-            raise errors.UserInputError(f"isotope must be a str or an int and was provided as {type(isotope).__name__}")
+            raise errors.UserInputError(
+                f"isotope must be a str or an int and was provided as {type(isotope).__name__}"
+            )
 
         if not isinstance(reaction, int):
-            raise errors.UserInputError(f"reaction must be an int, but was provided as {type(reaction).__name__}")
+            raise errors.UserInputError(
+                f"reaction must be an int, but was provided as {type(reaction).__name__}"
+            )
 
         sensi_values = self.get_sensitivity_values(isotope, reaction)
         lethargy_widths = np.diff(np.log(self.e_bins))
 
         if len(sensi_values) != len(lethargy_widths):
-            raise errors.DimError("The length of sensi_values and lethargy_widths do not match.")
+            raise errors.DimError(
+                "The length of sensi_values and lethargy_widths do not match."
+            )
 
         # Using the absolute value of lethargy widths to avoid division by negative values (in case of decreasing binning)
         normalized_lethargy_sensi_values = sensi_values / np.abs(lethargy_widths)
@@ -761,11 +919,15 @@ class Case:
             try:
                 boundaries = standard_bounds[energy_region]
             except KeyError:
-                raise errors.UserInputError("Invalid energy_region. Must be 'thermal', 'epithermal', 'fast' or 'all'.")
+                raise errors.UserInputError(
+                    "Invalid energy_region. Must be 'thermal', 'epithermal', 'fast' or 'all'."
+                )
         elif isinstance(energy_region, list) and len(energy_region) == 2:
             boundaries = energy_region
         else:
-            raise errors.UserInputError("energy_region must be a str ('thermal', 'epithermal', 'fast' or 'all') or a list of two values [Emax, Emin]")
+            raise errors.UserInputError(
+                "energy_region must be a str ('thermal', 'epithermal', 'fast' or 'all') or a list of two values [Emax, Emin]"
+            )
 
         max_energy, min_energy = boundaries
 
@@ -773,13 +935,18 @@ class Case:
             raise errors.UserInputError("Emax should be greater than Emin")
 
         filtered_indices = [
-            i for i, e in enumerate(self.e_bins) if (min_energy is None or e >= min_energy) and (max_energy is None or e <= max_energy)
+            i
+            for i, e in enumerate(self.e_bins)
+            if (min_energy is None or e >= min_energy)
+            and (max_energy is None or e <= max_energy)
         ]
         filtered_ebins = [self.e_bins[i] for i in filtered_indices]
 
         return filtered_indices, filtered_ebins
 
-    def get_filtered_sensitivity_by_energy_region(self, isotope, reaction, energy_region, normalize_lethargy):
+    def get_filtered_sensitivity_by_energy_region(
+        self, isotope, reaction, energy_region, normalize_lethargy
+    ):
         """
         Filters sensitivity values for a given isotope and reaction based on the specified energy region.
 
@@ -801,9 +968,13 @@ class Case:
         """
         indices, ebins = self.filter_energy_bins(energy_region)
         sensi_values = (
-            self.get_normalized_lethargy_sensitivity(isotope, reaction) if normalize_lethargy else self.get_sensitivity_values(isotope, reaction)
+            self.get_normalized_lethargy_sensitivity(isotope, reaction)
+            if normalize_lethargy
+            else self.get_sensitivity_values(isotope, reaction)
         )
-        filtered_sensi_values = [sensi_values[index] for index in indices if index != indices[-1]]
+        filtered_sensi_values = [
+            sensi_values[index] for index in indices if index != indices[-1]
+        ]
 
         return filtered_sensi_values
 
@@ -864,19 +1035,33 @@ class NDCovariances:
 
         if self.format == "auto":
             self.format = self._detect_format()
-            write_and_print(f"Format of ND covariances file {input_path} detected as {self.format}.")
+            write_and_print(
+                f"Format of ND covariances file {input_path} detected as {self.format}."
+            )
         if self.format == "coverx":
-            self._cov_dataf, self._e_bins, self.group_nb, self.header = methods.format_scale_binary_to_dataframe(input_path)
+            self._cov_dataf, self._e_bins, self.group_nb, self.header = (
+                methods.format_scale_binary_to_dataframe(input_path)
+            )
         elif self.format == "coverx_old":
-            self._cov_dataf, self._e_bins, self.group_nb, self.header = methods.format_scale_binary_to_dataframe(input_path, big_endian=True)
+            self._cov_dataf, self._e_bins, self.group_nb, self.header = (
+                methods.format_scale_binary_to_dataframe(input_path, big_endian=True)
+            )
         elif self.format in ["coverx_text", "coverx_txt"]:
-            self._cov_dataf, self._e_bins, self.group_nb, self.header = methods.format_scale_txt_to_dataframe(input_path)
+            self._cov_dataf, self._e_bins, self.group_nb, self.header = (
+                methods.format_scale_txt_to_dataframe(input_path)
+            )
         elif self.format == "comac":
-            self._cov_dataf, self._e_bins, self.group_nb, self.header = methods.format_comac_to_dataframe(input_path)
+            self._cov_dataf, self._e_bins, self.group_nb, self.header = (
+                methods.format_comac_to_dataframe(input_path)
+            )
         elif self.format == "gendf":
-            self._cov_dataf, self._e_bins, self.group_nb, self.header = methods.format_gendf_to_dataframe(input_path)
+            self._cov_dataf, self._e_bins, self.group_nb, self.header = (
+                methods.format_gendf_to_dataframe(input_path)
+            )
         elif self.format == "xlsx":
-            self._cov_dataf, self._e_bins, self.group_nb, self.header = methods.format_xlsx_to_dataframe(input_path)
+            self._cov_dataf, self._e_bins, self.group_nb, self.header = (
+                methods.format_xlsx_to_dataframe(input_path)
+            )
         elif self.format == "tendl":
             raise errors.UserInputError("TENDL format is not yet implemented.")
         else:
@@ -887,30 +1072,47 @@ class NDCovariances:
         cov_dataf = self._cov_dataf
 
         # Extract list of (isotope, reaction) pairs present in covariance data
-        iso_reac_cov_H = cov_dataf.apply(lambda x: (x["ISO_H"], x["REAC_H"]), axis=1).to_list()
-        iso_reac_cov_V = cov_dataf.apply(lambda x: (x["ISO_V"], x["REAC_V"]), axis=1).to_list()
+        iso_reac_cov_H = cov_dataf.apply(
+            lambda x: (x["ISO_H"], x["REAC_H"]), axis=1
+        ).to_list()
+        iso_reac_cov_V = cov_dataf.apply(
+            lambda x: (x["ISO_V"], x["REAC_V"]), axis=1
+        ).to_list()
         all_iso_reac = list(set(iso_reac_cov_H) | set(iso_reac_cov_V))
         # Filter out energy bins entries (0, 0)
-        self._iso_reac_list = [(iso, reac) for iso, reac in all_iso_reac if not (iso == 0)]
+        self._iso_reac_list = [
+            (iso, reac) for iso, reac in all_iso_reac if not (iso == 0)
+        ]
         self._iso_list = list(set(v[0] for v in self._iso_reac_list))
         self._reac_list = list(set(v[1] for v in self._iso_reac_list))
 
     @property
     def cov_dataf(self):
         return self._cov_dataf
-    
+
     @cov_dataf.setter
     def cov_dataf(self, new_cov_dataf):
         self._cov_dataf = new_cov_dataf
 
-        iso_reac_cov_H = self._cov_dataf.apply(lambda x: (x["ISO_H"], x["REAC_H"]), axis=1).to_list()
-        iso_reac_cov_V = self._cov_dataf.apply(lambda x: (x["ISO_V"], x["REAC_V"]), axis=1).to_list()
+        iso_reac_cov_H = self._cov_dataf.apply(
+            lambda x: (x["ISO_H"], x["REAC_H"]), axis=1
+        ).to_list()
+        iso_reac_cov_V = self._cov_dataf.apply(
+            lambda x: (x["ISO_V"], x["REAC_V"]), axis=1
+        ).to_list()
         all_iso_reac = list(set(iso_reac_cov_H) | set(iso_reac_cov_V))
-        self.iso_reac_list = [(iso, reac) for iso, reac in all_iso_reac if not (iso == 0)]
+        self.iso_reac_list = [
+            (iso, reac) for iso, reac in all_iso_reac if not (iso == 0)
+        ]
 
-        e_bins_row = self._cov_dataf[(self._cov_dataf["ISO_H"] == 0) & (self._cov_dataf["REAC_H"] == 0) & (self._cov_dataf["ISO_V"] == 0) & (self._cov_dataf["REAC_V"] == 0)]
+        e_bins_row = self._cov_dataf[
+            (self._cov_dataf["ISO_H"] == 0)
+            & (self._cov_dataf["REAC_H"] == 0)
+            & (self._cov_dataf["ISO_V"] == 0)
+            & (self._cov_dataf["REAC_V"] == 0)
+        ]
         if len(e_bins_row) > 0:
-            self._e_bins = e_bins_row["STD"].to_list()[0]
+            self.e_bins = e_bins_row["STD"].to_list()[0]
         else:
             None
 
@@ -918,10 +1120,14 @@ class NDCovariances:
     def e_bins(self):
         return self._e_bins
 
+    @e_bins.setter
+    def e_bins(self, new_e_bins):
+        self._e_bins = new_e_bins
+
     @property
     def iso_reac_list(self):
         return self._iso_reac_list
-    
+
     @iso_reac_list.setter
     def iso_reac_list(self, value):
         self._iso_reac_list = value
@@ -984,7 +1190,9 @@ class NDCovariances:
         if output_path.endswith(".xlsx"):
             self.cov_dataf.to_excel(output_path)
         elif os.path.isdir(output_path):
-            self.cov_dataf.to_excel(os.path.join(output_path, os.path.basename(self.input_path) + ".xlsx"))
+            self.cov_dataf.to_excel(
+                os.path.join(output_path, os.path.basename(self.input_path) + ".xlsx")
+            )
         else:
             self.cov_dataf.to_excel(output_path + ".xlsx")
 
@@ -1013,13 +1221,17 @@ class NDCovariances:
                     output_file.write(f"{e_bin: >15}")
                 output_file.write("\n")
             else:
-                output_file.write(f"The number of groups is {self.group_nb}. Covariance data file doesn't have its energy binning embeded.\n")
+                output_file.write(
+                    f"The number of groups is {self.group_nb}. Covariance data file doesn't have its energy binning embeded.\n"
+                )
 
             for idx, row in self.cov_dataf.iterrows():
                 if row["ISO_H"] == 0 or row["ISO_V"] == 0:
                     continue
 
-                output_file.write(f"{row['ISO_H']: >12}{row['REAC_H']: >12}{row['ISO_V']: >12}{row['REAC_V']: >12}{'1': >12}\n")
+                output_file.write(
+                    f"{row['ISO_H']: >12}{row['REAC_H']: >12}{row['ISO_V']: >12}{row['REAC_V']: >12}{'1': >12}\n"
+                )
 
                 for std_x in row["STD"]:
                     for i, std in enumerate(std_x):
@@ -1029,7 +1241,9 @@ class NDCovariances:
                         output_file.write(f"{std: >15}")
                     output_file.write("\n")
 
-    def get_covariance_block(self, iso_reac_horizontal: tuple, iso_reac_vertical: tuple):
+    def get_covariance_block(
+        self, iso_reac_horizontal: tuple, iso_reac_vertical: tuple
+    ):
         """
         Retrieve a covariance submatrix for two isotope-reaction pairs.
 
@@ -1074,9 +1288,17 @@ class NDCovariances:
 
         return None
 
-
     @log_exec()
-    def plot_specific(self, iso_reac_horizontal: tuple, iso_reac_vertical: tuple, output_path: str, format="png",title=None, show=False, dpi=300):
+    def plot_specific(
+        self,
+        iso_reac_horizontal: tuple,
+        iso_reac_vertical: tuple,
+        output_path: str,
+        format="png",
+        title=None,
+        show=False,
+        dpi=300,
+    ):
         """
         Plot a specific auto- or cross-covariance block.
 
@@ -1103,7 +1325,9 @@ class NDCovariances:
             Generated covariance figure.
         """
         if format not in ["png", "jpg", "jpeg", "pdf"]:
-            raise errors.UserInputError("Format must be either 'png', 'jpg', 'jpeg' or 'pdf'")
+            raise errors.UserInputError(
+                "Format must be either 'png', 'jpg', 'jpeg' or 'pdf'"
+            )
         if not output_path.endswith(f".{format}"):
             output_path = output_path + f".{format}"
         with open(output_path, "w") as f:
@@ -1112,7 +1336,9 @@ class NDCovariances:
         iso_reac_horizontal = methods.normalize_iso_reac(iso_reac_horizontal)
         iso_reac_vertical = methods.normalize_iso_reac(iso_reac_vertical)
 
-        covariance_block = self.get_covariance_block(iso_reac_horizontal, iso_reac_vertical)
+        covariance_block = self.get_covariance_block(
+            iso_reac_horizontal, iso_reac_vertical
+        )
         if covariance_block is None:
             raise errors.MissingDataError(
                 f"Couldn't find covariance data for horizontal pair {iso_reac_horizontal} and vertical pair {iso_reac_vertical}"
@@ -1125,22 +1351,22 @@ class NDCovariances:
         vertical_label = None
 
         if not same_pair:
-            covariance_horizontal = self.get_covariance_block(iso_reac_horizontal, iso_reac_horizontal)
-            covariance_vertical = self.get_covariance_block(iso_reac_vertical, iso_reac_vertical)
+            covariance_horizontal = self.get_covariance_block(
+                iso_reac_horizontal, iso_reac_horizontal
+            )
+            covariance_vertical = self.get_covariance_block(
+                iso_reac_vertical, iso_reac_vertical
+            )
 
             if covariance_horizontal is None or covariance_vertical is None:
                 raise errors.MissingDataError(
                     "Couldn't find the auto-covariance blocks required to build the cross-covariance margins."
                 )
 
-            horizontal_label = (
-                f"{methods.convert_iso_id_to_string(iso_reac_horizontal[0])} ({methods.reac_trad.get(str(iso_reac_horizontal[1]), f'REAC_{iso_reac_horizontal[1]}').lower()})"
-            )
-            vertical_label = (
-                f"{methods.convert_iso_id_to_string(iso_reac_vertical[0])} ({methods.reac_trad.get(str(iso_reac_vertical[1]), f'REAC_{iso_reac_vertical[1]}').lower()})"
-            )
+            horizontal_label = f"{methods.convert_iso_id_to_string(iso_reac_horizontal[0])} ({methods.reac_trad.get(str(iso_reac_horizontal[1]), f'REAC_{iso_reac_horizontal[1]}').lower()})"
+            vertical_label = f"{methods.convert_iso_id_to_string(iso_reac_vertical[0])} ({methods.reac_trad.get(str(iso_reac_vertical[1]), f'REAC_{iso_reac_vertical[1]}').lower()})"
 
-        if title == None :
+        if title == None:
             title = (
                 f"Covariances {methods.convert_iso_id_to_string(iso_reac_horizontal[0])} {methods.reac_trad.get(str(iso_reac_horizontal[1]), f'REAC_{iso_reac_horizontal[1]}').lower()} [{self.group_nb}g]"
                 if same_pair
@@ -1165,6 +1391,7 @@ class NDCovariances:
         plt.close(fig)
 
         return fig
+
 
 class Assimilation:
     """
@@ -1248,8 +1475,8 @@ class Assimilation:
     @log_exec()
     def __init__(
         self,
-        benchmarks_list:list,
-        cov_data:NDCovariances,
+        benchmarks_list: list,
+        cov_data: NDCovariances,
         appl_case=None,
         iso_reac_list: list = None,
         reac_list: list = None,
@@ -1324,7 +1551,10 @@ class Assimilation:
                     f"Wrong sensitivity type for {i+1}th case of the benchmarks list : {bench_data} - Choose case object, Path, or string"
                 )
 
-            if self.bench_cases[i].resp_expe == None or self.bench_cases[i].sigma_resp_expe == None:
+            if (
+                self.bench_cases[i].resp_expe == None
+                or self.bench_cases[i].sigma_resp_expe == None
+            ):
                 raise errors.SensInputError(
                     f"The case {self.bench_cases[i].casename} is used as a experimental benchmark case but doesn't have an experimental response value/sigma - Check you sdf file or your case construction (arguments)"
                 )
@@ -1337,12 +1567,16 @@ class Assimilation:
         elif appl_case == None:
             None
         else:
-            raise errors.SensInputError("Wrong sensitivity type for application case data - Choose case, Path, or string")
+            raise errors.SensInputError(
+                "Wrong sensitivity type for application case data - Choose case, Path, or string"
+            )
 
         if iso_reac_list != None:
             for i, pair in enumerate(iso_reac_list):
                 if not isinstance(pair, tuple):
-                    raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
+                    raise errors.UserInputError(
+                        f"The isotope-reaction pair '{pair}' should be a tuple."
+                    )
 
         self.output_html_path = output_html_path
 
@@ -1351,7 +1585,9 @@ class Assimilation:
         self.targetted_chi2 = targetted_chi2
 
         if filtering_chi2_method not in ["delta", "diagonal"]:
-            raise Exception('The filtering chi2 method available currently are "delta" or "diagonal"')
+            raise Exception(
+                'The filtering chi2 method available currently are "delta" or "diagonal"'
+            )
 
         self.filtering_chi2_method = filtering_chi2_method
 
@@ -1365,20 +1601,31 @@ class Assimilation:
                 )
             # Symmetry check
             if not np.allclose(expe_correlations, expe_correlations.T):
-                raise errors.UserInputError("expe_correlations must be a symmetric matrix")
+                raise errors.UserInputError(
+                    "expe_correlations must be a symmetric matrix"
+                )
             # Values in [0, 1] check (off-diagonal)
             off_diag_mask = ~np.eye(n_bench, dtype=bool)
-            if np.any(expe_correlations[off_diag_mask] < 0) or np.any(expe_correlations[off_diag_mask] > 1):
-                raise errors.UserInputError("expe_correlations off-diagonal values must be between 0 and 1")
+            if np.any(expe_correlations[off_diag_mask] < 0) or np.any(
+                expe_correlations[off_diag_mask] > 1
+            ):
+                raise errors.UserInputError(
+                    "expe_correlations off-diagonal values must be between 0 and 1"
+                )
         self.expe_correlations = expe_correlations
 
-        self.bench_list = pd.DataFrame({"PATH": [bench_case.sdf_path for bench_case in self.bench_cases]})
+        self.bench_list = pd.DataFrame(
+            {"PATH": [bench_case.sdf_path for bench_case in self.bench_cases]}
+        )
 
         bench_resp_expe = [bench.resp_expe for bench in self.bench_cases]
         bench_sigma_expe = [bench.sigma_resp_expe for bench in self.bench_cases]
         bench_resp_calc = [bench.resp_calc for bench in self.bench_cases]
         bench_sigma_calc = [bench.sigma_resp_calc for bench in self.bench_cases]
-        bench_CE_prior = [round((bench.resp_calc - bench.resp_expe) * 1e5) for bench in self.bench_cases]
+        bench_CE_prior = [
+            round((bench.resp_calc - bench.resp_expe) * 1e5)
+            for bench in self.bench_cases
+        ]
 
         (
             self.bench_list["RESP EXPE"],
@@ -1386,7 +1633,13 @@ class Assimilation:
             self.bench_list["RESP CALC"],
             self.bench_list["SIGMA RESP CALC"],
             self.bench_list["C_PRIOR - E (pcm)"],
-        ) = (bench_resp_expe, bench_sigma_expe, bench_resp_calc, bench_sigma_calc, bench_CE_prior)
+        ) = (
+            bench_resp_expe,
+            bench_sigma_expe,
+            bench_resp_calc,
+            bench_sigma_calc,
+            bench_CE_prior,
+        )
 
         self.appl_case = appl_case
 
@@ -1400,7 +1653,12 @@ class Assimilation:
 
         self.check_dimmensions()
 
-        methods.check_correspondences(sensi_vec=self.case_vec, cov_mat=self.cov_mat, iso_reac_list=self.iso_reac_list, group_nb=self.group_nb)
+        methods.check_correspondences(
+            sensi_vec=self.case_vec,
+            cov_mat=self.cov_mat,
+            iso_reac_list=self.iso_reac_list,
+            group_nb=self.group_nb,
+        )
 
         if self.appl_case != None:
             self.e_bins = self.appl_case.e_bins
@@ -1419,10 +1677,19 @@ class Assimilation:
         self.calcul_USL_parametric()
         self.calcul_USL_nonparametric()
         self.calcul_USL_trending()
-        self.export_to_html(output_html_path=self.output_html_path, plotting_unit=plotting_unit, isotopes_to_detail=isotopes_to_detail)
+        self.export_to_html(
+            output_html_path=self.output_html_path,
+            plotting_unit=plotting_unit,
+            isotopes_to_detail=isotopes_to_detail,
+        )
 
     def make_sensimat_covmat_casevec_expemat_and_deltaCE(
-        self, iso_reac_list: list = None, reac_list: list = None, iso_list: list = None, exclude_iso: list = None, exclude_reac: list = None
+        self,
+        iso_reac_list: list = None,
+        reac_list: list = None,
+        iso_list: list = None,
+        exclude_iso: list = None,
+        exclude_reac: list = None,
     ):
         """Create sensitivity matrix, covariance matrix, case vector, experimental matrix, and delta C-E.
 
@@ -1441,28 +1708,32 @@ class Assimilation:
         """
         # Construct the sensitivity vectors and covariances matrix from the iso_reac_list given or the union of every case's iso_reac_list
         if self.appl_case != None:
-            sensi_vecs, cov_mat, iso_reac_list = methods.make_sensi_vectors_and_cov_matrix(
-                cases_list=[*self.bench_cases, self.appl_case],
-                cov_data=self.cov_data,
-                operation="union",
-                iso_reac_list=iso_reac_list,
-                reac_list=reac_list,
-                iso_list=iso_list,
-                exclude_iso=exclude_iso,
-                exclude_reac=exclude_reac,
+            sensi_vecs, cov_mat, iso_reac_list = (
+                methods.make_sensi_vectors_and_cov_matrix(
+                    cases_list=[*self.bench_cases, self.appl_case],
+                    cov_data=self.cov_data,
+                    operation="union",
+                    iso_reac_list=iso_reac_list,
+                    reac_list=reac_list,
+                    iso_list=iso_list,
+                    exclude_iso=exclude_iso,
+                    exclude_reac=exclude_reac,
+                )
             )
             benchmark_vecs = sensi_vecs[: len(self.bench_cases)]
             case_vec = sensi_vecs[-1]
         else:
-            sensi_vecs, cov_mat, iso_reac_list = methods.make_sensi_vectors_and_cov_matrix(
-                cases_list=[*self.bench_cases],
-                cov_data=self.cov_data,
-                operation="union",
-                iso_reac_list=iso_reac_list,
-                reac_list=reac_list,
-                iso_list=iso_list,
-                exclude_iso=exclude_iso,
-                exclude_reac=exclude_reac,
+            sensi_vecs, cov_mat, iso_reac_list = (
+                methods.make_sensi_vectors_and_cov_matrix(
+                    cases_list=[*self.bench_cases],
+                    cov_data=self.cov_data,
+                    operation="union",
+                    iso_reac_list=iso_reac_list,
+                    reac_list=reac_list,
+                    iso_list=iso_list,
+                    exclude_iso=exclude_iso,
+                    exclude_reac=exclude_reac,
+                )
             )
             benchmark_vecs = sensi_vecs
             case_vec = []
@@ -1486,7 +1757,9 @@ class Assimilation:
             # expe_mat[idx, idx] = bench_case.sigma_resp_expe**2 / bench_case.resp_expe**2
             expe_mat[idx, idx] = bench_case.sigma_resp_expe**2 / bench_case.resp_calc**2
             # delta_CE_vec[idx] = (bench_case.resp_calc - bench_case.resp_expe) / bench_case.resp_expe
-            delta_CE_vec[idx] = (bench_case.resp_calc - bench_case.resp_expe) / bench_case.resp_calc
+            delta_CE_vec[idx] = (
+                bench_case.resp_calc - bench_case.resp_expe
+            ) / bench_case.resp_calc
 
         # Fill off-diagonal terms with experimental correlations
         if self.expe_correlations is not None:
@@ -1494,7 +1767,17 @@ class Assimilation:
                 for j in range(len(self.bench_cases)):
                     if i != j:
                         rho_ij = self.expe_correlations[i, j]
-                        expe_mat[i, j] = rho_ij * (self.bench_cases[i].sigma_resp_expe / self.bench_cases[i].resp_calc) * (self.bench_cases[j].sigma_resp_expe / self.bench_cases[j].resp_calc)
+                        expe_mat[i, j] = (
+                            rho_ij
+                            * (
+                                self.bench_cases[i].sigma_resp_expe
+                                / self.bench_cases[i].resp_calc
+                            )
+                            * (
+                                self.bench_cases[j].sigma_resp_expe
+                                / self.bench_cases[j].resp_calc
+                            )
+                        )
 
         self.expe_mat = np.array(expe_mat)
         self.delta_CE_vec = np.array(delta_CE_vec)
@@ -1508,22 +1791,35 @@ class Assimilation:
             == len(self.delta_CE_vec)
         ):
 
-            raise errors.DimError("The vertical dimension of the benchmarks matrix is not equal to the length of the benchmark list")
+            raise errors.DimError(
+                "The vertical dimension of the benchmarks matrix is not equal to the length of the benchmark list"
+            )
 
         if self.appl_case != None:
-            if not np.shape(self.cov_mat)[0] == np.shape(self.cov_mat)[1] == len(self.case_vec) == np.shape(self.bench_sensi_mat)[1]:
+            if (
+                not np.shape(self.cov_mat)[0]
+                == np.shape(self.cov_mat)[1]
+                == len(self.case_vec)
+                == np.shape(self.bench_sensi_mat)[1]
+            ):
 
                 raise errors.DimError(
                     f"The sensitivities and uncertainties data doesn't have the same dimensions - Check your energy groups number - (or internal iso-reac variable error)\n\
                     DIMENSIONS : Cov Mat {np.shape(self.cov_mat)[0]} (should be square matrix) | Application Case Vec {len(self.case_vec)} | Bench Mat (vertical axe) {np.shape(self.bench_sensi_mat)[1]}"
                 )
 
-            if self.appl_case.group_nb != int(np.shape(self.cov_mat)[0] / len(self.iso_reac_list)):
+            if self.appl_case.group_nb != int(
+                np.shape(self.cov_mat)[0] / len(self.iso_reac_list)
+            ):
                 raise errors.DimError(
                     f"The energy group number of your application case is not equal to the covariance matrix group number - Check your sdf file {self.appl_case.casename}, and you covariance file"
                 )
         else:
-            if not np.shape(self.cov_mat)[0] == np.shape(self.cov_mat)[1] == np.shape(self.bench_sensi_mat)[1]:
+            if (
+                not np.shape(self.cov_mat)[0]
+                == np.shape(self.cov_mat)[1]
+                == np.shape(self.bench_sensi_mat)[1]
+            ):
 
                 raise errors.DimError(
                     f"The sensitivities and uncertainties data doesn't have the same dimensions - Check your energy groups number - (or internal iso-reac variable error)\n\
@@ -1557,7 +1853,9 @@ class Assimilation:
 
                         # INVERSION
                         try:
-                            cholesky = np.linalg.inv(np.linalg.cholesky(C_SexpW0SexpT_i))
+                            cholesky = np.linalg.inv(
+                                np.linalg.cholesky(C_SexpW0SexpT_i)
+                            )
                             C_SexpW0SexpT_inv_i = cholesky.T @ cholesky
 
                         except:
@@ -1568,12 +1866,22 @@ class Assimilation:
                                 "ERROR : The covarariances data you choose leads to an non-invertible matrix (singular matrix). The assimimlation process is not possible."
                             )
 
-                        individual_chi2.append(self.prior_chi2 * len(self.bench_cases) - delta_CE_i @ C_SexpW0SexpT_inv_i @ delta_CE_i.T)
+                        individual_chi2.append(
+                            self.prior_chi2 * len(self.bench_cases)
+                            - delta_CE_i @ C_SexpW0SexpT_inv_i @ delta_CE_i.T
+                        )
 
                 elif self.filtering_chi2_method == "diagonal":
                     for i in range(len(self.bench_cases)):
 
-                        individual_chi2.append((self.bench_cases[i].resp_calc - self.bench_cases[i].resp_expe) ** 2 * C_SexpW0SexpT_inv[i][i])
+                        individual_chi2.append(
+                            (
+                                self.bench_cases[i].resp_calc
+                                - self.bench_cases[i].resp_expe
+                            )
+                            ** 2
+                            * C_SexpW0SexpT_inv[i][i]
+                        )
 
                 self.bench_list["INDIVIDUAL CHI2"] = individual_chi2
 
@@ -1593,8 +1901,17 @@ class Assimilation:
                         )
                     indiv_chi2_idx = chi2_list.index(max(chi2_list))
 
-                    bench_path_to_remove = list(self.bench_list[self.bench_list["INDIVIDUAL CHI2"] == max(chi2_list)]["PATH"])[0]
-                    self.bench_list.at[self.bench_list.index[self.bench_list["INDIVIDUAL CHI2"] == max(chi2_list)][0], "REMOVED"] = True
+                    bench_path_to_remove = list(
+                        self.bench_list[
+                            self.bench_list["INDIVIDUAL CHI2"] == max(chi2_list)
+                        ]["PATH"]
+                    )[0]
+                    self.bench_list.at[
+                        self.bench_list.index[
+                            self.bench_list["INDIVIDUAL CHI2"] == max(chi2_list)
+                        ][0],
+                        "REMOVED",
+                    ] = True
 
                     write_and_print(
                         f"{2*'    '}Assimilation - Removing benchmark {os.path.basename(bench_path_to_remove)} from assimilation ...\n - Individual Chi2 to remove : {max(chi2_list)}"
@@ -1626,10 +1943,14 @@ class Assimilation:
 
                     if chi2 < self.targetted_chi2:
                         self.prior_chi2 = chi2
-                        write_and_print(f"{2*'    '}Assimilation - Chi2 removal {i+1} result : {chi2}")
+                        write_and_print(
+                            f"{2*'    '}Assimilation - Chi2 removal {i+1} result : {chi2}"
+                        )
                         break
 
-                    write_and_print(f"{2*'    '}Assimilation - Chi2 removal {i+1} result : {chi2}")
+                    write_and_print(
+                        f"{2*'    '}Assimilation - Chi2 removal {i+1} result : {chi2}"
+                    )
 
                 self.bench_sensi_mat = Sexp_i
                 self.expe_mat = C_i
@@ -1639,14 +1960,18 @@ class Assimilation:
 
                 self.delta_mu = -1 * self.B_mat @ self.delta_CE_vec
 
-                self.cov_mat_delta = csr_matrix(self.B_mat @ (self.bench_sensi_mat @ self.cov_mat))
+                self.cov_mat_delta = csr_matrix(
+                    self.B_mat @ (self.bench_sensi_mat @ self.cov_mat)
+                )
 
             else:
                 self.B_mat = W0SexpT @ C_SexpW0SexpT_inv
 
                 self.delta_mu = -1 * self.B_mat @ self.delta_CE_vec
 
-                self.cov_mat_delta = csr_matrix(self.B_mat @ (self.bench_sensi_mat @ self.cov_mat))
+                self.cov_mat_delta = csr_matrix(
+                    self.B_mat @ (self.bench_sensi_mat @ self.cov_mat)
+                )
 
         # Function to filter out experiments with low Ck similarity coefficients
         def filter_Ck():
@@ -1660,7 +1985,10 @@ class Assimilation:
 
             for i in range(len(self.bench_list)):
 
-                if self.bench_list["Ck"][i] < self.Ck_threshold and self.bench_list.at[i, "REMOVED"] == False:
+                if (
+                    self.bench_list["Ck"][i] < self.Ck_threshold
+                    and self.bench_list.at[i, "REMOVED"] == False
+                ):
                     self.bench_list.at[i, "REMOVED"] = True
 
                     write_and_print(
@@ -1695,13 +2023,18 @@ class Assimilation:
 
             self.delta_mu = -1 * self.B_mat @ self.delta_CE_vec
 
-            self.cov_mat_delta = csr_matrix(self.B_mat @ (self.bench_sensi_mat @ self.cov_mat))
+            self.cov_mat_delta = csr_matrix(
+                self.B_mat @ (self.bench_sensi_mat @ self.cov_mat)
+            )
 
         # Beginning of the assimilation process
         W0SexpT = self.cov_mat @ self.bench_sensi_mat.T
 
         SexpW0SexpT = self.bench_sensi_mat @ W0SexpT
-        self.bench_list["UNC_PRIOR (pcm)"] = [(bench.resp_calc * sqrt(unc)) * 1e5 for bench, unc in zip(self.bench_cases, np.diag(SexpW0SexpT))]
+        self.bench_list["UNC_PRIOR (pcm)"] = [
+            (bench.resp_calc * sqrt(unc)) * 1e5
+            for bench, unc in zip(self.bench_cases, np.diag(SexpW0SexpT))
+        ]
 
         C_SexpW0SexpT = np.add(self.expe_mat, SexpW0SexpT)
 
@@ -1727,18 +2060,29 @@ class Assimilation:
         write_and_print(f"{2*'    '}Assimilation - initial Chi2:")
         write_and_print(f"{2*'    '}    -> {self.prior_chi2}")
 
-        self.bench_list["INDIVIDUAL CHI2"] = [None for i in range(len(self.bench_cases))]
+        self.bench_list["INDIVIDUAL CHI2"] = [
+            None for i in range(len(self.bench_cases))
+        ]
         self.bench_list["REMOVED"] = [False for i in range(len(self.bench_cases))]
 
         # Compute Ck similarity coefficients between the application case and the benchmark cases
         norm_sensi_case = self.case_vec @ self.cov_mat @ self.case_vec
         norm_sensi_bench_vector = np.diag(SexpW0SexpT)
         # Compute dot products for all benchmark cases at once
-        case_cov_products = np.array([self.case_vec @ self.cov_mat @ self.bench_sensi_mat[i, :] for i in range(len(self.bench_cases))])
+        case_cov_products = np.array(
+            [
+                self.case_vec @ self.cov_mat @ self.bench_sensi_mat[i, :]
+                for i in range(len(self.bench_cases))
+            ]
+        )
         Ck_bench = np.where(
             (norm_sensi_case == 0) | (norm_sensi_bench_vector == 0),
             0,
-            np.sqrt(np.abs(case_cov_products**2 / (norm_sensi_case * norm_sensi_bench_vector))),
+            np.sqrt(
+                np.abs(
+                    case_cov_products**2 / (norm_sensi_case * norm_sensi_bench_vector)
+                )
+            ),
         ).tolist()
 
         self.bench_list["Ck"] = Ck_bench
@@ -1757,7 +2101,9 @@ class Assimilation:
 
             self.delta_mu = -1 * self.B_mat @ self.delta_CE_vec
 
-            self.cov_mat_delta = csr_matrix(self.B_mat @ (self.bench_sensi_mat @ self.cov_mat))
+            self.cov_mat_delta = csr_matrix(
+                self.B_mat @ (self.bench_sensi_mat @ self.cov_mat)
+            )
 
         self.appl_to_bench_weights = self.case_vec @ self.B_mat
 
@@ -1773,10 +2119,15 @@ class Assimilation:
         for b in range(len(self.bench_list)):
             if self.bench_list["REMOVED"][b] == False:
                 sigma_expe = self.bench_list["SIGMA RESP EXPE"].to_list()[b]
-                resp_expe, CE_post = self.bench_list["RESP EXPE"].to_list()[b], self.bench_list["C_POST - E (pcm)"].to_list()[b]
+                resp_expe, CE_post = (
+                    self.bench_list["RESP EXPE"].to_list()[b],
+                    self.bench_list["C_POST - E (pcm)"].to_list()[b],
+                )
                 resp_calc_post = resp_expe - CE_post * 1e-5
                 expe_mat_post[b_present, b_present] = sigma_expe**2 / resp_calc_post**2
-                delta_CE_vec_post[b_present] = (resp_calc_post - self.bench_list["RESP EXPE"].to_list()[b]) / resp_calc_post
+                delta_CE_vec_post[b_present] = (
+                    resp_calc_post - self.bench_list["RESP EXPE"].to_list()[b]
+                ) / resp_calc_post
                 b_present += 1
 
         W0SexpT = self.cov_mat_post @ self.bench_sensi_mat.T
@@ -1818,7 +2169,18 @@ class Assimilation:
         for b in range(len(self.bench_list)):
             bench = self.bench_cases[b]
             if self.bench_list["REMOVED"][b] == False:
-                bench_CE_post.append(round(((bench.resp_calc - bench_biases[idx_present] * bench.resp_calc) - bench.resp_expe) * 1e5))
+                bench_CE_post.append(
+                    round(
+                        (
+                            (
+                                bench.resp_calc
+                                - bench_biases[idx_present] * bench.resp_calc
+                            )
+                            - bench.resp_expe
+                        )
+                        * 1e5
+                    )
+                )
                 idx_present += 1
             else:
                 bench_CE_post.append("Not calculated")
@@ -1847,7 +2209,10 @@ class Assimilation:
         for b in range(len(self.bench_list)):
             bench = self.bench_cases[b]
             if self.bench_list["REMOVED"][b] == False:
-                bench_unc_post.append((bench.resp_calc * sqrt(SexpW1SexpT[idx_present, idx_present])) * 1e5)
+                bench_unc_post.append(
+                    (bench.resp_calc * sqrt(SexpW1SexpT[idx_present, idx_present]))
+                    * 1e5
+                )
                 idx_present += 1
             else:
                 bench_unc_post.append("Not calculated")
@@ -1883,7 +2248,8 @@ class Assimilation:
 
         if self.appl_case != None:
             bench_vari = [
-                (row["UNC_PRIOR (pcm)"] / (1e5 * row["RESP CALC"])) ** 2 + (row["SIGMA RESP EXPE"] / row["RESP CALC"]) ** 2
+                (row["UNC_PRIOR (pcm)"] / (1e5 * row["RESP CALC"])) ** 2
+                + (row["SIGMA RESP EXPE"] / row["RESP CALC"]) ** 2
                 for i, row in self.bench_list.iterrows()
                 if row["REMOVED"] == False
             ]
@@ -1935,7 +2301,9 @@ class Assimilation:
             return self.USL_gllsm
 
         bias = self.bias.value / 1e5
-        K = self._coverage_factor_os_tdist(coverage=coverage, confidence=confidence, N=N)
+        K = self._coverage_factor_os_tdist(
+            coverage=coverage, confidence=confidence, N=N
+        )
         CM = -bias + (K * self.bias_std)
         USL = 1.0 - CM - self.MOS
 
@@ -2025,13 +2393,13 @@ class Assimilation:
         w = 1.0 / sigma**2
         W = np.sum(w)
 
-        # Weighted mean k-bar 
+        # Weighted mean k-bar
         k_bar = np.sum(w * k_tilde) / W
 
         # Bias
         beta = k_bar - 1.0
 
-        # Nonconservative bias adjustment 
+        # Nonconservative bias adjustment
         Delta_m = max(0.0, beta)
 
         # Weighted standard deviation s_k²
@@ -2130,7 +2498,7 @@ class Assimilation:
         else:
             m_NP = None  # Additional data needed
 
-        # Calculational margin = -beta + sigma_beta + Delta_m + m_NP 
+        # Calculational margin = -beta + sigma_beta + Delta_m + m_NP
         if m_NP is not None:
             CM = -beta + sigma_beta + Delta_m + m_NP
         else:
@@ -2159,7 +2527,9 @@ class Assimilation:
                 f"{2*'    '}    -> Nonparametric USL = {USL_nonparametric:.5f}  (Calculational margin = {CM:.5f}, CNP = {CNP:.4f}, m_NP = {m_NP}, N = {N})"
             )
         else:
-            write_and_print(f"{2*'    '}    -> Nonparametric USL = Not calculable (CNP = {CNP:.4f} < 0.4 - Additional data needed)")
+            write_and_print(
+                f"{2*'    '}    -> Nonparametric USL = Not calculable (CNP = {CNP:.4f} < 0.4 - Additional data needed)"
+            )
 
         return self.USL_nonparametric
 
@@ -2271,11 +2641,15 @@ class Assimilation:
         # Note: h(x) uses the unweighted (arithmetic) mean of x per CR-6698/VADER convention
         F_val = f_dist.ppf(confidence, dfn=2, dfd=N - 2)
         z_p = norm.ppf(coverage)
-        chi2_val = chi2_dist.ppf((1.0-confidence)/2, df=N - 2)
+        chi2_val = chi2_dist.ppf((1.0 - confidence) / 2, df=N - 2)
         chi2_val = max(chi2_val, 1e-12)  # avoid division by zero
 
         x_bar_unw = np.mean(x_values)
-        prediction_term = sqrt(2.0 * F_val * (1.0 / N + (x_eval - x_bar_unw) ** 2 / S_xx)) if S_xx > 0 else sqrt(2.0 * F_val / N)
+        prediction_term = (
+            sqrt(2.0 * F_val * (1.0 / N + (x_eval - x_bar_unw) ** 2 / S_xx))
+            if S_xx > 0
+            else sqrt(2.0 * F_val / N)
+        )
         population_term = z_p * sqrt((N - 2) / chi2_val)
 
         sigma_beta_x = S_p * (prediction_term + population_term)
@@ -2350,13 +2724,17 @@ class Assimilation:
         $({ND}_{post} - {ND}_{prior}) / {ND}_{prior}$ inferred by the
         assimilation.
         """
-        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
+        output_path = cph.validate_image_output_path(
+            output_path=output_path, format=format
+        )
 
-        final_iso_reac_list, normalized_input_iso_reac_list = cph.normalize_filter_iso_reac_list(
-            reference_iso_reac_list=self.iso_reac_list,
-            iso_reac_list=iso_reac_list,
-            iso_list=iso_list,
-            require_target=True,
+        final_iso_reac_list, normalized_input_iso_reac_list = (
+            cph.normalize_filter_iso_reac_list(
+                reference_iso_reac_list=self.iso_reac_list,
+                iso_reac_list=iso_reac_list,
+                iso_list=iso_list,
+                require_target=True,
+            )
         )
         traces_colors, dashed_traces = cph.align_trace_styles(
             final_iso_reac_list=final_iso_reac_list,
@@ -2378,10 +2756,19 @@ class Assimilation:
             dashed_traces=dashed_traces,
             title=title if title else "Relative ND adjustment",
             xaxis_title=xaxis_title,
-            yaxis_title=yaxis_title if yaxis_title else "(ND post - ND prior) / ND prior",
+            yaxis_title=(
+                yaxis_title if yaxis_title else "(ND post - ND prior) / ND prior"
+            ),
         )
 
-        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
+        return cph.export_static_plotly_figure(
+            fig=fig,
+            output_path=output_path,
+            format=format,
+            width=width,
+            height=height,
+            show=show,
+        )
 
     @log_exec()
     def plot_delta_mu_integrals(
@@ -2400,9 +2787,15 @@ class Assimilation:
         show=False,
     ):
         """Export static integral plots of the posterior-minus-prior ND adjustment."""
-        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
-        if nb_top_iso_reac is not None and (not isinstance(nb_top_iso_reac, int) or nb_top_iso_reac <= 0):
-            raise errors.UserInputError("nb_top_iso_reac must be a strictly positive integer or None")
+        output_path = cph.validate_image_output_path(
+            output_path=output_path, format=format
+        )
+        if nb_top_iso_reac is not None and (
+            not isinstance(nb_top_iso_reac, int) or nb_top_iso_reac <= 0
+        ):
+            raise errors.UserInputError(
+                "nb_top_iso_reac must be a strictly positive integer or None"
+            )
 
         final_iso_reac_list, _ = cph.normalize_filter_iso_reac_list(
             reference_iso_reac_list=self.iso_reac_list,
@@ -2431,13 +2824,26 @@ class Assimilation:
             group_nb=self.group_nb,
             title=title if title else "Integral relative ND adjustment",
             xaxis_title=xaxis_title,
-            yaxis_title=yaxis_title if yaxis_title else "Integral of (ND post - ND prior) / ND prior",
+            yaxis_title=(
+                yaxis_title
+                if yaxis_title
+                else "Integral of (ND post - ND prior) / ND prior"
+            ),
         )
 
-        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
+        return cph.export_static_plotly_figure(
+            fig=fig,
+            output_path=output_path,
+            format=format,
+            width=width,
+            height=height,
+            show=show,
+        )
 
     @log_exec()
-    def export_to_html(self, output_html_path: str, plotting_unit="pcm", isotopes_to_detail=[]):
+    def export_to_html(
+        self, output_html_path: str, plotting_unit="pcm", isotopes_to_detail=[]
+    ):
         """
         Export the results of the assimilation process to an HTML file.
 
@@ -2458,11 +2864,11 @@ class Assimilation:
             isotopes_to_detail = [isotopes_to_detail]
 
         # --------------------------------
-        logo_path = os.path.join(os.path.dirname(__file__), "html_outputfile", "Logo.PNG")
-        text_intro = ""
-        text_intro += (
-            f'<div style="display:flex; align-items:center; justify-content:center; gap:20px;"><img src="{logo_path}" width="110" height="110"></div>'
+        logo_path = os.path.join(
+            os.path.dirname(__file__), "html_outputfile", "Logo.PNG"
         )
+        text_intro = ""
+        text_intro += f'<div style="display:flex; align-items:center; justify-content:center; gap:20px;"><img src="{logo_path}" width="110" height="110"></div>'
         text_intro += f"<h3><center>{pkg_fullname}</center></h3>"
         text_intro += f"<h2><center><u>Generalized Linear Least-squares method results</u></center></h2>"
         if self.appl_case != None:
@@ -2483,7 +2889,10 @@ class Assimilation:
             "Nb of benchmark cases removed",
             "Energy groups number",
         ]
-        headers_b = ["<b>" + h.replace("Chi2", "Χ²").replace("sigma", "σ") + ":</b>" for h in headers]
+        headers_b = [
+            "<b>" + h.replace("Chi2", "Χ²").replace("sigma", "σ") + ":</b>"
+            for h in headers
+        ]
 
         headers_b[3] = (
             f"<b>{plots.create_html_tip('Standard deviation of the bias population across all assimilated benchmarks. Reflects the dispersion of individual benchmark biases around the mean GLLSM bias estimate.')}"
@@ -2497,7 +2906,11 @@ class Assimilation:
                 f"{int(round(self.post_uncertainty.value))} pcm",
                 f"{int(round(self.bias_std*self.appl_case.resp_calc*1e5))} pcm",
                 f"{int(round(self.bias.value))} pcm ",
-                f"{int(round(self.USL_gllsm['calculational_margin']*1e5))} pcm" if self.USL_gllsm['calculational_margin'] is not None else "N/A (N<2)",
+                (
+                    f"{int(round(self.USL_gllsm['calculational_margin']*1e5))} pcm"
+                    if self.USL_gllsm["calculational_margin"] is not None
+                    else "N/A (N<2)"
+                ),
                 round(self.prior_chi2, 5),
                 round(self.post_chi2, 5),
                 list(self.bench_list["REMOVED"]).count(True),
@@ -2518,9 +2931,18 @@ class Assimilation:
             ]
 
         table_res = plots.create_html_table(headers=[], lines=[headers_b, results])
-        write_and_print("\n" + tabulate(np.array([["Casename", *headers], [self.appl_case.casename, *results]]).T))
+        write_and_print(
+            "\n"
+            + tabulate(
+                np.array(
+                    [["Casename", *headers], [self.appl_case.casename, *results]]
+                ).T
+            )
+        )
 
-        resp_threshold_2 = self.appl_case.resp_calc + (self.bias.value / 1e5) + (2 * self.bias_std)
+        resp_threshold_2 = (
+            self.appl_case.resp_calc + (self.bias.value / 1e5) + (2 * self.bias_std)
+        )
         validation_str = '<hr width="60%" /><div style="display: block; font-size:14px; padding-left: 80px; padding-right: 80px;">'
         usl_gllsm_CM = self.USL_gllsm["calculational_margin"]
         usl_gllsm_K = self.USL_gllsm["K"]
@@ -2528,14 +2950,14 @@ class Assimilation:
         usl_gllsm_q = self.USL_gllsm["confidence"]
         if self.post_chi2 < 1.2:
 
-            validation_str += (
-                f"The adjustment shows an <u>acceptable consistency</u> among the benchmark biases (Χ² a priori : {self.prior_chi2:.2f} < 1.2).<br>"
-            )
+            validation_str += f"The adjustment shows an <u>acceptable consistency</u> among the benchmark biases (Χ² a priori : {self.prior_chi2:.2f} < 1.2).<br>"
             if usl_gllsm_CM is not None and usl_gllsm_K is not None:
                 validation_str += f"With a coverage parameter K<sub>{usl_gllsm_p*1E2:.0f}/{usl_gllsm_q*1E2:.0f}</sub> of {usl_gllsm_K:.2f} ({usl_gllsm_q*1E2:.0f}% quantile of noncentral t-distribution), there is <u>{usl_gllsm_p*1E2:.0f}% confidence that at least {usl_gllsm_q*1E2:.0f}% of the population of the application responses satisfy:</u><br>\n<b>RESPONSE < Resp<sup>calc</sup> + CM = {self.appl_case.resp_calc + usl_gllsm_CM:.5f} </b><br>\n\
                 For a conservative coverage parameter K of 2: RESPONSE < {resp_threshold_2:.5f}\n"
             else:
-                validation_str += "GLLSM USL not calculable (insufficient benchmarks N < 2).<br>\n"
+                validation_str += (
+                    "GLLSM USL not calculable (insufficient benchmarks N < 2).<br>\n"
+                )
         else:
             validation_str += f"The adjustment shows a poor consistency among the benchmark biases (Χ² a priori : {self.prior_chi2:.2f} > 1.2).<br>Consider checking your covariance data, or increasing your targetted chi2 threshold to remove more inconsistent benchmarks from the assimilation process.\n"
         validation_str += "</div><hr width='60%' />"
@@ -2555,7 +2977,6 @@ class Assimilation:
         npr = self.USL_nonparametric
         tr = self.USL_trending
 
-
         # --- Summary comparison table ---
         p_pct = f"{usl_gllsm_p*1E2:.0f}"
         q_pct = f"{usl_gllsm_q*1E2:.0f}"
@@ -2564,8 +2985,16 @@ class Assimilation:
             f"{tip('Assumes C/E values follow a normal distribution. Uses a weighted mean bias and a tolerance factor κ from the noncentral t-distribution.')}Parametric",
         ]
         summary_values = [
-            f"{gllsm['calculational_margin']*1E5:.0f} pcm" if gllsm['calculational_margin'] is not None else "<span style='color:red'>N/A (N&lt;2)</span>",
-            f"{pr['calculational_margin']*1E5:.0f} pcm" if pr['calculational_margin'] is not None else "<span style='color:red'>N/A (N&lt;2)</span>",
+            (
+                f"{gllsm['calculational_margin']*1E5:.0f} pcm"
+                if gllsm["calculational_margin"] is not None
+                else "<span style='color:red'>N/A (N&lt;2)</span>"
+            ),
+            (
+                f"{pr['calculational_margin']*1E5:.0f} pcm"
+                if pr["calculational_margin"] is not None
+                else "<span style='color:red'>N/A (N&lt;2)</span>"
+            ),
         ]
         if npr["USL"] is not None:
             summary_labels.append(
@@ -2573,16 +3002,24 @@ class Assimilation:
             )
             summary_values.append(f"{npr['calculational_margin']*1E5:.0f} pcm")
         else:
-            summary_labels.append(f"{tip('Distribution-free method. Cannot compute: insufficient benchmarks (CNP ≤ 0.4).')}Nonparametric")
-            summary_values.append("<span style='color:red'>Additional data needed</span>")
+            summary_labels.append(
+                f"{tip('Distribution-free method. Cannot compute: insufficient benchmarks (CNP ≤ 0.4).')}Nonparametric"
+            )
+            summary_values.append(
+                "<span style='color:red'>Additional data needed</span>"
+            )
         if tr["USL"] is not None:
             summary_labels.append(
                 f"{tip('Linear regression of C/E vs Ck. Tests for a statistically significant trend and applies a single-sided lower tolerance band at the evaluation point.')}Trending"
             )
             summary_values.append(f"{tr['calculational_margin']*1E5:.0f} pcm")
         else:
-            summary_labels.append(f"{tip('Linear trending method. Cannot compute: insufficient benchmarks (N < 3).')}Trending")
-            summary_values.append("<span style='color:red'>Additional data needed</span>")
+            summary_labels.append(
+                f"{tip('Linear trending method. Cannot compute: insufficient benchmarks (N < 3).')}Trending"
+            )
+            summary_values.append(
+                "<span style='color:red'>Additional data needed</span>"
+            )
 
         validation_str += "<h4>Summary comparison</h4>"
         validation_str += plots.create_html_table(
@@ -2602,7 +3039,11 @@ class Assimilation:
         fig_param = go.Figure()
         fig_param.add_trace(
             go.Scatter(
-                x=biases_all, y=[0] * len(biases_all), mode="markers", marker=dict(size=6, color="#4C78A8", opacity=0.7), name="Benchmark biases"
+                x=biases_all,
+                y=[0] * len(biases_all),
+                mode="markers",
+                marker=dict(size=6, color="#4C78A8", opacity=0.7),
+                name="Benchmark biases",
             )
         )
         if pr["beta"] is not None:
@@ -2638,16 +3079,30 @@ class Assimilation:
             margin=dict(l=5, r=5, t=20, b=25),
             showlegend=False,
             template="plotly_white",
-            xaxis=dict(title=dict(text="Bias (k̃-1)", font=dict(size=9)), tickfont=dict(size=8), zeroline=True, zerolinecolor="grey", zerolinewidth=1),
+            xaxis=dict(
+                title=dict(text="Bias (k̃-1)", font=dict(size=9)),
+                tickfont=dict(size=8),
+                zeroline=True,
+                zerolinecolor="grey",
+                zerolinewidth=1,
+            ),
             yaxis=dict(visible=False, range=[-0.5, 0.5]),
         )
-        html_fig_param = fig_param.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include, config={"displayModeBar": False})
+        html_fig_param = fig_param.to_html(
+            full_html=False,
+            include_plotlyjs=plotlyjs_fig_include,
+            config={"displayModeBar": False},
+        )
 
         # --- Figure 2: Nonparametric (1D strip, compact) ---
         fig_nparam = go.Figure()
         fig_nparam.add_trace(
             go.Scatter(
-                x=biases_all, y=[0] * len(biases_all), mode="markers", marker=dict(size=6, color="#4C78A8", opacity=0.7), name="Benchmark biases"
+                x=biases_all,
+                y=[0] * len(biases_all),
+                mode="markers",
+                marker=dict(size=6, color="#4C78A8", opacity=0.7),
+                name="Benchmark biases",
             )
         )
         fig_nparam.add_vline(
@@ -2681,10 +3136,20 @@ class Assimilation:
             margin=dict(l=5, r=5, t=20, b=25),
             showlegend=False,
             template="plotly_white",
-            xaxis=dict(title=dict(text="Bias (k̃-1)", font=dict(size=9)), tickfont=dict(size=8), zeroline=True, zerolinecolor="grey", zerolinewidth=1),
+            xaxis=dict(
+                title=dict(text="Bias (k̃-1)", font=dict(size=9)),
+                tickfont=dict(size=8),
+                zeroline=True,
+                zerolinecolor="grey",
+                zerolinewidth=1,
+            ),
             yaxis=dict(visible=False, range=[-0.5, 0.5]),
         )
-        html_fig_nparam = fig_nparam.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include, config={"displayModeBar": False})
+        html_fig_nparam = fig_nparam.to_html(
+            full_html=False,
+            include_plotlyjs=plotlyjs_fig_include,
+            config={"displayModeBar": False},
+        )
 
         # ========== Build HTML: 3-column flex layout, each column = table then graph ==========
         vm_table_attrs = "border='1' cellpadding='3' cellspacing='0' style='border-collapse:collapse; font-size:11px; width:100%;'"
@@ -2702,13 +3167,25 @@ class Assimilation:
         ]
         param_values = [
             f"{pr['N']}",
-            f"{pr['k_bar']:.6f}" if pr['k_bar'] is not None else "N/A",
-            f"{pr['beta']:.6f}" if pr['beta'] is not None else "N/A",
-            f"{pr['Delta_m']:.6f}" if pr['Delta_m'] is not None else "N/A",
-            f"{pr['sigma_beta']:.6f}" if pr['sigma_beta'] is not None else "N/A (N&lt;2)",
-            f"{pr['kappa']:.4f}" if pr['kappa'] is not None else "N/A (N&lt;2)",
-            f"<b>{pr['calculational_margin']:.5f}</b>" if pr['calculational_margin'] is not None else "<b>N/A (N&lt;2)</b>",
-            f"<b>{pr['USL']:.5f}</b>" if pr['USL'] is not None else "<b>N/A (N&lt;2)</b>",
+            f"{pr['k_bar']:.6f}" if pr["k_bar"] is not None else "N/A",
+            f"{pr['beta']:.6f}" if pr["beta"] is not None else "N/A",
+            f"{pr['Delta_m']:.6f}" if pr["Delta_m"] is not None else "N/A",
+            (
+                f"{pr['sigma_beta']:.6f}"
+                if pr["sigma_beta"] is not None
+                else "N/A (N&lt;2)"
+            ),
+            f"{pr['kappa']:.4f}" if pr["kappa"] is not None else "N/A (N&lt;2)",
+            (
+                f"<b>{pr['calculational_margin']:.5f}</b>"
+                if pr["calculational_margin"] is not None
+                else "<b>N/A (N&lt;2)</b>"
+            ),
+            (
+                f"<b>{pr['USL']:.5f}</b>"
+                if pr["USL"] is not None
+                else "<b>N/A (N&lt;2)</b>"
+            ),
         ]
         if pr["normality_passed"] is not None:
             sw_color = "green" if pr["normality_passed"] else "red"
@@ -2716,7 +3193,9 @@ class Assimilation:
             param_labels.append(
                 f"{tip('The parametric method assumes the k̃ values are normally distributed. The Shapiro-Wilk test checks this hypothesis. FAILED (p < 0.05) means the normality assumption may not hold and results should be used with caution.')}Shapiro-Wilk"
             )
-            param_values.append(f"<span style='color:{sw_color}'>{sw_text} (p={pr['shapiro_pvalue']:.4f})</span>")
+            param_values.append(
+                f"<span style='color:{sw_color}'>{sw_text} (p={pr['shapiro_pvalue']:.4f})</span>"
+            )
 
         # --- Column 2: Nonparametric data ---
         nparam_labels = [
@@ -2745,12 +3224,20 @@ class Assimilation:
                     f"{tip('Upper Subcritical Limit = 1 − MOS − CM.')}<b>USL = 1 - {self.MOS} - CM</b>",
                 ]
             )
-            nparam_values.extend([f"{npr['m_NP']:.3f}", f"<b>{npr['calculational_margin']:.5f}</b>", f"<b>{npr['USL']:.5f}</b>"])
+            nparam_values.extend(
+                [
+                    f"{npr['m_NP']:.3f}",
+                    f"<b>{npr['calculational_margin']:.5f}</b>",
+                    f"<b>{npr['USL']:.5f}</b>",
+                ]
+            )
         else:
             nparam_labels.append(
                 f"<span style='color:red'>{tip('When C_NP ≤ 0.4, there are too few benchmarks for the nonparametric method to provide meaningful confidence bounds. Add more benchmarks.')}C<sub>NP</sub> ≤ 0.4</span>"
             )
-            nparam_values.append("<span style='color:red'>Additional data needed</span>")
+            nparam_values.append(
+                "<span style='color:red'>Additional data needed</span>"
+            )
         # --- Column 3: Trending data ---
         trend_labels = [
             f"{tip('Number of non-removed benchmark cases used in the analysis.')}N benchmarks",
@@ -2759,47 +3246,70 @@ class Assimilation:
             f"{tr['N']}",
         ]
         if tr["USL"] is not None:
-            trend_labels.extend([
-                f"{tip('Evaluation point: the Ck value at which bias and uncertainty are evaluated. Defaults to the maximum Ck (most similar benchmark).')}Evaluation C<sub>k</sub>",
-                f"{tip('Intercept of the linear regression fit: k̃ = β₀ + β₁·Ck.')}Intercept β<sub>0</sub>",
-                f"{tip('Slope of the linear regression fit. Indicates the rate of change of k̃ with Ck.')}Slope β<sub>1</sub>",
-                f"{tip('Bias at the evaluation point: β(x) = k_fit(x) − 1.')}Bias β(x<sub>eval</sub>)",
-                f"{tip('Non-conservative bias adjustment: Δm = max(0, β). Adds a penalty when the bias at the evaluation point is positive.')}Noncons. bias adj. Δ<sub>m</sub>",
-                f"{tip('Pooled standard deviation combining the regression fit scatter (σ_fit) and the average individual uncertainty (σ̄): S_p = √(σ_fit² + σ̄²).')}Pooled std S<sub>p</sub>",
-                f"{tip('Bias uncertainty from the single-sided lower tolerance band evaluated at x_eval. Accounts for regression uncertainty and population coverage.')}Bias unc. σ<sub>β</sub>(x<sub>eval</sub>)",
-                f"{tip('Total calculational margin: CM = −β(x) + σ_β(x) + Δm.')}<b>Calc. Margin</b>",
-                f"{tip('Upper Subcritical Limit = 1 − MOS − CM.')}<b>USL = 1 - {self.MOS} - CM</b>",
-            ])
-            trend_values.extend([
-                f"{tr['x_eval']:.4f}",
-                f"{tr['beta_0']:.6f}",
-                f"{tr['beta_1']:.6f}",
-                f"{tr['beta_x']:.6f}",
-                f"{tr['Delta_m']:.6f}",
-                f"{tr['S_p']:.6f}",
-                f"{tr['sigma_beta_x']:.6f}",
-                f"<b>{tr['calculational_margin']:.5f}</b>",
-                f"<b>{tr['USL']:.5f}</b>",
-            ])
+            trend_labels.extend(
+                [
+                    f"{tip('Evaluation point: the Ck value at which bias and uncertainty are evaluated. Defaults to the maximum Ck (most similar benchmark).')}Evaluation C<sub>k</sub>",
+                    f"{tip('Intercept of the linear regression fit: k̃ = β₀ + β₁·Ck.')}Intercept β<sub>0</sub>",
+                    f"{tip('Slope of the linear regression fit. Indicates the rate of change of k̃ with Ck.')}Slope β<sub>1</sub>",
+                    f"{tip('Bias at the evaluation point: β(x) = k_fit(x) − 1.')}Bias β(x<sub>eval</sub>)",
+                    f"{tip('Non-conservative bias adjustment: Δm = max(0, β). Adds a penalty when the bias at the evaluation point is positive.')}Noncons. bias adj. Δ<sub>m</sub>",
+                    f"{tip('Pooled standard deviation combining the regression fit scatter (σ_fit) and the average individual uncertainty (σ̄): S_p = √(σ_fit² + σ̄²).')}Pooled std S<sub>p</sub>",
+                    f"{tip('Bias uncertainty from the single-sided lower tolerance band evaluated at x_eval. Accounts for regression uncertainty and population coverage.')}Bias unc. σ<sub>β</sub>(x<sub>eval</sub>)",
+                    f"{tip('Total calculational margin: CM = −β(x) + σ_β(x) + Δm.')}<b>Calc. Margin</b>",
+                    f"{tip('Upper Subcritical Limit = 1 − MOS − CM.')}<b>USL = 1 - {self.MOS} - CM</b>",
+                ]
+            )
+            trend_values.extend(
+                [
+                    f"{tr['x_eval']:.4f}",
+                    f"{tr['beta_0']:.6f}",
+                    f"{tr['beta_1']:.6f}",
+                    f"{tr['beta_x']:.6f}",
+                    f"{tr['Delta_m']:.6f}",
+                    f"{tr['S_p']:.6f}",
+                    f"{tr['sigma_beta_x']:.6f}",
+                    f"<b>{tr['calculational_margin']:.5f}</b>",
+                    f"<b>{tr['USL']:.5f}</b>",
+                ]
+            )
             # t-test for trend significance
             t_color = "green" if tr["trend_significant"] else "orange"
             t_text = "SIGNIFICANT" if tr["trend_significant"] else "NOT SIGNIFICANT"
             trend_labels.append(
                 f"{tip('Student t-test for trend significance. Tests if the linear slope β₁ is statistically different from zero. NOT SIGNIFICANT means no detectable linear trend in the data vs Ck.')}Trend t-test"
             )
-            trend_values.append(f"<span style='color:{t_color}'>{t_text} (t={tr['t_fit']:.3f}, t<sub>crit</sub>={tr['t_critical']:.3f})</span>")
+            trend_values.append(
+                f"<span style='color:{t_color}'>{t_text} (t={tr['t_fit']:.3f}, t<sub>crit</sub>={tr['t_critical']:.3f})</span>"
+            )
         else:
-            trend_labels.append(f"<span style='color:red'>{tip('Linear regression requires at least 3 data points.')}N < 3</span>")
+            trend_labels.append(
+                f"<span style='color:red'>{tip('Linear regression requires at least 3 data points.')}N < 3</span>"
+            )
             trend_values.append("<span style='color:red'>Additional data needed</span>")
 
         # Trending figure: large scatter of k̃ vs Ck + regression line + tolerance band + USL
-        ck_fig = np.array([self.bench_list["Ck"][b] for b in range(len(self.bench_list)) if not self.bench_list["REMOVED"][b]])
+        ck_fig = np.array(
+            [
+                self.bench_list["Ck"][b]
+                for b in range(len(self.bench_list))
+                if not self.bench_list["REMOVED"][b]
+            ]
+        )
         fig_trend = go.Figure()
         # Data points with error bars (±σ)
         fig_trend.add_trace(
             go.Scatter(
-                x=ck_fig, y=k_tilde_fig, mode="markers",
-                error_y=dict(type="data", array=sigma_fig, visible=True, thickness=1, width=3, color="rgba(76,120,168,0.5)"),
+                x=ck_fig,
+                y=k_tilde_fig,
+                mode="markers",
+                error_y=dict(
+                    type="data",
+                    array=sigma_fig,
+                    visible=True,
+                    thickness=1,
+                    width=3,
+                    color="rgba(76,120,168,0.5)",
+                ),
                 marker=dict(size=5, color="#4C78A8"),
                 name="k̃ values",
             )
@@ -2809,7 +3319,13 @@ class Assimilation:
             x_line = np.linspace(np.min(ck_fig), np.max(ck_fig), 100)
             y_kfit = tr["beta_0"] + tr["beta_1"] * x_line
             fig_trend.add_trace(
-                go.Scatter(x=x_line, y=y_kfit, mode="lines", line=dict(color="#4C78A8", width=2), name="k(x)")
+                go.Scatter(
+                    x=x_line,
+                    y=y_kfit,
+                    mode="lines",
+                    line=dict(color="#4C78A8", width=2),
+                    name="k(x)",
+                )
             )
 
             # Position-dependent tolerance band: k(x) - w(x)
@@ -2820,27 +3336,56 @@ class Assimilation:
             chi2_val = max(chi2_val, 1e-12)
             population_term = z_p * sqrt((tr["N"] - 2) / chi2_val)
 
-            w_x = np.array([
-                tr["S_p"] * sqrt(2.0 * F_val * (1.0 / tr["N"] + (xi - tr["x_bar"])**2 / tr["S_xx"]) + population_term)
-                if tr["S_xx"] > 0 else tr["sigma_beta_x"]
-                for xi in x_line
-            ])
+            w_x = np.array(
+                [
+                    (
+                        tr["S_p"]
+                        * sqrt(
+                            2.0
+                            * F_val
+                            * (1.0 / tr["N"] + (xi - tr["x_bar"]) ** 2 / tr["S_xx"])
+                            + population_term
+                        )
+                        if tr["S_xx"] > 0
+                        else tr["sigma_beta_x"]
+                    )
+                    for xi in x_line
+                ]
+            )
             y_lower_band = y_kfit - w_x
             fig_trend.add_trace(
-                go.Scatter(x=x_line, y=y_lower_band, mode="lines", line=dict(color="#F58518", width=2), name="k(x) − w(x)")
+                go.Scatter(
+                    x=x_line,
+                    y=y_lower_band,
+                    mode="lines",
+                    line=dict(color="#F58518", width=2),
+                    name="k(x) − w(x)",
+                )
             )
 
             # Constant W = max(w) over the data range (USL1 approach)
             W_const = np.max(w_x)
             y_usl1 = y_kfit - W_const
             fig_trend.add_trace(
-                go.Scatter(x=x_line, y=y_usl1, mode="lines", line=dict(color="#E45756", width=2, dash="dash"), name="k(x) − W")
+                go.Scatter(
+                    x=x_line,
+                    y=y_usl1,
+                    mode="lines",
+                    line=dict(color="#E45756", width=2, dash="dash"),
+                    name="k(x) − W",
+                )
             )
 
             # USL = k(x) - W - admin_margin (final USL line)
             y_usl_final = y_kfit - W_const - self.MOS
             fig_trend.add_trace(
-                go.Scatter(x=x_line, y=y_usl_final, mode="lines", line=dict(color="#54A24B", width=2.5), name=f"USL (MOS={self.MOS})")
+                go.Scatter(
+                    x=x_line,
+                    y=y_usl_final,
+                    mode="lines",
+                    line=dict(color="#54A24B", width=2.5),
+                    name=f"USL (MOS={self.MOS})",
+                )
             )
 
             # Horizontal reference line at k̃ = 1
@@ -2851,39 +3396,72 @@ class Assimilation:
             height=350,
             margin=dict(l=50, r=20, t=30, b=45),
             showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0, font=dict(size=10)),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.01,
+                xanchor="left",
+                x=0,
+                font=dict(size=10),
+            ),
             template="plotly_white",
-            xaxis=dict(title=dict(text="Trending Parameter, C<sub>k</sub>", font=dict(size=11)), tickfont=dict(size=10)),
-            yaxis=dict(title=dict(text="k̃ = C/E", font=dict(size=11)), tickfont=dict(size=10)),
+            xaxis=dict(
+                title=dict(
+                    text="Trending Parameter, C<sub>k</sub>", font=dict(size=11)
+                ),
+                tickfont=dict(size=10),
+            ),
+            yaxis=dict(
+                title=dict(text="k̃ = C/E", font=dict(size=11)), tickfont=dict(size=10)
+            ),
         )
-        html_fig_trend = fig_trend.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include, config={"displayModeBar": False})
+        html_fig_trend = fig_trend.to_html(
+            full_html=False,
+            include_plotlyjs=plotlyjs_fig_include,
+            config={"displayModeBar": False},
+        )
 
         # Outer flex row
         validation_str += "<div style='display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;'>"
 
         validation_str += "<div style='flex:1; min-width:280px; display:flex; flex-direction:column; align-items:flex-start; padding:0 8px;'>"
         validation_str += "<h4 style='font-size:13px;'>1. Parametric Method</h4>"
-        validation_str += plots.create_html_table(lines=[param_labels, param_values], table_attrs=vm_table_attrs, centered=False)
+        validation_str += plots.create_html_table(
+            lines=[param_labels, param_values],
+            table_attrs=vm_table_attrs,
+            centered=False,
+        )
         validation_str += "<div style='margin-top:6px;'>" + html_fig_param + "</div>"
         validation_str += "</div>"
 
         validation_str += "<div style='flex:1; min-width:280px; display:flex; flex-direction:column; align-items:flex-start; padding:0 8px;'>"
         validation_str += "<h4 style='font-size:13px;'>2. Nonparametric Rank-Order</h4>"
-        validation_str += plots.create_html_table(lines=[nparam_labels, nparam_values], table_attrs=vm_table_attrs, centered=False)
+        validation_str += plots.create_html_table(
+            lines=[nparam_labels, nparam_values],
+            table_attrs=vm_table_attrs,
+            centered=False,
+        )
         validation_str += "<div style='margin-top:6px;'>" + html_fig_nparam + "</div>"
         validation_str += "</div>"
-
 
         # Close outer flex row (parametric + nonparametric)
         validation_str += "</div>"
 
         # --- Trending section: full-width below, table + large figure side by side ---
-        validation_str += "<h4 style='font-size:13px; margin-top:18px;'>3. Linear Trending</h4>"
+        validation_str += (
+            "<h4 style='font-size:13px; margin-top:18px;'>3. Linear Trending</h4>"
+        )
         validation_str += "<div style='display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start;'>"
         validation_str += "<div style='min-width:240px; max-width:300px;'>"
-        validation_str += plots.create_html_table(lines=[trend_labels, trend_values], table_attrs=vm_table_attrs, centered=False)
+        validation_str += plots.create_html_table(
+            lines=[trend_labels, trend_values],
+            table_attrs=vm_table_attrs,
+            centered=False,
+        )
         validation_str += "</div>"
-        validation_str += "<div style='flex:1; min-width:400px;'>" + html_fig_trend + "</div>"
+        validation_str += (
+            "<div style='flex:1; min-width:400px;'>" + html_fig_trend + "</div>"
+        )
         validation_str += "</div>"
 
         validation_str += "</div><hr width='60%' />"
@@ -2899,7 +3477,8 @@ class Assimilation:
                         "PRIOR/POST": "PRIOR",
                         "3SIGMA EXPE+ND (pcm)": 3
                         * np.sqrt(
-                            (bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5) ** 2
+                            (bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5)
+                            ** 2
                             + bench_list_included["UNC_PRIOR (pcm)"].astype(float) ** 2
                         ),
                     }
@@ -2911,7 +3490,8 @@ class Assimilation:
                         "PRIOR/POST": "POST",
                         "3SIGMA EXPE+ND (pcm)": 3
                         * np.sqrt(
-                            (bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5) ** 2
+                            (bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5)
+                            ** 2
                             + bench_list_included["UNC_POST (pcm)"].astype(float) ** 2
                         ),
                     }
@@ -2932,7 +3512,10 @@ class Assimilation:
         )
         trace_bias.update_yaxes(title_text="C - E (pcm) (3 sigma=sqrt(expe²+ND²))")
         trace_bias.update_traces(marker_size=8, error_y_thickness=0.5)
-        trace_bias.update_xaxes(tickvals=bench_list_custom["PATH"], ticktext=[os.path.basename(path) for path in bench_list_custom["PATH"]])
+        trace_bias.update_xaxes(
+            tickvals=bench_list_custom["PATH"],
+            ticktext=[os.path.basename(path) for path in bench_list_custom["PATH"]],
+        )
         plots.apply_interactive_report_layout(trace_bias, height=800)
 
         # --------------------------------
@@ -2958,7 +3541,9 @@ class Assimilation:
                 xaxis=dict(tickangle=45),
                 yaxis=dict(autorange="reversed"),
             )
-            plots.apply_interactive_report_layout(trace_expe_corr, width=600, height=600)
+            plots.apply_interactive_report_layout(
+                trace_expe_corr, width=600, height=600
+            )
 
         # --------------------------------
         headers = [
@@ -2975,23 +3560,46 @@ class Assimilation:
         ]
         lines = [
             self.bench_list["PATH"],
-            [f"{round(x.resp_expe, 5)} +/- {round(x.sigma_resp_expe, 5)}" for x in self.bench_cases],
-            [f"{round(x.resp_calc, 5)} +/- {round(x.sigma_resp_calc, 5)}" for x in self.bench_cases],
             [
-                f"{round(x_case.resp_expe - CE_post/1E5, 5)} +/- {round(x_case.sigma_resp_calc, 5)}" if type(CE_post) is not str else None
-                for x_case, CE_post in zip(self.bench_cases, self.bench_list["C_POST - E (pcm)"])
+                f"{round(x.resp_expe, 5)} +/- {round(x.sigma_resp_expe, 5)}"
+                for x in self.bench_cases
+            ],
+            [
+                f"{round(x.resp_calc, 5)} +/- {round(x.sigma_resp_calc, 5)}"
+                for x in self.bench_cases
+            ],
+            [
+                (
+                    f"{round(x_case.resp_expe - CE_post/1E5, 5)} +/- {round(x_case.sigma_resp_calc, 5)}"
+                    if type(CE_post) is not str
+                    else None
+                )
+                for x_case, CE_post in zip(
+                    self.bench_cases, self.bench_list["C_POST - E (pcm)"]
+                )
             ],
             [int(round(x)) for x in self.bench_list["UNC_PRIOR (pcm)"]],
-            [int(round(x)) if type(x) is not str else None for x in self.bench_list["UNC_POST (pcm)"]],
+            [
+                int(round(x)) if type(x) is not str else None
+                for x in self.bench_list["UNC_POST (pcm)"]
+            ],
             [int(round(x)) for x in self.bench_list["C_PRIOR - E (pcm)"]],
-            [int(round(x)) if type(x) is not str else None for x in self.bench_list["C_POST - E (pcm)"]],
-            [round(chi2, 5) if chi2 != None else None for chi2 in self.bench_list["INDIVIDUAL CHI2"]],
+            [
+                int(round(x)) if type(x) is not str else None
+                for x in self.bench_list["C_POST - E (pcm)"]
+            ],
+            [
+                round(chi2, 5) if chi2 != None else None
+                for chi2 in self.bench_list["INDIVIDUAL CHI2"]
+            ],
             [round(ck, 4) if ck != None else None for ck in self.bench_list["Ck"]],
         ]
         table_bench_fig = plots.create_html_table(
             headers=[h.replace("Chi2", "Χ²") for h in headers],
             lines=lines,
-            color_per_lines=["red" if rem else "white" for rem in self.bench_list["REMOVED"]],
+            color_per_lines=[
+                "red" if rem else "white" for rem in self.bench_list["REMOVED"]
+            ],
         )
 
         lines[0] = [os.path.basename(p) for p in self.bench_list["PATH"]]
@@ -2999,14 +3607,20 @@ class Assimilation:
 
         # --------------------------------
         if self.appl_case != None:
-            val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.appl_case.resp_calc)
+            val_factor, unit_str = cph.resolve_plotting_unit(
+                plotting_unit=plotting_unit, resp_calc=self.appl_case.resp_calc
+            )
             case_vec_per_unit_lethargy = cph.build_lethargy_vector(
                 reference_iso_reac_list=self.iso_reac_list,
                 group_nb=self.group_nb,
                 getter=self.appl_case.get_normalized_lethargy_sensitivity,
                 fallback_to_zeros=True,
             )
-            trace_case_sensi_integrals, trace_case_sensi_profiles, trace_case_sensi_profiles_lethargy = cph.build_interactive_sensitivity_figures(
+            (
+                trace_case_sensi_integrals,
+                trace_case_sensi_profiles,
+                trace_case_sensi_profiles_lethargy,
+            ) = cph.build_interactive_sensitivity_figures(
                 vector=self.case_vec,
                 lethargy_vector=case_vec_per_unit_lethargy,
                 iso_reac_list=self.iso_reac_list,
@@ -3018,59 +3632,71 @@ class Assimilation:
             )
 
             # --------------------------------
-            dec_prior_trace_integ, dec_prior_trace = cph.build_interactive_integral_profile_figures(
-                vector=self.prior_uncertainty.decomp_vec,
-                iso_reac_list=self.iso_reac_list,
-                group_nb=self.group_nb,
-                e_bins=self.e_bins,
-                factor=val_factor**2,
-                integral_title="Integral contribution to relative a priori uncertainy² (covariances included)",
-                profile_title="Contribution to relative a priori uncertainy² (covariances included)",
-                integral_yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
-                profile_yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
+            dec_prior_trace_integ, dec_prior_trace = (
+                cph.build_interactive_integral_profile_figures(
+                    vector=self.prior_uncertainty.decomp_vec,
+                    iso_reac_list=self.iso_reac_list,
+                    group_nb=self.group_nb,
+                    e_bins=self.e_bins,
+                    factor=val_factor**2,
+                    integral_title="Integral contribution to relative a priori uncertainy² (covariances included)",
+                    profile_title="Contribution to relative a priori uncertainy² (covariances included)",
+                    integral_yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
+                    profile_yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
+                )
             )
 
             # --------------------------------
-            dec_post_trace_integ, dec_post_trace = cph.build_interactive_integral_profile_figures(
-                vector=self.post_uncertainty.decomp_vec,
-                iso_reac_list=self.iso_reac_list,
-                group_nb=self.group_nb,
-                e_bins=self.e_bins,
-                factor=val_factor**2,
-                integral_title="Integral contribution to relative a posteriori uncertainy² (covariances included)",
-                profile_title="Contribution to relative a posteriori uncertainy² (covariances included)",
-                integral_yaxis_title=f"Unc² ({unit_str}²)",
-                profile_yaxis_title=f"Unc² ({unit_str}²)",
+            dec_post_trace_integ, dec_post_trace = (
+                cph.build_interactive_integral_profile_figures(
+                    vector=self.post_uncertainty.decomp_vec,
+                    iso_reac_list=self.iso_reac_list,
+                    group_nb=self.group_nb,
+                    e_bins=self.e_bins,
+                    factor=val_factor**2,
+                    integral_title="Integral contribution to relative a posteriori uncertainy² (covariances included)",
+                    profile_title="Contribution to relative a posteriori uncertainy² (covariances included)",
+                    integral_yaxis_title=f"Unc² ({unit_str}²)",
+                    profile_yaxis_title=f"Unc² ({unit_str}²)",
+                )
             )
 
             # --------------------------------
-            dec_bias_trace_integ, dec_bias_trace = cph.build_interactive_integral_profile_figures(
-                vector=self.bias.decomp_vec,
-                iso_reac_list=self.iso_reac_list,
-                group_nb=self.group_nb,
-                e_bins=self.e_bins,
-                factor=val_factor,
-                integral_title="Integral contribution to relative bias",
-                profile_title="Contribution to relative bias",
-                integral_yaxis_title=f"Bias ({unit_str})",
-                profile_yaxis_title=f"Bias ({unit_str})",
+            dec_bias_trace_integ, dec_bias_trace = (
+                cph.build_interactive_integral_profile_figures(
+                    vector=self.bias.decomp_vec,
+                    iso_reac_list=self.iso_reac_list,
+                    group_nb=self.group_nb,
+                    e_bins=self.e_bins,
+                    factor=val_factor,
+                    integral_title="Integral contribution to relative bias",
+                    profile_title="Contribution to relative bias",
+                    integral_yaxis_title=f"Bias ({unit_str})",
+                    profile_yaxis_title=f"Bias ({unit_str})",
+                )
             )
 
         # --------------------------------
-        trace_cov_prior_integrals, trace_matrix_profiles, trace_matrix_profiles_cov = cph.build_interactive_covariance_figures(
-            cov_mat=self.cov_mat,
-            iso_reac_list=self.iso_reac_list,
-            group_nb=self.group_nb,
-            e_bins=self.e_bins,
-            integral_title="Variances-covariances matrix before assimilation (group-wise integrals - covariances included)",
-            profile_title="Variances-covariances matrix before assimilation (diagonal elements)",
-            covariance_profile_title="Variances-covariances matrix before assimilation (covariances included)",
-            integral_yaxis_title="Unc(%)² (group-wise integral - covariances included)",
-            profile_yaxis_title="Unc(%)²",
-            covariance_profile_yaxis_title="Unc(%)² (covariances included)",
+        trace_cov_prior_integrals, trace_matrix_profiles, trace_matrix_profiles_cov = (
+            cph.build_interactive_covariance_figures(
+                cov_mat=self.cov_mat,
+                iso_reac_list=self.iso_reac_list,
+                group_nb=self.group_nb,
+                e_bins=self.e_bins,
+                integral_title="Variances-covariances matrix before assimilation (group-wise integrals - covariances included)",
+                profile_title="Variances-covariances matrix before assimilation (diagonal elements)",
+                covariance_profile_title="Variances-covariances matrix before assimilation (covariances included)",
+                integral_yaxis_title="Unc(%)² (group-wise integral - covariances included)",
+                profile_yaxis_title="Unc(%)²",
+                covariance_profile_yaxis_title="Unc(%)² (covariances included)",
+            )
         )
 
-        trace_cov_delta_integrals, trace_matrix_delta_profiles, trace_matrix_delta_profiles_cov = cph.build_interactive_covariance_figures(
+        (
+            trace_cov_delta_integrals,
+            trace_matrix_delta_profiles,
+            trace_matrix_delta_profiles_cov,
+        ) = cph.build_interactive_covariance_figures(
             cov_mat=-1 * self.cov_mat_delta,
             iso_reac_list=self.iso_reac_list,
             group_nb=self.group_nb,
@@ -3083,21 +3709,25 @@ class Assimilation:
             covariance_profile_yaxis_title="Unc(%)² (covariances included)",
         )
 
-        delta_mu_integrals, delta_mu_profiles = cph.build_interactive_integral_profile_figures(
-            vector=self.delta_mu,
-            iso_reac_list=self.iso_reac_list,
-            group_nb=self.group_nb,
-            e_bins=self.e_bins,
-            factor=1.0,
-            integral_title="Relative ND adjustment (group-wise integrals)",
-            profile_title="Relative ND adjustment ",
-            integral_yaxis_title="Integral of (ND post - ND prior) / ND prior",
-            profile_yaxis_title="(ND post - ND prior) / ND prior",
+        delta_mu_integrals, delta_mu_profiles = (
+            cph.build_interactive_integral_profile_figures(
+                vector=self.delta_mu,
+                iso_reac_list=self.iso_reac_list,
+                group_nb=self.group_nb,
+                e_bins=self.e_bins,
+                factor=1.0,
+                integral_title="Relative ND adjustment (group-wise integrals)",
+                profile_title="Relative ND adjustment ",
+                integral_yaxis_title="Integral of (ND post - ND prior) / ND prior",
+                profile_yaxis_title="(ND post - ND prior) / ND prior",
+            )
         )
         # --------------------------------
         case_iso_reac = []
         if self.appl_case != None:
-            case_iso_reac = [(iso, reac) for iso, reac in self.appl_case.iso_reac_list if reac != 1]
+            case_iso_reac = [
+                (iso, reac) for iso, reac in self.appl_case.iso_reac_list if reac != 1
+            ]
         benchs_iso_reac = [
             (iso, reac)
             for b in range(len(self.bench_cases))
@@ -3109,15 +3739,28 @@ class Assimilation:
 
         cov_iso_reac = self.cov_data.iso_reac_list
 
-        iso_str = [methods.convert_iso_id_to_string(iso) for iso, reac in common_iso_reac]
-        reac_str = [methods.reac_trad.get(str(reac), f"REAC_{reac}") for iso, reac in common_iso_reac]
-        case_present = [(iso, reac) in case_iso_reac for iso, reac in common_iso_reac]
-        benchs_present = [(iso, reac) in benchs_iso_reac for iso, reac in common_iso_reac]
-        cov_present = [
-            "added*" if (iso, reac) in self.iso_reac_list and (iso, reac) not in cov_iso_reac else (iso, reac) in self.iso_reac_list
+        iso_str = [
+            methods.convert_iso_id_to_string(iso) for iso, reac in common_iso_reac
+        ]
+        reac_str = [
+            methods.reac_trad.get(str(reac), f"REAC_{reac}")
             for iso, reac in common_iso_reac
         ]
-        calc_present = [(iso, reac) in self.iso_reac_list for iso, reac in common_iso_reac]
+        case_present = [(iso, reac) in case_iso_reac for iso, reac in common_iso_reac]
+        benchs_present = [
+            (iso, reac) in benchs_iso_reac for iso, reac in common_iso_reac
+        ]
+        cov_present = [
+            (
+                "added*"
+                if (iso, reac) in self.iso_reac_list and (iso, reac) not in cov_iso_reac
+                else (iso, reac) in self.iso_reac_list
+            )
+            for iso, reac in common_iso_reac
+        ]
+        calc_present = [
+            (iso, reac) in self.iso_reac_list for iso, reac in common_iso_reac
+        ]
 
         iso_reac_df = {
             "Isotope": iso_str,
@@ -3140,31 +3783,53 @@ class Assimilation:
             "white",
             ["green" if p else "red" for p in iso_reac_df["Application_case"]],
             ["green" if p else "red" for p in iso_reac_df["Benchmark_cases"]],
-            ["orange" if p == "added*" else "green" if p == True else "red" for p in iso_reac_df["Covariance_data"]],
+            [
+                "orange" if p == "added*" else "green" if p == True else "red"
+                for p in iso_reac_df["Covariance_data"]
+            ],
             ["green" if p else "red" for p in iso_reac_df["Used_in_calculation"]],
         ]
 
         table_iso_reac = go.Figure(
             data=[
                 go.Table(
-                    header=dict(values=iso_reac_df.columns, fill_color="#809684", align="center"),
-                    cells=dict(values=iso_reac_df.values.T, fill_color=fill_colors, align="center"),
+                    header=dict(
+                        values=iso_reac_df.columns, fill_color="#809684", align="center"
+                    ),
+                    cells=dict(
+                        values=iso_reac_df.values.T,
+                        fill_color=fill_colors,
+                        align="center",
+                    ),
                 )
             ]
         )
-        plots.apply_interactive_report_layout(table_iso_reac, height=None, paper_bgcolor="rgba(255, 255, 255, 0.3)", margin=dict(l=20, r=20, t=20, b=20))
+        plots.apply_interactive_report_layout(
+            table_iso_reac,
+            height=None,
+            paper_bgcolor="rgba(255, 255, 255, 0.3)",
+            margin=dict(l=20, r=20, t=20, b=20),
+        )
 
         # --------------------------------
         valid_gap_str = ""
         valid_gap_dict = {}
         bench_iso_list = set([iso for iso, reac in benchs_iso_reac])
 
-        iso_validation_gap = set([iso for iso in self.iso_list if iso in self.appl_case.iso_list and iso not in bench_iso_list])
+        iso_validation_gap = set(
+            [
+                iso
+                for iso in self.iso_list
+                if iso in self.appl_case.iso_list and iso not in bench_iso_list
+            ]
+        )
         if len(iso_validation_gap) > 0:
             unc_decomp_gap = self.prior_uncertainty.decomposition.copy()
             unc_decomp_gap = unc_decomp_gap.groupby(["ISO"]).sum().reset_index()
             unc_decomp_gap.sort_values(
-                by="CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)", inplace=True, ascending=False
+                by="CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)",
+                inplace=True,
+                ascending=False,
             )
             for iso in iso_validation_gap:
                 contribs = unc_decomp_gap[unc_decomp_gap["ISO"] == iso][
@@ -3175,11 +3840,22 @@ class Assimilation:
                 contrib = pos_neg * sqrt(abs(contrib)) * self.appl_case.resp_calc * 1e5
                 valid_gap_dict[iso] = contrib
         if valid_gap_dict != {}:
-            valid_gap_dict = dict(sorted(valid_gap_dict.items(), key=lambda item: abs(item[1]), reverse=True))
+            valid_gap_dict = dict(
+                sorted(
+                    valid_gap_dict.items(), key=lambda item: abs(item[1]), reverse=True
+                )
+            )
             valid_gap_tab = plots.create_html_table(
-                headers=["Isotope", "Isotope_ID", "Total uncertainty on the application"],
+                headers=[
+                    "Isotope",
+                    "Isotope_ID",
+                    "Total uncertainty on the application",
+                ],
                 lines=[
-                    [methods.convert_iso_id_to_string(iso) for iso in valid_gap_dict.keys()],
+                    [
+                        methods.convert_iso_id_to_string(iso)
+                        for iso in valid_gap_dict.keys()
+                    ],
                     list(valid_gap_dict.keys()),
                     [f"{v:.0f} pcm" for v in valid_gap_dict.values()],
                 ],
@@ -3214,47 +3890,166 @@ class Assimilation:
                     )
                 )
             else:
-                f.write(plots.create_html_tabs(["Benchmark list", "Covariances matrix", "Isotopes and reactions"]))
+                f.write(
+                    plots.create_html_tabs(
+                        [
+                            "Benchmark list",
+                            "Covariances matrix",
+                            "Isotopes and reactions",
+                        ]
+                    )
+                )
 
             f.write('<div id="Benchmark list" class="tabcontent">\n')
-            f.write(f'<section style="background:linear-gradient(#d2978e, white) ; padding: 14px 100px">\n' + "<br>\n")
-            f.write(trace_bias.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
+            f.write(
+                f'<section style="background:linear-gradient(#d2978e, white) ; padding: 14px 100px">\n'
+                + "<br>\n"
+            )
+            f.write(
+                trace_bias.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
             if trace_expe_corr is not None:
-                f.write(trace_expe_corr.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
+                f.write(
+                    trace_expe_corr.to_html(
+                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    )
+                    + "<br>\n"
+                )
             f.write(table_bench_fig)
             f.write("</section>\n")
             f.write("</div>\n")
 
             if self.appl_case != None:
-                f.write('<div id="Application case sensitivities" class="tabcontent">\n')
-                f.write(f'<section style="background:linear-gradient(#a8b0af, white)">\n' + "<br>\n")
-                f.write(trace_case_sensi_integrals.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-                f.write(trace_case_sensi_profiles.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-                f.write(trace_case_sensi_profiles_lethargy.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
+                f.write(
+                    '<div id="Application case sensitivities" class="tabcontent">\n'
+                )
+                f.write(
+                    f'<section style="background:linear-gradient(#a8b0af, white)">\n'
+                    + "<br>\n"
+                )
+                f.write(
+                    trace_case_sensi_integrals.to_html(
+                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    )
+                    + "<br>\n"
+                )
+                f.write(
+                    trace_case_sensi_profiles.to_html(
+                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    )
+                    + "<br>\n"
+                )
+                f.write(
+                    trace_case_sensi_profiles_lethargy.to_html(
+                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    )
+                    + "<br>\n"
+                )
                 f.write("</section>\n")
                 f.write("</div>\n")
 
-                f.write('<div id="Uncertainty/Bias decomposition" class="tabcontent">\n')
-                f.write(f'<section style="background:linear-gradient(#d2ebbb, white)">\n' + "<br>\n")
-                f.write(dec_prior_trace_integ.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-                f.write(dec_prior_trace.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-                f.write(dec_post_trace_integ.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-                f.write(dec_post_trace.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-                f.write(dec_bias_trace_integ.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-                f.write(dec_bias_trace.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
+                f.write(
+                    '<div id="Uncertainty/Bias decomposition" class="tabcontent">\n'
+                )
+                f.write(
+                    f'<section style="background:linear-gradient(#d2ebbb, white)">\n'
+                    + "<br>\n"
+                )
+                f.write(
+                    dec_prior_trace_integ.to_html(
+                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    )
+                    + "<br>\n"
+                )
+                f.write(
+                    dec_prior_trace.to_html(
+                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    )
+                    + "<br>\n"
+                )
+                f.write(
+                    dec_post_trace_integ.to_html(
+                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    )
+                    + "<br>\n"
+                )
+                f.write(
+                    dec_post_trace.to_html(
+                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    )
+                    + "<br>\n"
+                )
+                f.write(
+                    dec_bias_trace_integ.to_html(
+                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    )
+                    + "<br>\n"
+                )
+                f.write(
+                    dec_bias_trace.to_html(
+                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    )
+                    + "<br>\n"
+                )
                 f.write("</section>\n")
                 f.write("</div>\n")
 
             f.write('<div id="Covariances matrix" class="tabcontent">\n')
-            f.write(f'<section style="background:linear-gradient(#bcc1d4, white)">\n' + "<br>\n")
-            f.write(trace_cov_prior_integrals.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-            f.write(trace_matrix_profiles.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-            f.write(trace_matrix_profiles_cov.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-            f.write(trace_cov_delta_integrals.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-            f.write(trace_matrix_delta_profiles.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-            f.write(trace_matrix_delta_profiles_cov.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-            f.write(delta_mu_integrals.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-            f.write(delta_mu_profiles.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
+            f.write(
+                f'<section style="background:linear-gradient(#bcc1d4, white)">\n'
+                + "<br>\n"
+            )
+            f.write(
+                trace_cov_prior_integrals.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
+            f.write(
+                trace_matrix_profiles.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
+            f.write(
+                trace_matrix_profiles_cov.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
+            f.write(
+                trace_cov_delta_integrals.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
+            f.write(
+                trace_matrix_delta_profiles.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
+            f.write(
+                trace_matrix_delta_profiles_cov.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
+            f.write(
+                delta_mu_integrals.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
+            f.write(
+                delta_mu_profiles.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
 
             iso_reac_to_plot = []
             for isotope in isotopes_to_detail:
@@ -3267,7 +4062,13 @@ class Assimilation:
                 else:
                     isotope_id = int(isotope)
 
-                iso_reac_to_plot.extend([iso_reac for iso_reac in self.iso_reac_list if iso_reac[0] == isotope_id])
+                iso_reac_to_plot.extend(
+                    [
+                        iso_reac
+                        for iso_reac in self.iso_reac_list
+                        if iso_reac[0] == isotope_id
+                    ]
+                )
 
             for iso_reac_1 in iso_reac_to_plot:
                 for iso_reac_2 in iso_reac_to_plot:
@@ -3293,16 +4094,24 @@ class Assimilation:
                     if trace_cov_prior_submat != None:
                         write_div = True
                         plots.apply_interactive_report_layout(trace_cov_prior_submat)
-                        html_plot = trace_cov_prior_submat.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include)
-                        f.write(f'<section style="border: 4px solid #4B0082; border-radius: 25px ; margin:{block_margin}; padding:10">\n')
+                        html_plot = trace_cov_prior_submat.to_html(
+                            full_html=False, include_plotlyjs=plotlyjs_fig_include
+                        )
+                        f.write(
+                            f'<section style="border: 4px solid #4B0082; border-radius: 25px ; margin:{block_margin}; padding:10">\n'
+                        )
                         f.write(html_plot + "<br>\n")
 
                     if trace_cov_delta_submat != None:
                         plots.apply_interactive_report_layout(trace_cov_delta_submat)
 
-                        html_plot = trace_cov_delta_submat.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include)
+                        html_plot = trace_cov_delta_submat.to_html(
+                            full_html=False, include_plotlyjs=plotlyjs_fig_include
+                        )
                         if not write_div:
-                            f.write(f'<section style="border: 4px solid #4B0082; border-radius: 25px ; margin:{block_margin}; padding:10">\n')
+                            f.write(
+                                f'<section style="border: 4px solid #4B0082; border-radius: 25px ; margin:{block_margin}; padding:10">\n'
+                            )
                         f.write(html_plot + "<br>\n")
 
                     if trace_cov_delta_submat != None or trace_cov_prior_submat != None:
@@ -3311,9 +4120,19 @@ class Assimilation:
             f.write("</div>\n")
 
             f.write('<div id="Isotopes and reactions" class="tabcontent">\n')
-            f.write(f'<section style="background:linear-gradient(#809684, white)">\n' + "<br>\n")
-            f.write(f'<h2 style="text-align: center;">Isotopes and reactions in all cases :</h2>')
-            f.write(table_iso_reac.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
+            f.write(
+                f'<section style="background:linear-gradient(#809684, white)">\n'
+                + "<br>\n"
+            )
+            f.write(
+                f'<h2 style="text-align: center;">Isotopes and reactions in all cases :</h2>'
+            )
+            f.write(
+                table_iso_reac.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
             if "added*" in iso_reac_df["Covariance_data"].values:
                 f.write(
                     f"<h4>*added : this isotope-reaction is not present in the covariances data but its natural (int(iso_ID / 1000) * 1000) or rebased state (int(iso / 1000) * 1000 + int(str(iso_ID)[-2:])) was used instead.</h4>"
@@ -3373,7 +4192,16 @@ class Uncertainty:
     """
 
     def __init__(
-        self, appl_case, cov_data, sensi_vec, resp_calc, cov_mat, iso_reac_list, output_html_path=None, plotting_unit="pcm", isotopes_to_detail=[]
+        self,
+        appl_case,
+        cov_data,
+        sensi_vec,
+        resp_calc,
+        cov_mat,
+        iso_reac_list,
+        output_html_path=None,
+        plotting_unit="pcm",
+        isotopes_to_detail=[],
     ) -> None:
         """
         Initialize the Uncertainty class.
@@ -3428,18 +4256,26 @@ class Uncertainty:
             key = (row["ISO"], row["REAC"])
             sensi_lookup[key] = row["SENSI_INTEGRAL"]
 
-
         full_sensi_cov = sensi_vec @ cov_mat  # shape: (n_total,)
 
         for i, (iso, reac) in enumerate(iso_reac_list):
 
             sub_sensi_vec = sensi_vec[i * self.group_nb : (i + 1) * self.group_nb]
 
-            unc_partial_covar_full = full_sensi_cov[i * self.group_nb : (i + 1) * self.group_nb]
+            unc_partial_covar_full = full_sensi_cov[
+                i * self.group_nb : (i + 1) * self.group_nb
+            ]
             unc_partial_covar_detail = unc_partial_covar_full * sub_sensi_vec
             decomp_vec.extend(unc_partial_covar_detail)
             unc_partial_covar = unc_partial_covar_full @ sub_sensi_vec
-            unc_partial_var = sub_sensi_vec @ cov_mat[i * self.group_nb : (i + 1) * self.group_nb, i * self.group_nb : (i + 1) * self.group_nb] @ sub_sensi_vec
+            unc_partial_var = (
+                sub_sensi_vec
+                @ cov_mat[
+                    i * self.group_nb : (i + 1) * self.group_nb,
+                    i * self.group_nb : (i + 1) * self.group_nb,
+                ]
+                @ sub_sensi_vec
+            )
 
             sum += unc_partial_covar
 
@@ -3450,9 +4286,15 @@ class Uncertainty:
             dikt["ISO_NAME"].append(methods.convert_iso_id_to_string(iso))
             dikt["REAC_NAME"].append(methods.reac_trad.get(str(reac), f"REAC_{reac}"))
             dikt["CASE SENSIB INTEGRAL"].append(integral)
-            dikt["CONTRIBUTION TO RELATIVE UNC_SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)"].append(unc_partial_covar_detail)
-            dikt["CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)"].append(unc_partial_covar)
-            dikt["CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (FROM AUTO-CORRELATION ONLY)"].append(unc_partial_var)
+            dikt[
+                "CONTRIBUTION TO RELATIVE UNC_SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)"
+            ].append(unc_partial_covar_detail)
+            dikt[
+                "CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (COVAR WITH OTHER ISO-REAC INCLUDED)"
+            ].append(unc_partial_covar)
+            dikt[
+                "CONTRIBUTION INTEGRAL TO RELATIVE UNC SQUARED (FROM AUTO-CORRELATION ONLY)"
+            ].append(unc_partial_var)
 
         self.decomp_vec = decomp_vec
         self.decomposition = pd.DataFrame(dikt)
@@ -3463,7 +4305,11 @@ class Uncertainty:
         self.__cov_mat = cov_mat
 
         if output_html_path is not None:
-            self.export_to_html(output_html_path=self.output_html_path, plotting_unit=plotting_unit, isotopes_to_detail=isotopes_to_detail)
+            self.export_to_html(
+                output_html_path=self.output_html_path,
+                plotting_unit=plotting_unit,
+                isotopes_to_detail=isotopes_to_detail,
+            )
 
     @log_exec()
     def plot_profiles(
@@ -3514,14 +4360,20 @@ class Uncertainty:
         show : bool, optional
             If ``True``, display the figure.
         """
-        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
-        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc, squared=True)
+        output_path = cph.validate_image_output_path(
+            output_path=output_path, format=format
+        )
+        val_factor, unit_str = cph.resolve_plotting_unit(
+            plotting_unit=plotting_unit, resp_calc=self.resp_calc, squared=True
+        )
 
-        final_iso_reac_list, normalized_input_iso_reac_list = cph.normalize_filter_iso_reac_list(
-            reference_iso_reac_list=self.iso_reac_list,
-            iso_reac_list=iso_reac_list,
-            iso_list=iso_list,
-            require_target=True,
+        final_iso_reac_list, normalized_input_iso_reac_list = (
+            cph.normalize_filter_iso_reac_list(
+                reference_iso_reac_list=self.iso_reac_list,
+                iso_reac_list=iso_reac_list,
+                iso_list=iso_list,
+                require_target=True,
+            )
         )
 
         traces_colors, dashed_traces = cph.align_trace_styles(
@@ -3547,10 +4399,21 @@ class Uncertainty:
             dashed_traces=dashed_traces,
             title=title if title else "Uncertainty decomposition profiles",
             xaxis_title=xaxis_title,
-            yaxis_title=yaxis_title if yaxis_title else f"Unc² ({unit_str}²) (covariances included)",
+            yaxis_title=(
+                yaxis_title
+                if yaxis_title
+                else f"Unc² ({unit_str}²) (covariances included)"
+            ),
         )
 
-        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
+        return cph.export_static_plotly_figure(
+            fig=fig,
+            output_path=output_path,
+            format=format,
+            width=width,
+            height=height,
+            show=show,
+        )
 
     @log_exec()
     def plot_integrals(
@@ -3571,11 +4434,19 @@ class Uncertainty:
     ):
         """Export a static uncertainty integral plot."""
 
-        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
-        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc, squared=True)
+        output_path = cph.validate_image_output_path(
+            output_path=output_path, format=format
+        )
+        val_factor, unit_str = cph.resolve_plotting_unit(
+            plotting_unit=plotting_unit, resp_calc=self.resp_calc, squared=True
+        )
 
-        if nb_top_iso_reac is not None and (not isinstance(nb_top_iso_reac, int) or nb_top_iso_reac <= 0):
-            raise errors.UserInputError("nb_top_iso_reac must be a strictly positive integer or None")
+        if nb_top_iso_reac is not None and (
+            not isinstance(nb_top_iso_reac, int) or nb_top_iso_reac <= 0
+        ):
+            raise errors.UserInputError(
+                "nb_top_iso_reac must be a strictly positive integer or None"
+            )
 
         final_iso_reac_list, _ = cph.normalize_filter_iso_reac_list(
             reference_iso_reac_list=self.iso_reac_list,
@@ -3599,7 +4470,6 @@ class Uncertainty:
             group_nb=self.group_nb,
         )
 
-
         fig = plots.plot_integrals_per_iso_reac(
             vector=vector,
             iso_reac_list=final_iso_reac_list,
@@ -3607,13 +4477,26 @@ class Uncertainty:
             factor=val_factor,
             title=title if title else "Integral contribution to relative uncertainty²",
             xaxis_title=xaxis_title,
-            yaxis_title=yaxis_title if yaxis_title else f"Unc² ({unit_str}²) (covariances included)",
+            yaxis_title=(
+                yaxis_title
+                if yaxis_title
+                else f"Unc² ({unit_str}²) (covariances included)"
+            ),
         )
 
-        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
+        return cph.export_static_plotly_figure(
+            fig=fig,
+            output_path=output_path,
+            format=format,
+            width=width,
+            height=height,
+            show=show,
+        )
 
     @log_exec()
-    def export_to_html(self, output_html_path: str, plotting_unit="pcm", isotopes_to_detail=[]):
+    def export_to_html(
+        self, output_html_path: str, plotting_unit="pcm", isotopes_to_detail=[]
+    ):
         """
         Export the results of the uncertainty calculation to an HTML file.
         It contains the uncertainty value and the decomposition of the uncertainty into contributions from isotopes and reactions.
@@ -3634,11 +4517,11 @@ class Uncertainty:
         if not isinstance(isotopes_to_detail, list):
             isotopes_to_detail = [isotopes_to_detail]
 
-        logo_path = os.path.join(os.path.dirname(__file__), "html_outputfile", "Logo.PNG")
-        text_intro = ""
-        text_intro += (
-            f'<div style="display:flex; align-items:center; justify-content:center; gap:20px;"><img src="{logo_path}" width="110" height="110"></div>'
+        logo_path = os.path.join(
+            os.path.dirname(__file__), "html_outputfile", "Logo.PNG"
         )
+        text_intro = ""
+        text_intro += f'<div style="display:flex; align-items:center; justify-content:center; gap:20px;"><img src="{logo_path}" width="110" height="110"></div>'
         text_intro += f"<h3><center>{pkg_fullname}</center></h3>"
         text_intro += f"<h2><center><u>Sandwich formula results</u></center></h2>"
         text_intro += f"<h3>Application case : {self.appl_case.casename}</h3>"
@@ -3658,7 +4541,9 @@ class Uncertainty:
 
         table_res = plots.create_html_table(headers=[], lines=[headers, results])
 
-        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc)
+        val_factor, unit_str = cph.resolve_plotting_unit(
+            plotting_unit=plotting_unit, resp_calc=self.resp_calc
+        )
 
         case_vec_per_unit_lethargy = cph.build_lethargy_vector(
             reference_iso_reac_list=self.iso_reac_list,
@@ -3667,7 +4552,11 @@ class Uncertainty:
             fallback_to_zeros=True,
         )
 
-        trace_case_sensi_integrals, trace_case_sensi_profiles, trace_case_sensi_profiles_lethargy = cph.build_interactive_sensitivity_figures(
+        (
+            trace_case_sensi_integrals,
+            trace_case_sensi_profiles,
+            trace_case_sensi_profiles_lethargy,
+        ) = cph.build_interactive_sensitivity_figures(
             vector=self.__sensi_vec,
             lethargy_vector=case_vec_per_unit_lethargy,
             iso_reac_list=self.iso_reac_list,
@@ -3690,34 +4579,58 @@ class Uncertainty:
             profile_yaxis_title=f"Unc² ({unit_str}²) (covariances included)",
         )
 
-        trace_cov_integrals, trace_matrix_profiles, trace_matrix_profiles_cov = cph.build_interactive_covariance_figures(
-            cov_mat=self.__cov_mat,
-            iso_reac_list=self.iso_reac_list,
-            group_nb=self.group_nb,
-            e_bins=self.e_bins,
-            integral_title="Variances-covariances matrix (group-wise integrals - covariances included)",
-            profile_title="Variances-covariances matrix (diagonal elements)",
-            covariance_profile_title="Variances-covariances matrix (covariances included)",
-            integral_yaxis_title="Unc(%)² (group-wise integral - covariances included)",
-            profile_yaxis_title="Unc(%)²",
-            covariance_profile_yaxis_title="Unc(%)² (covariances included)",
+        trace_cov_integrals, trace_matrix_profiles, trace_matrix_profiles_cov = (
+            cph.build_interactive_covariance_figures(
+                cov_mat=self.__cov_mat,
+                iso_reac_list=self.iso_reac_list,
+                group_nb=self.group_nb,
+                e_bins=self.e_bins,
+                integral_title="Variances-covariances matrix (group-wise integrals - covariances included)",
+                profile_title="Variances-covariances matrix (diagonal elements)",
+                covariance_profile_title="Variances-covariances matrix (covariances included)",
+                integral_yaxis_title="Unc(%)² (group-wise integral - covariances included)",
+                profile_yaxis_title="Unc(%)²",
+                covariance_profile_yaxis_title="Unc(%)² (covariances included)",
+            )
         )
 
         case_iso = [iso for iso, reac in self.appl_case.iso_reac_list if reac != 1]
         case_reac = [reac for iso, reac in self.appl_case.iso_reac_list if reac != 1]
         case_iso_str = [methods.convert_iso_id_to_string(iso) for iso in case_iso]
-        case_reac_str = [methods.reac_trad.get(str(reac), f"REAC_{reac}") for reac in case_reac]
+        case_reac_str = [
+            methods.reac_trad.get(str(reac), f"REAC_{reac}") for reac in case_reac
+        ]
 
         if isinstance(self.cov_data, NDCovariances):
             cov_iso_reac_list = self.cov_data.iso_reac_list
         elif isinstance(self.cov_data, Assimilation):
             cov_iso_reac_list = self.cov_data.cov_data.iso_reac_list
 
-        cov_present = [True if (iso, reac) in cov_iso_reac_list else False for iso, reac in zip(case_iso, case_reac)]
-        calc_present = [True if (iso, reac) in self.iso_reac_list else False for iso, reac in zip(case_iso, case_reac)]
+        cov_present = [
+            True if (iso, reac) in cov_iso_reac_list else False
+            for iso, reac in zip(case_iso, case_reac)
+        ]
+        calc_present = [
+            True if (iso, reac) in self.iso_reac_list else False
+            for iso, reac in zip(case_iso, case_reac)
+        ]
 
-        headers = [["Isotope"], ["Reaction"], ["Iso_ID"], ["Reac_ID"], ["Covariance_data"], ["Used_in_calculation"]]
-        results = [case_iso_str, case_reac_str, case_iso, case_reac, cov_present, calc_present]
+        headers = [
+            ["Isotope"],
+            ["Reaction"],
+            ["Iso_ID"],
+            ["Reac_ID"],
+            ["Covariance_data"],
+            ["Used_in_calculation"],
+        ]
+        results = [
+            case_iso_str,
+            case_reac_str,
+            case_iso,
+            case_reac,
+            cov_present,
+            calc_present,
+        ]
         fill_colors = [
             "white",
             "white",
@@ -3735,35 +4648,98 @@ class Uncertainty:
                 )
             ]
         )
-        plots.apply_interactive_report_layout(table_iso_reac, height=None, paper_bgcolor="rgba(255, 255, 255, 0.3)", margin=dict(l=20, r=20, t=20, b=20))
+        plots.apply_interactive_report_layout(
+            table_iso_reac,
+            height=None,
+            paper_bgcolor="rgba(255, 255, 255, 0.3)",
+            margin=dict(l=20, r=20, t=20, b=20),
+        )
 
         with open(output_html_path, "a", encoding="utf-8") as f:
             offline_control()
             f.writelines(HTML_intro)
             f.write(text_intro)
             f.write(table_res)
-            f.write(plots.create_html_tabs(["Application case sensitivities", "Uncertainty decomposition", "Covariances matrix", "Isotopes and reactions"]))
+            f.write(
+                plots.create_html_tabs(
+                    [
+                        "Application case sensitivities",
+                        "Uncertainty decomposition",
+                        "Covariances matrix",
+                        "Isotopes and reactions",
+                    ]
+                )
+            )
 
             f.write('<div id="Application case sensitivities" class="tabcontent">\n')
-            f.write(f'<section style="background:linear-gradient(#a8b0af, white)">\n' + "<br>\n")
-            f.write(trace_case_sensi_integrals.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-            f.write(trace_case_sensi_profiles.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "\n<br>\n")
-            f.write(trace_case_sensi_profiles_lethargy.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + " \n")
+            f.write(
+                f'<section style="background:linear-gradient(#a8b0af, white)">\n'
+                + "<br>\n"
+            )
+            f.write(
+                trace_case_sensi_integrals.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
+            f.write(
+                trace_case_sensi_profiles.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "\n<br>\n"
+            )
+            f.write(
+                trace_case_sensi_profiles_lethargy.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + " \n"
+            )
             f.write("</section>\n")
             f.write("</div>\n")
 
             f.write('<div id="Uncertainty decomposition" class="tabcontent">\n')
-            f.write(f'<section style="background:linear-gradient(#d2ebbb, white)">\n' + "<br>\n")
-            f.write(dec_trace_integ.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-            f.write(dec_trace.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
+            f.write(
+                f'<section style="background:linear-gradient(#d2ebbb, white)">\n'
+                + "<br>\n"
+            )
+            f.write(
+                dec_trace_integ.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
+            f.write(
+                dec_trace.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
             f.write("</section>\n")
             f.write("</div>\n")
 
             f.write('<div id="Covariances matrix" class="tabcontent">\n')
-            f.write(f'<section style="background:linear-gradient(#bcc1d4, white)">\n' + "<br>\n")
-            f.write(trace_cov_integrals.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-            f.write(trace_matrix_profiles.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
-            f.write(trace_matrix_profiles_cov.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
+            f.write(
+                f'<section style="background:linear-gradient(#bcc1d4, white)">\n'
+                + "<br>\n"
+            )
+            f.write(
+                trace_cov_integrals.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
+            f.write(
+                trace_matrix_profiles.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
+            f.write(
+                trace_matrix_profiles_cov.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
 
             iso_reac_to_plot = []
             for isotope in isotopes_to_detail:
@@ -3772,7 +4748,13 @@ class Uncertainty:
                 except:
                     isotope_id = int(isotope)
 
-                iso_reac_to_plot.extend([iso_reac for iso_reac in self.iso_reac_list if iso_reac[0] == isotope_id])
+                iso_reac_to_plot.extend(
+                    [
+                        iso_reac
+                        for iso_reac in self.iso_reac_list
+                        if iso_reac[0] == isotope_id
+                    ]
+                )
 
             for iso_reac_1 in iso_reac_to_plot:
                 for iso_reac_2 in iso_reac_to_plot:
@@ -3786,15 +4768,30 @@ class Uncertainty:
 
                     if trace_cov_submat != None:
                         plots.apply_interactive_report_layout(trace_cov_submat)
-                        f.write(trace_cov_submat.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
+                        f.write(
+                            trace_cov_submat.to_html(
+                                full_html=False, include_plotlyjs=plotlyjs_fig_include
+                            )
+                            + "<br>\n"
+                        )
 
             f.write("</section>\n")
             f.write("</div>\n")
 
             f.write('<div id="Isotopes and reactions" class="tabcontent">\n')
-            f.write(f'<section style="background:linear-gradient(#809684, white)">\n' + "<br>\n")
-            f.write(f'<h2 style="text-align: center;">Isotopes and reactions in application case :</h2>')
-            f.write(table_iso_reac.to_html(full_html=False, include_plotlyjs=plotlyjs_fig_include) + "<br>\n")
+            f.write(
+                f'<section style="background:linear-gradient(#809684, white)">\n'
+                + "<br>\n"
+            )
+            f.write(
+                f'<h2 style="text-align: center;">Isotopes and reactions in application case :</h2>'
+            )
+            f.write(
+                table_iso_reac.to_html(
+                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                )
+                + "<br>\n"
+            )
             f.write("</section>\n")
             f.write("</div>\n")
 
@@ -3841,7 +4838,9 @@ class Bias:
         Exports static integral bias-contribution plots for selected or top-contributing isotope-reaction pairs.
     """
 
-    def __init__(self, appl_case, sensi_vec, resp_calc, delta_mu, iso_reac_list) -> None:
+    def __init__(
+        self, appl_case, sensi_vec, resp_calc, delta_mu, iso_reac_list
+    ) -> None:
 
         self.appl_case = appl_case
         self.iso_reac_list = iso_reac_list
@@ -3884,7 +4883,9 @@ class Bias:
                 dikt["ISO"].append(iso)
                 dikt["REAC"].append(reac)
                 dikt["ISO_NAME"].append(methods.convert_iso_id_to_string(iso))
-                dikt["REAC_NAME"].append(methods.reac_trad.get(str(reac), f"REAC_{reac}"))
+                dikt["REAC_NAME"].append(
+                    methods.reac_trad.get(str(reac), f"REAC_{reac}")
+                )
                 dikt["CASE SENSIB INTEGRAL"].append(np.sum(sub_sensi_vec))
                 dikt["CONTRIBUTION TO RELATIVE BIAS"].append(bias_partial_detail)
                 dikt["CONTRIBUTION INTEGRAL TO RELATIVE BIAS"].append(bias_partial)
@@ -3913,14 +4914,20 @@ class Bias:
     ):
         """Export a static bias profile plot."""
 
-        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
-        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc)
+        output_path = cph.validate_image_output_path(
+            output_path=output_path, format=format
+        )
+        val_factor, unit_str = cph.resolve_plotting_unit(
+            plotting_unit=plotting_unit, resp_calc=self.resp_calc
+        )
 
-        final_iso_reac_list, normalized_input_iso_reac_list = cph.normalize_filter_iso_reac_list(
-            reference_iso_reac_list=self.iso_reac_list,
-            iso_reac_list=iso_reac_list,
-            iso_list=iso_list,
-            require_target=True,
+        final_iso_reac_list, normalized_input_iso_reac_list = (
+            cph.normalize_filter_iso_reac_list(
+                reference_iso_reac_list=self.iso_reac_list,
+                iso_reac_list=iso_reac_list,
+                iso_list=iso_list,
+                require_target=True,
+            )
         )
 
         traces_colors, dashed_traces = cph.align_trace_styles(
@@ -3937,7 +4944,6 @@ class Bias:
             group_nb=self.group_nb,
         )
 
-
         fig = plots.plot_profiles_per_iso_reac(
             vector=vector,
             iso_reac_list=final_iso_reac_list,
@@ -3950,7 +4956,14 @@ class Bias:
             yaxis_title=yaxis_title if yaxis_title else f"Bias ({unit_str})",
         )
 
-        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
+        return cph.export_static_plotly_figure(
+            fig=fig,
+            output_path=output_path,
+            format=format,
+            width=width,
+            height=height,
+            show=show,
+        )
 
     @log_exec()
     def plot_integrals(
@@ -3971,11 +4984,19 @@ class Bias:
     ):
         """Export a static bias integral plot."""
 
-        output_path = cph.validate_image_output_path(output_path=output_path, format=format)
-        val_factor, unit_str = cph.resolve_plotting_unit(plotting_unit=plotting_unit, resp_calc=self.resp_calc)
+        output_path = cph.validate_image_output_path(
+            output_path=output_path, format=format
+        )
+        val_factor, unit_str = cph.resolve_plotting_unit(
+            plotting_unit=plotting_unit, resp_calc=self.resp_calc
+        )
 
-        if nb_top_iso_reac is not None and (not isinstance(nb_top_iso_reac, int) or nb_top_iso_reac <= 0):
-            raise errors.UserInputError("nb_top_iso_reac must be a strictly positive integer or None")
+        if nb_top_iso_reac is not None and (
+            not isinstance(nb_top_iso_reac, int) or nb_top_iso_reac <= 0
+        ):
+            raise errors.UserInputError(
+                "nb_top_iso_reac must be a strictly positive integer or None"
+            )
 
         final_iso_reac_list, _ = cph.normalize_filter_iso_reac_list(
             reference_iso_reac_list=self.iso_reac_list,
@@ -3999,7 +5020,6 @@ class Bias:
             group_nb=self.group_nb,
         )
 
-
         fig = plots.plot_integrals_per_iso_reac(
             vector=vector,
             iso_reac_list=final_iso_reac_list,
@@ -4010,4 +5030,11 @@ class Bias:
             yaxis_title=yaxis_title if yaxis_title else f"Bias ({unit_str})",
         )
 
-        return cph.export_static_plotly_figure(fig=fig, output_path=output_path, format=format, width=width, height=height, show=show)
+        return cph.export_static_plotly_figure(
+            fig=fig,
+            output_path=output_path,
+            format=format,
+            width=width,
+            height=height,
+            show=show,
+        )

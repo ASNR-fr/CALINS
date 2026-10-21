@@ -15,10 +15,16 @@ global reac_trad_inv
 global iso_z
 global iso_z_inv
 
-reac_trad = json.load(open(os.path.join(os.path.dirname(__file__), "isotopes_reactions/reac_id.json"), "r"))
+reac_trad = json.load(
+    open(
+        os.path.join(os.path.dirname(__file__), "isotopes_reactions/reac_id.json"), "r"
+    )
+)
 reac_trad_inv = {val: key for key, val in reac_trad.items()}
 
-iso_z = json.load(open(os.path.join(os.path.dirname(__file__), "isotopes_reactions/iso_id.json"), "r"))
+iso_z = json.load(
+    open(os.path.join(os.path.dirname(__file__), "isotopes_reactions/iso_id.json"), "r")
+)
 iso_z_inv = {val: key for key, val in iso_z.items()}
 # ------------------------------------------------
 
@@ -42,7 +48,15 @@ def format_comac_to_dataframe(input_path: str):
         str : Header of the files.
     """
 
-    reac_trad_comac = {"2": "ELASTIC", "4": "INELASTIC", "16": "NXN", "18": "FISSION", "101": "CAPTURE", "452": "NU", "455": "NU_D"}
+    reac_trad_comac = {
+        "2": "ELASTIC",
+        "4": "INELASTIC",
+        "16": "NXN",
+        "18": "FISSION",
+        "101": "CAPTURE",
+        "452": "NU",
+        "455": "NU_D",
+    }
     reac_trad_comac_inv = {val: key for key, val in reac_trad_comac.items()}
 
     dikt_cov = {"ISO_H": [], "REAC_H": [], "ISO_V": [], "REAC_V": [], "STD": []}
@@ -50,7 +64,9 @@ def format_comac_to_dataframe(input_path: str):
     cov_root = os.path.join(input_path)
 
     if not os.path.isdir(cov_root):
-        raise errors.UserInputError(f"Path {cov_root} is not a folder. Select a folder containing COMAC files.")
+        raise errors.UserInputError(
+            f"Path {cov_root} is not a folder. Select a folder containing COMAC files."
+        )
 
     for file in os.listdir(cov_root):
 
@@ -66,7 +82,10 @@ def format_comac_to_dataframe(input_path: str):
             if len(line_parts) < 3:
                 continue
 
-            if line_parts[0] in reac_trad_comac_inv and line_parts[2] in reac_trad_comac_inv:
+            if (
+                line_parts[0] in reac_trad_comac_inv
+                and line_parts[2] in reac_trad_comac_inv
+            ):
                 dikt_cov["REAC_V"].append(int(reac_trad_comac_inv[line_parts[0]]))
                 dikt_cov["REAC_H"].append(int(reac_trad_comac_inv[line_parts[2]]))
 
@@ -93,20 +112,27 @@ def format_comac_to_dataframe(input_path: str):
                 stds_v = [float(x) / 100 for x in lines[i_line + 1].split()]
                 stds_h = [float(x) / 100 for x in lines[i_line + 2].split()]
 
-                corr_vals = [[float(val) for val in x.split()] for x in lines[i_line + 3 : i_line + group_nb + 3]]
+                corr_vals = [
+                    [float(val) for val in x.split()]
+                    for x in lines[i_line + 3 : i_line + group_nb + 3]
+                ]
 
                 std_vals = corr_vals[:]
                 for line_idx, corr_row in enumerate(corr_vals):
                     for col_idx, val in enumerate(corr_row):
 
-                        std_vals[line_idx][col_idx] = round(val * stds_h[col_idx] * stds_v[line_idx], 13)
+                        std_vals[line_idx][col_idx] = round(
+                            val * stds_h[col_idx] * stds_v[line_idx], 13
+                        )
 
                 dikt_cov["STD"].append(std_vals)
 
     cov_df = pd.DataFrame(dikt_cov)
 
     if cov_df.empty:
-        raise errors.EmptyParsingError(f"No data was extracted from your var-covar matrix file : {input_path}")
+        raise errors.EmptyParsingError(
+            f"No data was extracted from your var-covar matrix file : {input_path}"
+        )
 
     return cov_df, [], group_nb, None
 
@@ -129,7 +155,16 @@ def format_gendf_to_dataframe(input_path: Path):
         int : Number of energy groups.
         str : Header of the file.
     """
-    reac_trad_gendf = {"2": "ELASTIC", "4": "INELASTIC", "16": "NXN", "18": "FISSION", "101": "CAPTURE", "102": "N,GAMMA", "452": "NU", "455": "NU_D"}
+    reac_trad_gendf = {
+        "2": "ELASTIC",
+        "4": "INELASTIC",
+        "16": "NXN",
+        "18": "FISSION",
+        "101": "CAPTURE",
+        "102": "N,GAMMA",
+        "452": "NU",
+        "455": "NU_D",
+    }
     reac_trad_gendf_inv = {val: key for key, val in reac_trad_gendf.items()}
 
     dikt_cov = {"ISO_H": [], "REAC_H": [], "ISO_V": [], "REAC_V": [], "STD": []}
@@ -138,7 +173,9 @@ def format_gendf_to_dataframe(input_path: Path):
     cov_root = os.path.join(input_path)
 
     if not os.path.isdir(cov_root):
-        raise errors.UserInputError(f"Path {cov_root} is not a folder. Select a folder containing .gendf files.")
+        raise errors.UserInputError(
+            f"Path {cov_root} is not a folder. Select a folder containing .gendf files."
+        )
 
     for file in os.listdir(cov_root):
 
@@ -172,13 +209,20 @@ def format_gendf_to_dataframe(input_path: Path):
             # splited_part = textwrap.wrap(line[:66], 6)
             # 1 number = 11 digits
             # read the 6 numbers, delete empties
-            splited_part = [line[i * 11 : (i + 1) * 11].replace(" ", "") for i in range(6)]
+            splited_part = [
+                line[i * 11 : (i + 1) * 11].replace(" ", "") for i in range(6)
+            ]
             splited_part = [x for x in splited_part[:] if x != ""]
 
             # read the second part of the line (MAT,MF,MT)
             infos_part = line[66:]
 
-            iMAT, iMF, iMT, data_progress_id = infos_part[:4], str(int(infos_part[4:6])), str(int(infos_part[6:9])), infos_part[9:14]
+            iMAT, iMF, iMT, data_progress_id = (
+                infos_part[:4],
+                str(int(infos_part[4:6])),
+                str(int(infos_part[6:9])),
+                infos_part[9:14],
+            )
 
             # If SEND, read next line
             if (iMAT, iMF) != ("0", "0") and iMT == "0":
@@ -192,13 +236,17 @@ def format_gendf_to_dataframe(input_path: Path):
                 # First line does not interest us, read next one
                 i_line += 1
                 line = lines[i_line]
-                LIST_MF1451 = [line[i * 11 : (i + 1) * 11].replace(" ", "") for i in range(6)]
+                LIST_MF1451 = [
+                    line[i * 11 : (i + 1) * 11].replace(" ", "") for i in range(6)
+                ]
                 LIST_MF1451 = [x for x in LIST_MF1451[:] if x != ""]
                 e_bins = []
                 while len(e_bins) < int(LIST_MF1451[4]):
                     i_line += 1
                     line = lines[i_line]
-                    energylist = [line[i * 11 : (i + 1) * 11].replace(" ", "") for i in range(6)]
+                    energylist = [
+                        line[i * 11 : (i + 1) * 11].replace(" ", "") for i in range(6)
+                    ]
                     energylist = [x for x in energylist[:] if x != ""]
                     for energy in energylist:
                         e_bins.append(_parse_endf_float(energy))
@@ -216,7 +264,9 @@ def format_gendf_to_dataframe(input_path: Path):
                 while len(crossSectionLine) < int(splited_part[4]):
                     i_line += 1
                     line = lines[i_line]
-                    LIST_MF3 = [line[i * 11 : (i + 1) * 11].replace(" ", "") for i in range(6)]
+                    LIST_MF3 = [
+                        line[i * 11 : (i + 1) * 11].replace(" ", "") for i in range(6)
+                    ]
                     LIST_MF3 = [x for x in LIST_MF3[:] if x != ""]
                     for CrossSec_str in LIST_MF3:
                         crossSectionLine.append(_parse_endf_float(CrossSec_str))
@@ -291,7 +341,9 @@ def format_gendf_to_dataframe(input_path: Path):
     cov_df = pd.DataFrame(dikt_cov)
 
     if cov_df.empty:
-        raise errors.EmptyParsingError(f"No data was extracted from your var-covar matrix file : {input_path}")
+        raise errors.EmptyParsingError(
+            f"No data was extracted from your var-covar matrix file : {input_path}"
+        )
 
     return cov_df, e_bins, group_nb, None
 
@@ -303,12 +355,12 @@ def _parse_endf_float(s):
         return 0.0
     # ENDF shorthand: '1.234567+3' means 1.234567e+3, '1.234567-3' means 1.234567e-3
     # Check for sign in the exponent part (positions after the mantissa)
-    if 'E' in s.upper():
+    if "E" in s.upper():
         return float(s)
     # Look for +/- sign that is NOT at position 0 (which would be a negative mantissa)
     for i in range(len(s) - 1, 0, -1):
-        if s[i] in '+-' and s[i - 1] not in 'eE':
-            return float(s[:i] + 'E' + s[i:])
+        if s[i] in "+-" and s[i - 1] not in "eE":
+            return float(s[:i] + "E" + s[i:])
     return float(s)
 
 
@@ -344,20 +396,29 @@ def format_scale_corr_to_dataframe(input_path: str, output_path: str = None):
     for i, line in enumerate(lines_corr):
         if line.startswith(" 9d") and i != 1:
             iso_reac_line = lines_corr[i - iso_reac_block_dist]
-            if iso_reac_line.split()[2] not in ["1", "101"] and iso_reac_line.split()[4] not in ["1", "101"]:
+            if iso_reac_line.split()[2] not in ["1", "101"] and iso_reac_line.split()[
+                4
+            ] not in ["1", "101"]:
                 dikt_corr["ISO_H"].append(int(iso_reac_line.split()[1]))
                 dikt_corr["REAC_H"].append(int(iso_reac_line.split()[2]))
                 dikt_corr["ISO_V"].append(int(iso_reac_line.split()[3]))
                 dikt_corr["REAC_V"].append(int(iso_reac_line.split()[4]))
 
-                corr_val = [float(x) for x in "".join(lines_corr[i : i + corr_vals_block_len]).split()[1:]]
+                corr_val = [
+                    float(x)
+                    for x in "".join(lines_corr[i : i + corr_vals_block_len]).split()[
+                        1:
+                    ]
+                ]
                 corr_val = np.reshape(corr_val, ((group_nb, group_nb)))
                 dikt_corr["CORR"].append(corr_val.tolist())
 
     corr_df = pd.DataFrame(dikt_corr)
 
     if corr_df.empty:
-        raise errors.EmptyParsingError(f"No data was extracted from your correlation matrix file : {input_path}")
+        raise errors.EmptyParsingError(
+            f"No data was extracted from your correlation matrix file : {input_path}"
+        )
 
     if output_path != None:
         if output_path.endswith(".xlsx"):
@@ -411,7 +472,9 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
         input_file.read(2 * single_number)
 
         # Read the file control
-        (ngroup, nngrup, nggrup, ntype, nmmp, nmtrix, nholl) = struct.unpack(f"{big_endian_str}7i", input_file.read(7 * single_number))
+        ngroup, nngrup, nggrup, ntype, nmmp, nmtrix, nholl = struct.unpack(
+            f"{big_endian_str}7i", input_file.read(7 * single_number)
+        )
 
         input_file.read(2 * single_number)
 
@@ -427,7 +490,9 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
         e_bins = []
         for i in range((nngrup + 1)):
 
-            e_bins.append(struct.unpack(f"{big_endian_str}f", input_file.read(single_number))[0])
+            e_bins.append(
+                struct.unpack(f"{big_endian_str}f", input_file.read(single_number))[0]
+            )
 
         dikt_cov["ISO_H"].append(0)
         dikt_cov["REAC_H"].append(0)
@@ -441,7 +506,9 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
         input_file.read(2 * single_number)
 
         for i in range(nmmp):
-            matid, mtid, mwgt = struct.unpack(f"{big_endian_str}3i", input_file.read(3 * single_number))
+            matid, mtid, mwgt = struct.unpack(
+                f"{big_endian_str}3i", input_file.read(3 * single_number)
+            )
 
             if matid == 1801:
                 matid = 8001001
@@ -458,10 +525,14 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
             input_file.read(2 * single_number)
 
             for j in range(ngroup):
-                err_micro = struct.unpack(f"{big_endian_str}f", input_file.read(single_number))[0]
+                err_micro = struct.unpack(
+                    f"{big_endian_str}f", input_file.read(single_number)
+                )[0]
                 err.append(err_micro)
             for j in range(ngroup):
-                xs_micro = struct.unpack(f"{big_endian_str}f", input_file.read(single_number))[0]
+                xs_micro = struct.unpack(
+                    f"{big_endian_str}f", input_file.read(single_number)
+                )[0]
                 xs.append(xs_micro)
 
             iso_reac["xs"].append(xs)
@@ -474,7 +545,9 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
 
             input_file.read(2 * single_number)
 
-            mat1, mt1, mat2, mt2, nblock = struct.unpack(f"{big_endian_str}5i", input_file.read(5 * single_number))
+            mat1, mt1, mat2, mt2, nblock = struct.unpack(
+                f"{big_endian_str}5i", input_file.read(5 * single_number)
+            )
 
             if mat1 == 1801:
                 mat1 = 8001001
@@ -489,12 +562,16 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
 
             jband, ijj, lgpr = [], [], []
             for j in range(ngroup):
-                jband_micro, ijj_micro = struct.unpack(f"{big_endian_str}2i", input_file.read(2 * single_number))
+                jband_micro, ijj_micro = struct.unpack(
+                    f"{big_endian_str}2i", input_file.read(2 * single_number)
+                )
                 jband.append(jband_micro)
                 ijj.append(ijj_micro)
 
             for j in range(nblock):
-                lgpr_micro = struct.unpack(f"{big_endian_str}i", input_file.read(single_number))[0]
+                lgpr_micro = struct.unpack(
+                    f"{big_endian_str}i", input_file.read(single_number)
+                )[0]
                 lgpr.append(lgpr_micro)
 
             input_file.read(2 * single_number)
@@ -504,7 +581,9 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
 
                 i = 1 + j - ijj[j]
                 while i < jband[j] + 1 + j - ijj[j]:
-                    cov[j][i] = struct.unpack(f"{big_endian_str}f", input_file.read(single_number))[0]
+                    cov[j][i] = struct.unpack(
+                        f"{big_endian_str}f", input_file.read(single_number)
+                    )[0]
                     i += 1
 
             if np.sum(cov) == 0.0:
@@ -519,7 +598,9 @@ def format_scale_binary_to_dataframe(input_path: str, big_endian=False):
     cov_df = pd.DataFrame(dikt_cov)
 
     if cov_df.empty:
-        raise errors.EmptyParsingError(f"No data was extracted from your var-covar matrix file : {input_path}")
+        raise errors.EmptyParsingError(
+            f"No data was extracted from your var-covar matrix file : {input_path}"
+        )
 
     return cov_df, e_bins, ngroup, header
 
@@ -545,7 +626,9 @@ def format_scale_txt_to_dataframe(input_path: str):
     cov_root = os.path.join(input_path)
 
     if not os.path.isfile(cov_root):
-        raise errors.UserInputError(f"Path {cov_root} is not a file. Select a valid covariance matrix text file.")
+        raise errors.UserInputError(
+            f"Path {cov_root} is not a file. Select a valid covariance matrix text file."
+        )
 
     with open(cov_root, "r") as f:
         lines_cov = f.readlines()
@@ -558,7 +641,10 @@ def format_scale_txt_to_dataframe(input_path: str):
 
     block_len = ceil(group_nb / 5)
 
-    e_bins = [float(e_bin) for e_bin in " ".join(lines_cov[2 : 2 + ceil((group_nb + 1) / 5)]).split()]
+    e_bins = [
+        float(e_bin)
+        for e_bin in " ".join(lines_cov[2 : 2 + ceil((group_nb + 1) / 5)]).split()
+    ]
 
     dikt_cov["ISO_H"].append(0)
     dikt_cov["REAC_H"].append(0)
@@ -571,7 +657,12 @@ def format_scale_txt_to_dataframe(input_path: str):
         line_split = line.split()
         if i > 2 and len(line_split) == 5:
             cov_val = []
-            if line_split[1] != "1" and line_split[3] != "1" and line_split[1].upper() in reac_trad and line_split[3].upper() in reac_trad:
+            if (
+                line_split[1] != "1"
+                and line_split[3] != "1"
+                and line_split[1].upper() in reac_trad
+                and line_split[3].upper() in reac_trad
+            ):
                 dikt_cov["ISO_H"].append(int(line_split[0]))
                 dikt_cov["REAC_H"].append(int(line_split[1]))
                 dikt_cov["ISO_V"].append(int(line_split[2]))
@@ -586,12 +677,16 @@ def format_scale_txt_to_dataframe(input_path: str):
 
                     j += 1
 
-                dikt_cov["STD"].append(np.reshape(cov_val, (group_nb, group_nb)).tolist())
+                dikt_cov["STD"].append(
+                    np.reshape(cov_val, (group_nb, group_nb)).tolist()
+                )
 
     cov_df = pd.DataFrame(dikt_cov)
 
     if cov_df.empty:
-        raise errors.EmptyParsingError(f"No data was extracted from your var-covar matrix file : {input_path}")
+        raise errors.EmptyParsingError(
+            f"No data was extracted from your var-covar matrix file : {input_path}"
+        )
 
     return cov_df, e_bins, group_nb, header
 
@@ -600,15 +695,24 @@ def format_xlsx_to_dataframe(input_path: str):
     import ast
 
     if not os.path.isfile(input_path):
-        raise errors.UserInputError(f"Path {input_path} is not a file. Select a valid covariance matrix xlsx file.")
-    
+        raise errors.UserInputError(
+            f"Path {input_path} is not a file. Select a valid covariance matrix xlsx file."
+        )
+
     cov_df = pd.read_excel(input_path, index_col=0)
 
     # Convert string representations of lists in STD column back to actual lists of floats
-    cov_df["STD"] = cov_df["STD"].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
+    cov_df["STD"] = cov_df["STD"].apply(
+        lambda x: ast.literal_eval(x) if isinstance(x, str) else x
+    )
 
     # Extract energy bins from special row (0,0,0,0)
-    row_ebins = cov_df[(cov_df["ISO_H"] == 0) & (cov_df["REAC_H"] == 0) & (cov_df["ISO_V"] == 0) & (cov_df["REAC_V"] == 0)]
+    row_ebins = cov_df[
+        (cov_df["ISO_H"] == 0)
+        & (cov_df["REAC_H"] == 0)
+        & (cov_df["ISO_V"] == 0)
+        & (cov_df["REAC_V"] == 0)
+    ]
     if not row_ebins.empty:
         e_bins = row_ebins["STD"].values[0]
     else:
@@ -618,7 +722,11 @@ def format_xlsx_to_dataframe(input_path: str):
     for idx in reversed(cov_df.index):
         std_val = cov_df["STD"].iloc[idx]
         # Check if this is a covariance matrix (2D list) and not energy bins (1D list)
-        if isinstance(std_val, list) and len(std_val) > 0 and isinstance(std_val[0], list):
+        if (
+            isinstance(std_val, list)
+            and len(std_val) > 0
+            and isinstance(std_val[0], list)
+        ):
             group_nb = len(std_val)
             break
     else:
@@ -632,7 +740,9 @@ def format_xlsx_to_dataframe(input_path: str):
 
 
 def condense_binning(values, i_ebins, o_ebins, std=False):
-    sorted_input, sorted_input_reverse = sorted(i_ebins[:], reverse=False), sorted(i_ebins[:], reverse=True)
+    sorted_input, sorted_input_reverse = sorted(i_ebins[:], reverse=False), sorted(
+        i_ebins[:], reverse=True
+    )
     if sorted_input == i_ebins:
         reverse_sort = False
     elif sorted_input_reverse == i_ebins:
@@ -660,7 +770,9 @@ def condense_binning(values, i_ebins, o_ebins, std=False):
         (
             sum(values[boundaries_idx[k] : boundaries_idx[k + 1]])
             if std == False
-            else np.sqrt(sum(np.array(values[boundaries_idx[k] : boundaries_idx[k + 1]]) ** 2))
+            else np.sqrt(
+                sum(np.array(values[boundaries_idx[k] : boundaries_idx[k + 1]]) ** 2)
+            )
         )
         for k in range(len(boundaries_idx) - 1)
     ]
@@ -684,8 +796,10 @@ def condense_sdf(input_sdf_path: str, output_ebins: list, output_sdf_path: str):
     """
 
     if not os.path.isfile(input_sdf_path):
-        raise errors.UserInputError(f"Path {input_sdf_path} is not a file. Select a valid SDF file.")
-    
+        raise errors.UserInputError(
+            f"Path {input_sdf_path} is not a file. Select a valid SDF file."
+        )
+
     with open(input_sdf_path, "r") as f:
         lines_sensi = f.readlines()
         if output_sdf_path != None:
@@ -706,7 +820,12 @@ def condense_sdf(input_sdf_path: str, output_ebins: list, output_sdf_path: str):
 
     for i, line in enumerate(lines_sensi):
         if line.startswith("energy boundaries"):
-            energy_bins = [float(x) for x in "".join(lines_sensi[i + 1 : i + 1 + ceil((group_nb + 1) / 5)]).split()]
+            energy_bins = [
+                float(x)
+                for x in "".join(
+                    lines_sensi[i + 1 : i + 1 + ceil((group_nb + 1) / 5)]
+                ).split()
+            ]
             energy_bins = sorted(energy_bins, reverse=True)
 
             ngroup = len(output_ebins) - 1
@@ -769,7 +888,10 @@ def condense_sdf(input_sdf_path: str, output_ebins: list, output_sdf_path: str):
             return False
 
         if formatting == "TSUNAMI-B":
-            if not len(lines_sensi[i + 1].split()) == 2 and len(lines_sensi[i + 2].split()) == 4:
+            if (
+                not len(lines_sensi[i + 1].split()) == 2
+                and len(lines_sensi[i + 2].split()) == 4
+            ):
                 return False
         elif formatting == "TSUNAMI-A":
             if not len(lines_sensi[i + 1].split()) == 3:
@@ -791,16 +913,33 @@ def condense_sdf(input_sdf_path: str, output_ebins: list, output_sdf_path: str):
 
             pass_line = block_length
 
-            sensis = [float(x) for x in "".join(lines_sensi[i + headers_line_nb : i + headers_line_nb + ceil(group_nb / 5)]).split()]
+            sensis = [
+                float(x)
+                for x in "".join(
+                    lines_sensi[
+                        i + headers_line_nb : i + headers_line_nb + ceil(group_nb / 5)
+                    ]
+                ).split()
+            ]
             stds = [
                 float(x)
-                for x in "".join(lines_sensi[i + headers_line_nb + ceil(group_nb / 5) : i + headers_line_nb + ceil(group_nb / 5) * 2]).split()
+                for x in "".join(
+                    lines_sensi[
+                        i
+                        + headers_line_nb
+                        + ceil(group_nb / 5) : i
+                        + headers_line_nb
+                        + ceil(group_nb / 5) * 2
+                    ]
+                ).split()
             ]
 
             sensis = condense_binning(sensis, i_ebins=energy_bins, o_ebins=output_ebins)
             stds = condense_binning(stds, i_ebins=energy_bins, o_ebins=output_ebins)
 
-            sensis, stds = [f"{sensi:.6E}" for sensi in sensis], [f"{std:.6E}" for std in stds]
+            sensis, stds = [f"{sensi:.6E}" for sensi in sensis], [
+                f"{std:.6E}" for std in stds
+            ]
 
             text = ""
             for idx, sensi in enumerate(sensis):
@@ -829,7 +968,12 @@ def condense_sdf(input_sdf_path: str, output_ebins: list, output_sdf_path: str):
 
 @log_exec()
 def format_sensi_to_dataframe(
-    input_sdf_path: str, output_path: str = None, filter_min_ratio_sensi_abs=0.0, occurrences_rule="sum", mcnp=False, std=False
+    input_sdf_path: str,
+    output_path: str = None,
+    filter_min_ratio_sensi_abs=0.0,
+    occurrences_rule="sum",
+    mcnp=False,
+    std=False,
 ):
     """
     SDF PARSER
@@ -856,17 +1000,28 @@ def format_sensi_to_dataframe(
         DataFrame containing the sensitivities (and standard deviations if asked). This DataFrame is included inside the class object Case.
     """
 
-    dikt_sensi = {"ISO": [], "REAC": [], "SENSI": [], "SENSI_INTEGRAL": [], "STD_INTEGRAL": [], "SENSI_INTEGRAL_ABS": []}
+    dikt_sensi = {
+        "ISO": [],
+        "REAC": [],
+        "SENSI": [],
+        "SENSI_INTEGRAL": [],
+        "STD_INTEGRAL": [],
+        "SENSI_INTEGRAL_ABS": [],
+    }
     if std:
         dikt_sensi["SENSI_STD"] = []
 
     iso_reac_micro_region = []
 
     if occurrences_rule not in ["sum", "first", "last"]:
-        raise errors.UserInputError(f"The occurrence_rule argument to dictate how to parse mutliple iso-reac must be 'sum'/'first'/'last'.")
+        raise errors.UserInputError(
+            f"The occurrence_rule argument to dictate how to parse mutliple iso-reac must be 'sum'/'first'/'last'."
+        )
 
     if not os.path.isfile(input_sdf_path):
-        raise errors.UserInputError(f"Path {input_sdf_path} is not a file. Select a valid SDF file.")
+        raise errors.UserInputError(
+            f"Path {input_sdf_path} is not a file. Select a valid SDF file."
+        )
 
     with open(input_sdf_path, "r") as f:
         lines_sensi = f.readlines()
@@ -909,7 +1064,10 @@ def format_sensi_to_dataframe(
             return False
 
         if formatting == "TSUNAMI-B":
-            if not len(lines_sensi[i + 1].split()) == 2 and len(lines_sensi[i + 2].split()) == 4:
+            if (
+                not len(lines_sensi[i + 1].split()) == 2
+                and len(lines_sensi[i + 2].split()) == 4
+            ):
                 return False
         elif formatting == "TSUNAMI-A":
             if not len(lines_sensi[i + 1].split()) == 3:
@@ -935,15 +1093,34 @@ def format_sensi_to_dataframe(
             count_sensi_profiles += 1
 
             if (
-                (formatting == "TSUNAMI-B" and lines_sensi[i + 1].split()[0] == "0") or (formatting == "TSUNAMI-A" and line_split[-2] == "0")
+                (formatting == "TSUNAMI-B" and lines_sensi[i + 1].split()[0] == "0")
+                or (formatting == "TSUNAMI-A" and line_split[-2] == "0")
             ) and line_split[3] in list(reac_trad.keys()) + mcnp_reac_except_str:
 
                 # Let's read the block of sensitivities values in one go and then pass all the lines until the next block (with the help of pass_line)
-                sensi = [float(x) for x in "".join(lines_sensi[i + headers_line_nb : i + headers_line_nb + ceil(group_nb / 5)]).split()]
+                sensi = [
+                    float(x)
+                    for x in "".join(
+                        lines_sensi[
+                            i
+                            + headers_line_nb : i
+                            + headers_line_nb
+                            + ceil(group_nb / 5)
+                        ]
+                    ).split()
+                ]
                 if std:
                     sensi_std = [
                         float(x)
-                        for x in "".join(lines_sensi[i + headers_line_nb + ceil(group_nb / 5) : i + headers_line_nb + ceil(group_nb / 5) * 2]).split()
+                        for x in "".join(
+                            lines_sensi[
+                                i
+                                + headers_line_nb
+                                + ceil(group_nb / 5) : i
+                                + headers_line_nb
+                                + ceil(group_nb / 5) * 2
+                            ]
+                        ).split()
                     ]
 
                 sensi_integ = float(lines_sensi[i + 3].split()[0])
@@ -961,11 +1138,15 @@ def format_sensi_to_dataframe(
                         None
 
                     if line_split[0].split(".")[0] in mcnp_iso_sab.keys():
-                        warn(f"MCNP SDF format: Isotope {line_split[0]} with S-ab included converted to {mcnp_iso_sab[line_split[0].split('.')[0]]}.")
+                        warn(
+                            f"MCNP SDF format: Isotope {line_split[0]} with S-ab included converted to {mcnp_iso_sab[line_split[0].split('.')[0]]}."
+                        )
                         iso = mcnp_iso_sab[line_split[0].split(".")[0]]
 
                     if reac in mcnp_reac_except.keys():
-                        warn(f"MCNP SDF format: Reaction ID {reac} converted to {mcnp_reac_except[reac]} for isotope {line_split[0]} ({iso}).")
+                        warn(
+                            f"MCNP SDF format: Reaction ID {reac} converted to {mcnp_reac_except[reac]} for isotope {line_split[0]} ({iso})."
+                        )
                         reac = mcnp_reac_except[reac]
                     elif reac < 0:
                         warn(
@@ -982,17 +1163,39 @@ def format_sensi_to_dataframe(
                 if occurrence_idx != None:
                     if occurrences_rule == "sum":
                         if sensi_integ_abs != 0.0:
-                            dikt_sensi["SENSI"][occurrence_idx] = (np.array(dikt_sensi["SENSI"][occurrence_idx]) + np.array(sensi)).tolist()
-                            dikt_sensi["SENSI_INTEGRAL"][occurrence_idx] = dikt_sensi["SENSI_INTEGRAL"][occurrence_idx] + sensi_integ
-                            dikt_sensi["SENSI_INTEGRAL_ABS"][occurrence_idx] = np.sum(np.abs(dikt_sensi["SENSI"][occurrence_idx]))
-                            if isinstance(dikt_sensi["STD_INTEGRAL"][occurrence_idx], float):
-                                dikt_sensi["STD_INTEGRAL"][occurrence_idx] = [dikt_sensi["STD_INTEGRAL"][occurrence_idx], std_integ]
+                            dikt_sensi["SENSI"][occurrence_idx] = (
+                                np.array(dikt_sensi["SENSI"][occurrence_idx])
+                                + np.array(sensi)
+                            ).tolist()
+                            dikt_sensi["SENSI_INTEGRAL"][occurrence_idx] = (
+                                dikt_sensi["SENSI_INTEGRAL"][occurrence_idx]
+                                + sensi_integ
+                            )
+                            dikt_sensi["SENSI_INTEGRAL_ABS"][occurrence_idx] = np.sum(
+                                np.abs(dikt_sensi["SENSI"][occurrence_idx])
+                            )
+                            if isinstance(
+                                dikt_sensi["STD_INTEGRAL"][occurrence_idx], float
+                            ):
+                                dikt_sensi["STD_INTEGRAL"][occurrence_idx] = [
+                                    dikt_sensi["STD_INTEGRAL"][occurrence_idx],
+                                    std_integ,
+                                ]
                                 if std:
-                                    dikt_sensi["SENSI_STD"][occurrence_idx] = [dikt_sensi["SENSI_STD"][occurrence_idx], sensi_std]
-                            elif isinstance(dikt_sensi["STD_INTEGRAL"][occurrence_idx], list):
-                                dikt_sensi["STD_INTEGRAL"][occurrence_idx].append(std_integ)
+                                    dikt_sensi["SENSI_STD"][occurrence_idx] = [
+                                        dikt_sensi["SENSI_STD"][occurrence_idx],
+                                        sensi_std,
+                                    ]
+                            elif isinstance(
+                                dikt_sensi["STD_INTEGRAL"][occurrence_idx], list
+                            ):
+                                dikt_sensi["STD_INTEGRAL"][occurrence_idx].append(
+                                    std_integ
+                                )
                                 if std:
-                                    dikt_sensi["SENSI_STD"][occurrence_idx].append(sensi_std)
+                                    dikt_sensi["SENSI_STD"][occurrence_idx].append(
+                                        sensi_std
+                                    )
 
                         warn(
                             f"The sensitivities for the isotope {line_split[0]} / {iso} and the reaction {line_split[1]} / {reac} is being sum up with its previous encounter.{' But the current values are zeros anyway' if sensi_integ_abs == 0.0 else ''}"
@@ -1004,7 +1207,9 @@ def format_sensi_to_dataframe(
                         if std:
                             dikt_sensi["SENSI_STD"][occurrence_idx] = sensi_std
                         dikt_sensi["STD_INTEGRAL"][occurrence_idx] = std_integ
-                        dikt_sensi["SENSI_INTEGRAL_ABS"][occurrence_idx] = sensi_integ_abs
+                        dikt_sensi["SENSI_INTEGRAL_ABS"][
+                            occurrence_idx
+                        ] = sensi_integ_abs
                         dikt_sensi["ISO"][occurrence_idx] = iso
                         dikt_sensi["REAC"][occurrence_idx] = reac
 
@@ -1028,7 +1233,9 @@ def format_sensi_to_dataframe(
                     dikt_sensi["REAC"].append(reac)
 
                     if sensi_integ_abs == 0.0:
-                        warn(f"The sensitivities for the isotope {line_split[0]} / {iso} and the reaction {line_split[1]} / {reac} are all zeros.")
+                        warn(
+                            f"The sensitivities for the isotope {line_split[0]} / {iso} and the reaction {line_split[1]} / {reac} are all zeros."
+                        )
 
             elif line_split[3] in list(reac_trad.keys()) + mcnp_reac_except_str:
                 reac = int(line_split[3])
@@ -1041,11 +1248,15 @@ def format_sensi_to_dataframe(
                         None
 
                     if line_split[0].split(".")[0] in mcnp_iso_sab.keys():
-                        warn(f"MCNP SDF format: Isotope {line_split[0]} with S-ab included converted to {mcnp_iso_sab[line_split[0].split('.')[0]]}.")
+                        warn(
+                            f"MCNP SDF format: Isotope {line_split[0]} with S-ab included converted to {mcnp_iso_sab[line_split[0].split('.')[0]]}."
+                        )
                         iso = mcnp_iso_sab[line_split[0].split(".")[0]]
 
                     if reac in mcnp_reac_except.keys():
-                        warn(f"MCNP SDF format: Reaction ID {reac} converted to {mcnp_reac_except[reac]} for isotope {line_split[0]} ({iso}).")
+                        warn(
+                            f"MCNP SDF format: Reaction ID {reac} converted to {mcnp_reac_except[reac]} for isotope {line_split[0]} ({iso})."
+                        )
                         reac = mcnp_reac_except[reac]
                     elif reac < 0:
                         warn(
@@ -1082,15 +1293,21 @@ def format_sensi_to_dataframe(
 
     sensi_df = sensi_df[sensi_df["REAC"] != 0]
 
-    sum_integ_abs = np.sum(sensi_df[sensi_df["REAC"] != 1]["SENSI_INTEGRAL_ABS"].to_list())
+    sum_integ_abs = np.sum(
+        sensi_df[sensi_df["REAC"] != 1]["SENSI_INTEGRAL_ABS"].to_list()
+    )
 
     if filter_min_ratio_sensi_abs != 0.0:
-        sensi_df = sensi_df[sensi_df["SENSI_INTEGRAL_ABS"] > sum_integ_abs * filter_min_ratio_sensi_abs]
+        sensi_df = sensi_df[
+            sensi_df["SENSI_INTEGRAL_ABS"] > sum_integ_abs * filter_min_ratio_sensi_abs
+        ]
 
     sensi_df = sensi_df.sort_values(by=["ISO", "REAC"]).reset_index(drop=True)
 
     if sensi_df.empty:
-        raise errors.EmptyParsingError(f"No data was extracted from your sdf file : {input_sdf_path}")
+        raise errors.EmptyParsingError(
+            f"No data was extracted from your sdf file : {input_sdf_path}"
+        )
 
     if output_path != None:
         if output_path.endswith(".xlsx"):
@@ -1133,7 +1350,9 @@ def make_cov_matrix(cov_data, iso_reac_list: list):
 
     cov_inter_iso = set(
         (row.ISO_H, row.ISO_V)
-        for row in cov_dataf.loc[cov_dataf["ISO_H"] != cov_dataf["ISO_V"], ["ISO_H", "ISO_V"]].itertuples(index=False)
+        for row in cov_dataf.loc[
+            cov_dataf["ISO_H"] != cov_dataf["ISO_V"], ["ISO_H", "ISO_V"]
+        ].itertuples(index=False)
     )
 
     # Create new submatrices for versatile isotopes (e.g., H-poly / 1901) and isotopes not present but associated with their natural isotope
@@ -1145,7 +1364,9 @@ def make_cov_matrix(cov_data, iso_reac_list: list):
         natural_idx = int(iso / 1000) * 1000
         if iso not in iso_cov and natural_idx in iso_cov:
 
-            mask_natural = (cov_dataf["ISO_H"] == natural_idx) | (cov_dataf["ISO_V"] == natural_idx)
+            mask_natural = (cov_dataf["ISO_H"] == natural_idx) | (
+                cov_dataf["ISO_V"] == natural_idx
+            )
             rows_to_add = cov_dataf.loc[mask_natural].copy()
 
             rows_to_add.loc[rows_to_add["ISO_H"] == natural_idx, "ISO_H"] = iso
@@ -1159,7 +1380,9 @@ def make_cov_matrix(cov_data, iso_reac_list: list):
         rebased_idx = int(iso / 1000) * 1000 + int(str(iso)[-2:])
         if iso not in iso_cov and rebased_idx in iso_cov:
 
-            mask_rebased = (cov_dataf["ISO_H"] == rebased_idx) | (cov_dataf["ISO_V"] == rebased_idx)
+            mask_rebased = (cov_dataf["ISO_H"] == rebased_idx) | (
+                cov_dataf["ISO_V"] == rebased_idx
+            )
             rows_to_add = cov_dataf.loc[mask_rebased].copy()
 
             rows_to_add.loc[rows_to_add["ISO_H"] == rebased_idx, "ISO_H"] = iso
@@ -1198,7 +1421,10 @@ def make_cov_matrix(cov_data, iso_reac_list: list):
         )
 
     iso_reac_notfound = list(set(iso_reac_list) - set(iso_reac_inter))
-    iso_reac_notfound = [convert_iso_id_to_string(iso) + " " + str(reac) for iso, reac in iso_reac_notfound]
+    iso_reac_notfound = [
+        convert_iso_id_to_string(iso) + " " + str(reac)
+        for iso, reac in iso_reac_notfound
+    ]
     if len(iso_reac_notfound) > 0:
         warn(
             f"The following iso-reac are not present in the var-covar matrix file - they are ignored for the construction of the covariance matrix : \n{list(iso_reac_notfound)}",
@@ -1211,7 +1437,9 @@ def make_cov_matrix(cov_data, iso_reac_list: list):
     # Pre-index covariance blocks once to avoid repeated DataFrame filtering in the nested loops.
     cov_block_lookup = {
         (row.ISO_H, row.REAC_H, row.ISO_V, row.REAC_V): row.STD
-        for row in cov_dataf[["ISO_H", "REAC_H", "ISO_V", "REAC_V", "STD"]].itertuples(index=False)
+        for row in cov_dataf[["ISO_H", "REAC_H", "ISO_V", "REAC_V", "STD"]].itertuples(
+            index=False
+        )
     }
 
     for col_idx, (iso_H, reac_H) in enumerate(iso_reac_inter):
@@ -1220,22 +1448,28 @@ def make_cov_matrix(cov_data, iso_reac_list: list):
             # iso_H,reac_H,iso_V,reac_V = str(iso_H), str(reac_H), str(iso_V), str(reac_V)
 
             # ----- If the horizontal and vertical isotopes are not part of the present inter-isotope covariances, skip
-            if iso_H != iso_V and (iso_H, iso_V) not in cov_inter_iso and (iso_V, iso_H) not in cov_inter_iso:
+            if (
+                iso_H != iso_V
+                and (iso_H, iso_V) not in cov_inter_iso
+                and (iso_V, iso_H) not in cov_inter_iso
+            ):
                 continue
 
             std_block = cov_block_lookup.get((iso_H, reac_H, iso_V, reac_V))
             if std_block is not None:
-                cov_mat[line_idx * group_nb : (line_idx + 1) * group_nb, col_idx * group_nb : (col_idx + 1) * group_nb] = np.array(
-                    std_block
-                )
+                cov_mat[
+                    line_idx * group_nb : (line_idx + 1) * group_nb,
+                    col_idx * group_nb : (col_idx + 1) * group_nb,
+                ] = np.array(std_block)
 
             else:
 
                 std_block = cov_block_lookup.get((iso_V, reac_V, iso_H, reac_H))
                 if std_block is not None:
-                    cov_mat[line_idx * group_nb : (line_idx + 1) * group_nb, col_idx * group_nb : (col_idx + 1) * group_nb] = np.array(
-                        std_block
-                    ).T
+                    cov_mat[
+                        line_idx * group_nb : (line_idx + 1) * group_nb,
+                        col_idx * group_nb : (col_idx + 1) * group_nb,
+                    ] = np.array(std_block).T
 
     return cov_mat, iso_reac_inter
 
@@ -1266,20 +1500,28 @@ def get_common_iso_reac_list(
         for i, reac in enumerate(exclude_reac):
             if not isinstance(reac, int):
                 if reac.upper() not in reac_trad_inv:
-                    raise errors.UserInputError(f"The reaction '{reac}' is not recognized.")
+                    raise errors.UserInputError(
+                        f"The reaction '{reac}' is not recognized."
+                    )
                 exclude_reac[i] = int(reac_trad_inv(reac.upper()))
     if reac_list != None:
         for i, reac in enumerate(reac_list):
             if not isinstance(reac, int):
                 if reac.upper() not in reac_trad_inv:
-                    raise errors.UserInputError(f"The reaction '{reac}' is not recognized.")
+                    raise errors.UserInputError(
+                        f"The reaction '{reac}' is not recognized."
+                    )
                 reac_list[i] = int(reac_trad_inv(reac.upper()))
     if iso_reac_list != None:
         for i, (iso, reac) in enumerate(iso_reac_list):
             if not isinstance(iso, int):
-                raise errors.UserInputError(f"The isotope '{iso}' should be an integer.")
+                raise errors.UserInputError(
+                    f"The isotope '{iso}' should be an integer."
+                )
             if not isinstance(reac, int):
-                raise errors.UserInputError(f"The reaction '{reac}' should be an integer.")
+                raise errors.UserInputError(
+                    f"The reaction '{reac}' should be an integer."
+                )
 
     iso_reac_lists = [sensi_case.iso_reac_list for sensi_case in cases_list]
 
@@ -1292,17 +1534,27 @@ def get_common_iso_reac_list(
     elif operation == "first":
         common_list = set(iso_reac_lists[0])
     else:
-        raise ValueError("The 'operation' argument can only be 'intersection' or 'union' or 'first'")
+        raise ValueError(
+            "The 'operation' argument can only be 'intersection' or 'union' or 'first'"
+        )
 
     common_list = sorted(common_list)
 
     common_list = [(iso, reac) for (iso, reac) in common_list if reac in reac_list]
 
     if iso_reac_list != None:
-        common_list = [(iso, reac) for (iso, reac) in iso_reac_list if (iso, reac) in common_list]
+        common_list = [
+            (iso, reac) for (iso, reac) in iso_reac_list if (iso, reac) in common_list
+        ]
 
-        no_contrib = [(iso, reac) for (iso, reac) in iso_reac_list if (iso, reac) not in common_list]
-        no_contrib = [convert_iso_id_to_string(iso) + " " + str(reac) for iso, reac in no_contrib]
+        no_contrib = [
+            (iso, reac)
+            for (iso, reac) in iso_reac_list
+            if (iso, reac) not in common_list
+        ]
+        no_contrib = [
+            convert_iso_id_to_string(iso) + " " + str(reac) for iso, reac in no_contrib
+        ]
         if len(no_contrib) > 0:
             warn(
                 f"The following iso-reac from the given list 'iso_reac_list' have no contribution in the sensitivities vectors and are thus ignored :  \n{list(set(no_contrib))}"
@@ -1311,9 +1563,13 @@ def get_common_iso_reac_list(
     if iso_list != None:
         common_list = [(iso, reac) for (iso, reac) in common_list if iso in iso_list]
     if exclude_iso != None:
-        common_list = [(iso, reac) for (iso, reac) in common_list if iso not in exclude_iso]
+        common_list = [
+            (iso, reac) for (iso, reac) in common_list if iso not in exclude_iso
+        ]
     if exclude_reac != None:
-        common_list = [(iso, reac) for (iso, reac) in common_list if reac not in exclude_reac]
+        common_list = [
+            (iso, reac) for (iso, reac) in common_list if reac not in exclude_reac
+        ]
 
     if len(common_list) == 0:
         raise errors.EmptyParsingError(
@@ -1377,7 +1633,10 @@ def make_sensi_vectors(
                 sensi_vec += [0.0] * group_nb
                 iso_reac_notfound.append(pair)
 
-        iso_reac_notfound = [convert_iso_id_to_string(iso) + " " + str(reac) for iso, reac in iso_reac_notfound]
+        iso_reac_notfound = [
+            convert_iso_id_to_string(iso) + " " + str(reac)
+            for iso, reac in iso_reac_notfound
+        ]
         if len(iso_reac_notfound) > 0:
             warn(
                 f"No sensitivity data found for the following isotopes-reactions in the case {sensi_case.casename} - zeros were inserted for the vector construction : \n{list(set(iso_reac_notfound))}"
@@ -1439,9 +1698,13 @@ def make_sensi_vectors_and_cov_matrix(
         operation=operation,
     )
 
-    cov_mat, iso_reac_list_present = make_cov_matrix(cov_data=cov_data, iso_reac_list=common_list)
+    cov_mat, iso_reac_list_present = make_cov_matrix(
+        cov_data=cov_data, iso_reac_list=common_list
+    )
 
-    (sensi_vecs_output, common_list) = make_sensi_vectors(cases_list=cases_list, iso_reac_list=iso_reac_list_present, operation=operation)
+    sensi_vecs_output, common_list = make_sensi_vectors(
+        cases_list=cases_list, iso_reac_list=iso_reac_list_present, operation=operation
+    )
 
     return sensi_vecs_output, cov_mat, common_list
 
@@ -1467,7 +1730,9 @@ def convert_iso_id_to_string(iso_id):
     try:
         iso_str = iso_z_inv[int(iso_id / 1000)] + str(int(str(iso_id)[-3:]))
     except:
-        warn(f"Isotope ID '{iso_id}' is not assigned to any know isotope name, or is not a type str or int")
+        warn(
+            f"Isotope ID '{iso_id}' is not assigned to any know isotope name, or is not a type str or int"
+        )
         iso_str = str(iso_id)
 
     return iso_str
@@ -1503,6 +1768,7 @@ def convert_iso_string_to_id(iso_str):
 
     return id
 
+
 def normalize_iso_reac(iso_reac):
     """
     Normalize an isotope-reaction pair to integer identifiers.
@@ -1529,7 +1795,9 @@ def normalize_iso_reac(iso_reac):
     if isinstance(iso, str):
         iso = convert_iso_string_to_id(iso)
     elif not isinstance(iso, int):
-        raise errors.UserInputError(f"The isotope '{iso}' should be an integer or a recognized isotope string.")
+        raise errors.UserInputError(
+            f"The isotope '{iso}' should be an integer or a recognized isotope string."
+        )
 
     if not isinstance(reac, int):
         reac_key = str(reac).upper()
@@ -1538,6 +1806,7 @@ def normalize_iso_reac(iso_reac):
         reac = int(reac_trad_inv[reac_key])
 
     return (iso, reac)
+
 
 # ====================================================================================================
 
@@ -1599,12 +1868,16 @@ def calcul_E(
             cases.append(case_i)
 
         else:
-            raise TypeError(f"Wrong sensitivity type for {case_i} - Choose case object, Path, or string")
+            raise TypeError(
+                f"Wrong sensitivity type for {case_i} - Choose case object, Path, or string"
+            )
 
     if iso_reac_list != None:
         for i, pair in enumerate(iso_reac_list):
             if not isinstance(pair, tuple):
-                raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
+                raise errors.UserInputError(
+                    f"The isotope-reaction pair '{pair}' should be a tuple."
+                )
 
     [sensi_vec1, sensi_vec2], iso_reac_list = make_sensi_vectors(
         cases_list=cases,
@@ -1616,10 +1889,20 @@ def calcul_E(
         exclude_reac=exclude_reac,
     )
 
-    E = abs(sensi_vec1 @ sensi_vec2 / (np.linalg.norm(sensi_vec1) * np.linalg.norm(sensi_vec2)))
+    E = abs(
+        sensi_vec1
+        @ sensi_vec2
+        / (np.linalg.norm(sensi_vec1) * np.linalg.norm(sensi_vec2))
+    )
 
     if return_partial:
-        partial = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY": []}
+        partial = {
+            "ISO": [],
+            "REAC": [],
+            "ISO_NAME": [],
+            "REAC_NAME": [],
+            "SIMILARITY": [],
+        }
         group_nb = cases[0].group_nb
 
         for i, (iso, reac) in enumerate(iso_reac_list):
@@ -1627,7 +1910,9 @@ def calcul_E(
             sub_sensi_vec1 = sensi_vec1[i * group_nb : (i + 1) * group_nb]
             sub_sensi_vec2 = sensi_vec2[i * group_nb : (i + 1) * group_nb]
 
-            E_sub = (sub_sensi_vec1 @ sub_sensi_vec2) / (np.linalg.norm(sub_sensi_vec1) * np.linalg.norm(sub_sensi_vec2))
+            E_sub = (sub_sensi_vec1 @ sub_sensi_vec2) / (
+                np.linalg.norm(sub_sensi_vec1) * np.linalg.norm(sub_sensi_vec2)
+            )
 
             partial["ISO"].append(iso)
             partial["REAC"].append(reac)
@@ -1638,7 +1923,11 @@ def calcul_E(
 
         if return_iso_reac_list:
 
-            return {"total_value": E, "iso_reac_list": iso_reac_list, "partial": partial}
+            return {
+                "total_value": E,
+                "iso_reac_list": iso_reac_list,
+                "partial": partial,
+            }
         else:
             return {"total_value": E, "partial": partial}
 
@@ -1701,19 +1990,25 @@ def calcul_SSR(
         appl_case = classes.Case(sdf_path=appl_case)
 
     elif not isinstance(appl_case, classes.Case):
-        raise TypeError(f"Wrong sensitivity type for {appl_case}- Choose case object, Path, or string")
+        raise TypeError(
+            f"Wrong sensitivity type for {appl_case}- Choose case object, Path, or string"
+        )
 
     if isinstance(bench_case, (Path, str)):
 
         bench_case = classes.Case(sdf_path=bench_case)
 
     elif not isinstance(bench_case, classes.Case):
-        raise TypeError(f"Wrong sensitivity type {bench_case}- Choose case object, Path, or string")
+        raise TypeError(
+            f"Wrong sensitivity type {bench_case}- Choose case object, Path, or string"
+        )
 
     if iso_reac_list != None:
         for i, pair in enumerate(iso_reac_list):
             if not isinstance(pair, tuple):
-                raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
+                raise errors.UserInputError(
+                    f"The isotope-reaction pair '{pair}' should be a tuple."
+                )
 
     [appl_vec, bench_vec], iso_reac_list = make_sensi_vectors(
         cases_list=[appl_case, bench_case],
@@ -1725,7 +2020,14 @@ def calcul_SSR(
         exclude_reac=exclude_reac,
     )
 
-    decomp = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY_NUMERATOR": [], "SIMILARITY_DENOMINATOR": []}
+    decomp = {
+        "ISO": [],
+        "REAC": [],
+        "ISO_NAME": [],
+        "REAC_NAME": [],
+        "SIMILARITY_NUMERATOR": [],
+        "SIMILARITY_DENOMINATOR": [],
+    }
     group_nb = appl_case.group_nb
 
     integ_abs_appl_case = 0
@@ -1765,7 +2067,11 @@ def calcul_SSR(
     if return_decomposition:
         decomp = pd.DataFrame(decomp)
         if return_iso_reac_list:
-            return {"total_value": SS_tot, "iso_reac_list": iso_reac_list, "decomposition": decomp}
+            return {
+                "total_value": SS_tot,
+                "iso_reac_list": iso_reac_list,
+                "decomposition": decomp,
+            }
         else:
             return {"total_value": SS_tot, "decomposition": decomp}
     elif return_iso_reac_list:
@@ -1826,19 +2132,25 @@ def calcul_G_CEA(
         appl_case = classes.Case(sdf_path=appl_case)
 
     elif not isinstance(appl_case, classes.Case):
-        raise TypeError(f"Wrong sensitivity type for {appl_case}- Choose case object, Path, or string")
+        raise TypeError(
+            f"Wrong sensitivity type for {appl_case}- Choose case object, Path, or string"
+        )
 
     if isinstance(bench_case, (Path, str)):
 
         bench_case = classes.Case(sdf_path=bench_case)
 
     elif not isinstance(bench_case, classes.Case):
-        raise TypeError(f"Wrong sensitivity type for {bench_case} - Choose case object, Path, or string")
+        raise TypeError(
+            f"Wrong sensitivity type for {bench_case} - Choose case object, Path, or string"
+        )
 
     if iso_reac_list != None:
         for i, pair in enumerate(iso_reac_list):
             if not isinstance(pair, tuple):
-                raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
+                raise errors.UserInputError(
+                    f"The isotope-reaction pair '{pair}' should be a tuple."
+                )
 
     [appl_vec, bench_vec], iso_reac_list = make_sensi_vectors(
         cases_list=[appl_case, bench_case],
@@ -1850,7 +2162,14 @@ def calcul_G_CEA(
         exclude_reac=exclude_reac,
     )
 
-    decomp = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY_NUMERATOR": [], "SIMILARITY_DENOMINATOR": []}
+    decomp = {
+        "ISO": [],
+        "REAC": [],
+        "ISO_NAME": [],
+        "REAC_NAME": [],
+        "SIMILARITY_NUMERATOR": [],
+        "SIMILARITY_DENOMINATOR": [],
+    }
     group_nb = appl_case.group_nb
 
     integ_appl_case = 0
@@ -1891,7 +2210,11 @@ def calcul_G_CEA(
     if return_decomposition:
         decomp = pd.DataFrame(decomp)
         if return_iso_reac_list:
-            return {"total_value": G_tot, "iso_reac_list": iso_reac_list, "decomposition": decomp}
+            return {
+                "total_value": G_tot,
+                "iso_reac_list": iso_reac_list,
+                "decomposition": decomp,
+            }
         else:
             return {"total_value": G_tot, "decomposition": decomp}
     elif return_iso_reac_list:
@@ -1954,12 +2277,16 @@ def calcul_G(
         elif isinstance(case_i, classes.Case):
             cases.append(case_i)
         else:
-            raise TypeError(f"Wrong sensitivity type for {case_i} - Choose case object, Path, or string")
+            raise TypeError(
+                f"Wrong sensitivity type for {case_i} - Choose case object, Path, or string"
+            )
 
     if iso_reac_list != None:
         for i, pair in enumerate(iso_reac_list):
             if not isinstance(pair, tuple):
-                raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
+                raise errors.UserInputError(
+                    f"The isotope-reaction pair '{pair}' should be a tuple."
+                )
 
     [sensi_vec1, sensi_vec2], iso_reac_list = make_sensi_vectors(
         cases_list=cases,
@@ -1981,7 +2308,13 @@ def calcul_G(
         G = (2.0 * sensi_vec1 @ sensi_vec2) / denom
 
     if return_partial:
-        partial = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY": []}
+        partial = {
+            "ISO": [],
+            "REAC": [],
+            "ISO_NAME": [],
+            "REAC_NAME": [],
+            "SIMILARITY": [],
+        }
         group_nb = cases[0].group_nb
 
         for i, (iso, reac) in enumerate(iso_reac_list):
@@ -2000,7 +2333,11 @@ def calcul_G(
         partial = pd.DataFrame(partial)
 
         if return_iso_reac_list:
-            return {"total_value": G, "iso_reac_list": iso_reac_list, "partial": partial}
+            return {
+                "total_value": G,
+                "iso_reac_list": iso_reac_list,
+                "partial": partial,
+            }
         else:
             return {"total_value": G, "partial": partial}
 
@@ -2071,44 +2408,69 @@ def calcul_Ck(
             cases.append(case_i)
 
         else:
-            raise TypeError(f"Wrong sensitivity type for {case_i} - Choose case object, Path, or string")
+            raise TypeError(
+                f"Wrong sensitivity type for {case_i} - Choose case object, Path, or string"
+            )
 
     if iso_reac_list != None:
         for i, pair in enumerate(iso_reac_list):
             if not isinstance(pair, tuple):
-                raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
+                raise errors.UserInputError(
+                    f"The isotope-reaction pair '{pair}' should be a tuple."
+                )
 
     if isinstance(cov_data, classes.NDCovariances):
 
-        [sensi_vec1, sensi_vec2], cov_mat, iso_reac_list = make_sensi_vectors_and_cov_matrix(
-            cases_list=cases,
-            cov_data=cov_data,
-            iso_reac_list=iso_reac_list,
-            reac_list=reac_list,
-            iso_list=iso_list,
-            exclude_iso=exclude_iso,
-            exclude_reac=exclude_reac,
-            operation="union",
+        [sensi_vec1, sensi_vec2], cov_mat, iso_reac_list = (
+            make_sensi_vectors_and_cov_matrix(
+                cases_list=cases,
+                cov_data=cov_data,
+                iso_reac_list=iso_reac_list,
+                reac_list=reac_list,
+                iso_list=iso_list,
+                exclude_iso=exclude_iso,
+                exclude_reac=exclude_reac,
+                operation="union",
+            )
         )
-        check_dimmensions(casename=cases[0].casename, sensi_vec=sensi_vec1, cov_mat=cov_mat, iso_reac_list=iso_reac_list)
+        check_dimmensions(
+            casename=cases[0].casename,
+            sensi_vec=sensi_vec1,
+            cov_mat=cov_mat,
+            iso_reac_list=iso_reac_list,
+        )
 
     elif isinstance(cov_data, classes.Assimilation):
 
-        if iso_reac_list != None or reac_list != None or iso_list != None or exclude_iso != None:
+        if (
+            iso_reac_list != None
+            or reac_list != None
+            or iso_list != None
+            or exclude_iso != None
+        ):
             warn(
                 f"The list of iso-reac taking into account is fixed by the object Assimilation in argument. If you need to restrict the list of iso-reac, insert a NDCovariances object as argument 'cov_data'."
             )
 
         iso_reac_list = cov_data.iso_reac_list
 
-        [sensi_vec1, sensi_vec2], dump = make_sensi_vectors(cases_list=cases, iso_reac_list=iso_reac_list)
+        [sensi_vec1, sensi_vec2], dump = make_sensi_vectors(
+            cases_list=cases, iso_reac_list=iso_reac_list
+        )
 
         cov_mat = np.substract(cov_data.cov_mat, cov_data.cov_mat_delta)
 
-        check_dimmensions(casename=cases[0].casename, sensi_vec=sensi_vec1, cov_mat=cov_mat, iso_reac_list=iso_reac_list)
+        check_dimmensions(
+            casename=cases[0].casename,
+            sensi_vec=sensi_vec1,
+            cov_mat=cov_mat,
+            iso_reac_list=iso_reac_list,
+        )
 
     else:
-        raise TypeError(f"cov_data must be NDCovariances or Assimilation object. Got {type(cov_data)}")
+        raise TypeError(
+            f"cov_data must be NDCovariances or Assimilation object. Got {type(cov_data)}"
+        )
 
     denom = (sensi_vec1 @ cov_mat @ sensi_vec1) * (sensi_vec2 @ cov_mat @ sensi_vec2)
     if denom == 0:
@@ -2117,16 +2479,26 @@ def calcul_Ck(
         Ck = (sensi_vec1 @ cov_mat @ sensi_vec2) / sqrt(denom)
 
     if return_partial:
-        partial = {"ISO": [], "REAC": [], "ISO_NAME": [], "REAC_NAME": [], "SIMILARITY": []}
+        partial = {
+            "ISO": [],
+            "REAC": [],
+            "ISO_NAME": [],
+            "REAC_NAME": [],
+            "SIMILARITY": [],
+        }
         group_nb = cases[0].group_nb
 
         for i, (iso, reac) in enumerate(iso_reac_list):
 
-            sub_cov_mat = cov_mat[i * group_nb : (i + 1) * group_nb, i * group_nb : (i + 1) * group_nb]
+            sub_cov_mat = cov_mat[
+                i * group_nb : (i + 1) * group_nb, i * group_nb : (i + 1) * group_nb
+            ]
             sub_sensi_vec1 = sensi_vec1[i * group_nb : (i + 1) * group_nb]
             sub_sensi_vec2 = sensi_vec2[i * group_nb : (i + 1) * group_nb]
 
-            denom = (sub_sensi_vec1 @ sub_cov_mat @ sub_sensi_vec1) * (sub_sensi_vec2 @ sub_cov_mat @ sub_sensi_vec2)
+            denom = (sub_sensi_vec1 @ sub_cov_mat @ sub_sensi_vec1) * (
+                sub_sensi_vec2 @ sub_cov_mat @ sub_sensi_vec2
+            )
 
             if denom == 0:
                 Ck_sub = 0
@@ -2142,7 +2514,11 @@ def calcul_Ck(
 
         if return_iso_reac_list:
 
-            return {"total_value": Ck, "iso_reac_list": iso_reac_list, "partial": partial}
+            return {
+                "total_value": Ck,
+                "iso_reac_list": iso_reac_list,
+                "partial": partial,
+            }
         else:
             return {"total_value": Ck, "partial": partial}
 
@@ -2200,12 +2576,16 @@ def calcul_uncertainty(
         appl_case = appl_case
 
     else:
-        raise TypeError(f"Wrong sensitivity type for {appl_case}- Choose case, Path, or string")
+        raise TypeError(
+            f"Wrong sensitivity type for {appl_case}- Choose case, Path, or string"
+        )
 
     if iso_reac_list != None:
         for i, pair in enumerate(iso_reac_list):
             if not isinstance(pair, tuple):
-                raise errors.UserInputError(f"The isotope-reaction pair '{pair}' should be a tuple.")
+                raise errors.UserInputError(
+                    f"The isotope-reaction pair '{pair}' should be a tuple."
+                )
 
     if isinstance(cov_data, classes.NDCovariances):
 
@@ -2221,22 +2601,42 @@ def calcul_uncertainty(
 
     elif isinstance(cov_data, classes.Assimilation):
 
-        if iso_reac_list != None or reac_list != None or iso_list != None or exclude_iso != None or exclude_reac != None:
+        if (
+            iso_reac_list != None
+            or reac_list != None
+            or iso_list != None
+            or exclude_iso != None
+            or exclude_reac != None
+        ):
             warn(
                 f"The list of iso-reac taking into account is fixed by the object Assimilation in argument. If you need to restrict the list of iso-reac, insert a NDCovariances object as argument 'cov_data'."
             )
 
         iso_reac_list = cov_data.iso_reac_list
 
-        [sensi_vec], dump = make_sensi_vectors(cases_list=[appl_case], iso_reac_list=iso_reac_list)
+        [sensi_vec], dump = make_sensi_vectors(
+            cases_list=[appl_case], iso_reac_list=iso_reac_list
+        )
 
         cov_mat = np.subtract(cov_data.cov_mat, cov_data.cov_mat_delta)
 
     else:
-        raise TypeError(f"cov_data must be NDCovariances or Assimilation object. Got {type(cov_data)}")
+        raise TypeError(
+            f"cov_data must be NDCovariances or Assimilation object. Got {type(cov_data)}"
+        )
 
-    check_dimmensions(casename=appl_case.casename, sensi_vec=sensi_vec, cov_mat=cov_mat, iso_reac_list=iso_reac_list)
-    check_correspondences(sensi_vec=sensi_vec, cov_mat=cov_mat, iso_reac_list=iso_reac_list, group_nb=appl_case.group_nb)
+    check_dimmensions(
+        casename=appl_case.casename,
+        sensi_vec=sensi_vec,
+        cov_mat=cov_mat,
+        iso_reac_list=iso_reac_list,
+    )
+    check_correspondences(
+        sensi_vec=sensi_vec,
+        cov_mat=cov_mat,
+        iso_reac_list=iso_reac_list,
+        group_nb=appl_case.group_nb,
+    )
 
     unc = classes.Uncertainty(
         appl_case=appl_case,
@@ -2282,11 +2682,20 @@ def calcul_bias(appl_case, assimilation):
         appl_case = appl_case
 
     else:
-        raise TypeError(f"Wrong sensitivity type for {appl_case}- Choose case, Path, or string")
+        raise TypeError(
+            f"Wrong sensitivity type for {appl_case}- Choose case, Path, or string"
+        )
 
-    [sensi_vec], dump = make_sensi_vectors(cases_list=[appl_case], iso_reac_list=assimilation.iso_reac_list)
+    [sensi_vec], dump = make_sensi_vectors(
+        cases_list=[appl_case], iso_reac_list=assimilation.iso_reac_list
+    )
 
-    check_correspondences(sensi_vec=sensi_vec, cov_mat=assimilation.cov_mat, iso_reac_list=assimilation.iso_reac_list, group_nb=assimilation.group_nb)
+    check_correspondences(
+        sensi_vec=sensi_vec,
+        cov_mat=assimilation.cov_mat,
+        iso_reac_list=assimilation.iso_reac_list,
+        group_nb=assimilation.group_nb,
+    )
 
     bias_post = classes.Bias(
         appl_case=appl_case,
@@ -2313,11 +2722,23 @@ def check_correspondences(sensi_vec, cov_mat, iso_reac_list, group_nb):
 
     dikt = {
         "iso-reac": list(iso_reac_list),
-        "sensi-integral-abs": [np.sum(np.abs(sensi_vec[i * group_nb : (i + 1) * group_nb])) for i in range(len(iso_reac_list))],
-        "cov-integral": [np.sum(cov_mat[i * group_nb : (i + 1) * group_nb, i * group_nb : (i + 1) * group_nb]) for i in range(len(iso_reac_list))],
+        "sensi-integral-abs": [
+            np.sum(np.abs(sensi_vec[i * group_nb : (i + 1) * group_nb]))
+            for i in range(len(iso_reac_list))
+        ],
+        "cov-integral": [
+            np.sum(
+                cov_mat[
+                    i * group_nb : (i + 1) * group_nb, i * group_nb : (i + 1) * group_nb
+                ]
+            )
+            for i in range(len(iso_reac_list))
+        ],
     }
     df = pd.DataFrame(dikt)
-    df = df.sort_values(by="sensi-integral-abs", ascending=False, key=lambda col: abs(col))
+    df = df.sort_values(
+        by="sensi-integral-abs", ascending=False, key=lambda col: abs(col)
+    )
 
     nb_iso_reac_check = 100
     i = 0
@@ -2357,19 +2778,27 @@ def compare_sensitivities(
         raise errors.SensInputError("bad type for case2")
 
     if not (type(sigma_nb_target) == int or type(sigma_nb_target) == float):
-        raise errors.SensInputError(f"bad type for sigma_target: {type(sigma_nb_target)}")
+        raise errors.SensInputError(
+            f"bad type for sigma_target: {type(sigma_nb_target)}"
+        )
     if sigma_nb_target < 0.0:
         raise errors.SensInputError("value for sigma_target must be positive")
 
     list_values_results = ["dataframe", "string"]
     if results_format not in list_values_results:
-        raise errors.SensInputError(f"value of results_format must be choosen in {list_values_results}")
+        raise errors.SensInputError(
+            f"value of results_format must be choosen in {list_values_results}"
+        )
 
     if tol_on_total_sensi_percent < 0.0 or tol_between_sensi_percent < 0.0:
         raise errors.SensInputError(f"value for tol must be >= 0.")
 
-    case1_sens = case1.sensitivities.sort_values(by=["ISO", "REAC"]).reset_index(drop=True)
-    case2_sens = case2.sensitivities.sort_values(by=["ISO", "REAC"]).reset_index(drop=True)
+    case1_sens = case1.sensitivities.sort_values(by=["ISO", "REAC"]).reset_index(
+        drop=True
+    )
+    case2_sens = case2.sensitivities.sort_values(by=["ISO", "REAC"]).reset_index(
+        drop=True
+    )
 
     case1_sens["key"] = case1_sens.apply(lambda row: (row["ISO"], row["REAC"]), axis=1)
     case2_sens["key"] = case2_sens.apply(lambda row: (row["ISO"], row["REAC"]), axis=1)
@@ -2378,23 +2807,42 @@ def compare_sensitivities(
 
     unique_keys_case1 = set(case1_sens["key"]) - set(case2_sens["key"])
     unique_keys_case2 = set(case2_sens["key"]) - set(case1_sens["key"])
-    case1_sens_common = case1_sens[case1_sens["key"].isin(commun_keys)].drop(columns=["key"]).sort_values(by=["ISO", "REAC"]).reset_index(drop=True)
-    case2_sens_common = case2_sens[case2_sens["key"].isin(commun_keys)].drop(columns=["key"]).sort_values(by=["ISO", "REAC"]).reset_index(drop=True)
+    case1_sens_common = (
+        case1_sens[case1_sens["key"].isin(commun_keys)]
+        .drop(columns=["key"])
+        .sort_values(by=["ISO", "REAC"])
+        .reset_index(drop=True)
+    )
+    case2_sens_common = (
+        case2_sens[case2_sens["key"].isin(commun_keys)]
+        .drop(columns=["key"])
+        .sort_values(by=["ISO", "REAC"])
+        .reset_index(drop=True)
+    )
     sum_abs_sensi_1 = case1_sens_common["SENSI_INTEGRAL_ABS"].sum()
     sum_abs_sensi_2 = case2_sens_common["SENSI_INTEGRAL_ABS"].sum()
 
     case_1_sens_unique = (
-        case1_sens[case1_sens["key"].isin(unique_keys_case1)].drop(columns=["key"]).sort_values(by=["ISO", "REAC"]).reset_index(drop=True)
+        case1_sens[case1_sens["key"].isin(unique_keys_case1)]
+        .drop(columns=["key"])
+        .sort_values(by=["ISO", "REAC"])
+        .reset_index(drop=True)
     )
     case_2_sens_unique = (
-        case2_sens[case2_sens["key"].isin(unique_keys_case2)].drop(columns=["key"]).sort_values(by=["ISO", "REAC"]).reset_index(drop=True)
+        case2_sens[case2_sens["key"].isin(unique_keys_case2)]
+        .drop(columns=["key"])
+        .sort_values(by=["ISO", "REAC"])
+        .reset_index(drop=True)
     )
 
     # write_and_print(case1_sens_common)
     # write_and_print(case2_sens_common)
 
     not_in_agreement = case1_sens_common.apply(
-        lambda row: not compare_row(row, case2_sens_common.loc[row.name], sigma_nb_target=sigma_nb_target), axis=1
+        lambda row: not compare_row(
+            row, case2_sens_common.loc[row.name], sigma_nb_target=sigma_nb_target
+        ),
+        axis=1,
     )
     case1_not_in_agreement = case1_sens_common[not_in_agreement]
     case2_not_in_agreement = case2_sens_common[not_in_agreement]
@@ -2402,7 +2850,9 @@ def compare_sensitivities(
     # write_and_print(case1_not_in_agreement)
     # write_and_print(case2_not_in_agreement)
 
-    case_not_in_agreement = case1_not_in_agreement[["ISO", "REAC", "SENSI_INTEGRAL", "STD_INTEGRAL", "SENSI_INTEGRAL_ABS"]]
+    case_not_in_agreement = case1_not_in_agreement[
+        ["ISO", "REAC", "SENSI_INTEGRAL", "STD_INTEGRAL", "SENSI_INTEGRAL_ABS"]
+    ]
     case_not_in_agreement = case_not_in_agreement.rename(
         columns={
             "SENSI_INTEGRAL": "SENSI_INTEGRAL_1",
@@ -2413,7 +2863,9 @@ def compare_sensitivities(
     case_not_in_agreement = pd.concat(
         [
             case_not_in_agreement,
-            case2_not_in_agreement[["SENSI_INTEGRAL", "STD_INTEGRAL", "SENSI_INTEGRAL_ABS"]],
+            case2_not_in_agreement[
+                ["SENSI_INTEGRAL", "STD_INTEGRAL", "SENSI_INTEGRAL_ABS"]
+            ],
         ],
         axis=1,
     )
@@ -2424,14 +2876,25 @@ def compare_sensitivities(
             "SENSI_INTEGRAL_ABS": "SENSI_INTEGRAL_ABS_2",
         }
     )
-    case_not_in_agreement["%SUM_ABS_1"] = 100 * case_not_in_agreement["SENSI_INTEGRAL_ABS_1"] / float(sum_abs_sensi_1)
-    case_not_in_agreement["%SUM_ABS_2"] = 100 * case_not_in_agreement["SENSI_INTEGRAL_ABS_2"] / float(sum_abs_sensi_2)
+    case_not_in_agreement["%SUM_ABS_1"] = (
+        100 * case_not_in_agreement["SENSI_INTEGRAL_ABS_1"] / float(sum_abs_sensi_1)
+    )
+    case_not_in_agreement["%SUM_ABS_2"] = (
+        100 * case_not_in_agreement["SENSI_INTEGRAL_ABS_2"] / float(sum_abs_sensi_2)
+    )
     case_not_in_agreement_reduce = case_not_in_agreement[
-        (case_not_in_agreement["%SUM_ABS_1"] > tol_on_total_sensi_percent) | (case_not_in_agreement["%SUM_ABS_2"] > tol_on_total_sensi_percent)
+        (case_not_in_agreement["%SUM_ABS_1"] > tol_on_total_sensi_percent)
+        | (case_not_in_agreement["%SUM_ABS_2"] > tol_on_total_sensi_percent)
     ]
     if tol_between_sensi_percent > 0.0:
         case_not_in_agreement_reduce = case_not_in_agreement_reduce[
-            abs(1 - (case_not_in_agreement_reduce["SENSI_INTEGRAL_1"] / case_not_in_agreement_reduce["SENSI_INTEGRAL_2"]))
+            abs(
+                1
+                - (
+                    case_not_in_agreement_reduce["SENSI_INTEGRAL_1"]
+                    / case_not_in_agreement_reduce["SENSI_INTEGRAL_2"]
+                )
+            )
             >= (tol_between_sensi_percent / 100)
         ]
 
@@ -2500,7 +2963,9 @@ def filter_cases(
     if to_keep:
         cases = [c for c in cases if any([k.lower() in c.lower() for k in to_keep])]
     if to_exclude:
-        cases = [c for c in cases if not any([k.lower() in c.lower() for k in to_exclude])]
+        cases = [
+            c for c in cases if not any([k.lower() in c.lower() for k in to_exclude])
+        ]
     return cases
 
 
@@ -2512,7 +2977,9 @@ def filter_common_data(dict_sensitivity):
     filtered_dict = {}
 
     for combination, data in dict_sensitivity.items():
-        filtered_data = {case: info for case, info in data["data"].items() if case in common_cases}
+        filtered_data = {
+            case: info for case, info in data["data"].items() if case in common_cases
+        }
 
         if filtered_data:
             filtered_dict[combination] = filtered_data
@@ -2567,22 +3034,38 @@ def find_sensitive_cases_for_combination(
                 isotope, reaction, energy_region, normalize_lethargy=normalize_lethargy
             )
 
-            sensi_integral = case_data.get_integral_sensitivity_value(isotope, reaction, absolute_value=True)
+            sensi_integral = case_data.get_integral_sensitivity_value(
+                isotope, reaction, absolute_value=True
+            )
 
             if integrate_data and not normalize_lethargy:
                 sensi_values = [np.sum(sensi_values)]
                 energy_bins = [energy_bins[0], energy_bins[-1]]
             if integrate_data and normalize_lethargy:
-                raise errors.UserInputError("The integrate_data option cannot be enabled with data normalized to lethargy")
+                raise errors.UserInputError(
+                    "The integrate_data option cannot be enabled with data normalized to lethargy"
+                )
             sensitive_bins = [
-                {"value": sensi_values[i], "e_bin": [energy_bins[i], energy_bins[i + 1]]}
+                {
+                    "value": sensi_values[i],
+                    "e_bin": [energy_bins[i], energy_bins[i + 1]],
+                }
                 for i in range(len(sensi_values))
-                if np.abs(sensi_values[i]) > sensitivity_threshold and np.abs(sensi_values[i]) / sensi_integral > fraction_threshold
+                if np.abs(sensi_values[i]) > sensitivity_threshold
+                and np.abs(sensi_values[i]) / sensi_integral > fraction_threshold
             ]
             if sensitive_bins:
-                max_index, max_value = max(enumerate(sensi_values), key=lambda x: np.abs(x[1]))
-                max_sensitivity = {"value": max_value, "e_bin": [energy_bins[max_index], energy_bins[max_index + 1]]}
-                dict_sensitive["data"][case] = {"sensitive_bins": sensitive_bins, "max_sensitivity": max_sensitivity}
+                max_index, max_value = max(
+                    enumerate(sensi_values), key=lambda x: np.abs(x[1])
+                )
+                max_sensitivity = {
+                    "value": max_value,
+                    "e_bin": [energy_bins[max_index], energy_bins[max_index + 1]],
+                }
+                dict_sensitive["data"][case] = {
+                    "sensitive_bins": sensitive_bins,
+                    "max_sensitivity": max_sensitivity,
+                }
         except errors.MissingDataError:
             # Skip the case if required data is missing
             continue
@@ -2642,17 +3125,25 @@ def find_sensitive_cases(
     isotopes, reactions, energy_regions = converted_inputs
 
     if not all(isinstance(arg, list) for arg in [isotopes, reactions, energy_regions]):
-        raise TypeError("All inputs (isotopes, reactions, energy_regions) must be of type list.")
+        raise TypeError(
+            "All inputs (isotopes, reactions, energy_regions) must be of type list."
+        )
 
     if not (len(isotopes) == len(reactions) == len(energy_regions)):
-        raise ValueError("All input lists (isotopes, reactions, energy_regions) must have the same length.")
+        raise ValueError(
+            "All input lists (isotopes, reactions, energy_regions) must have the same length."
+        )
 
     for item in energy_regions:
         if isinstance(item, list):
             if len(item) != 2:
-                raise ValueError("Each sublist in energy_regions must have a length of 2.")
+                raise ValueError(
+                    "Each sublist in energy_regions must have a length of 2."
+                )
         elif not isinstance(item, str):
-            raise TypeError("Each element in energy_regions must be either a string or a list of length 2.")
+            raise TypeError(
+                "Each element in energy_regions must be either a string or a list of length 2."
+            )
 
     matched_cases = set(cases)
     dict_temp = {}
@@ -2718,7 +3209,10 @@ def build_sensitive_dataframe(dict_sensitive):
     # Traverse the nested dictionary to extract values in a pivot-friendly format
 
     if not dict_sensitive.items():
-        warn(f"No cases sensitive to the specified criteria were found", bypass_verbose=True)
+        warn(
+            f"No cases sensitive to the specified criteria were found",
+            bypass_verbose=True,
+        )
         return None
 
     else:
@@ -2746,11 +3240,15 @@ def build_sensitive_dataframe(dict_sensitive):
 
         # Calculate the sensitivity sum of absolute values
         # Select only the max_sensitivity_value columns for summing
-        sensitivity_columns = [col for col in df_pivoted.columns if col.endswith("-max_value")]
+        sensitivity_columns = [
+            col for col in df_pivoted.columns if col.endswith("-max_value")
+        ]
         df_pivoted["absolute_sum"] = df_pivoted[sensitivity_columns].abs().sum(axis=1)
 
         # Sort by the sensitivity sum in descending order
-        df_pivoted = df_pivoted.sort_values(by="absolute_sum", ascending=False).reset_index(drop=True)
+        df_pivoted = df_pivoted.sort_values(
+            by="absolute_sum", ascending=False
+        ).reset_index(drop=True)
 
         # Order columns as case_id, absolute_sum, alternating max_sensitivity and e_bin columns
         ordered_columns = ["case_id", "absolute_sum"]
@@ -2792,8 +3290,16 @@ def display_most_sensitive_cases(dict_sensitive, max_number_of_cases_displayed=5
     fraction_threshold = search_criteria["fraction_threshold"]
 
     # Convert search criteria to strings for display
-    sensitivity_threshold_str = f"sensitivity_threshold = {sensitivity_threshold}" if sensitivity_threshold else "no sensitivity_threshold"
-    fraction_threshold_str = f"fraction_threshold = {fraction_threshold}" if fraction_threshold else "no fraction_threshold"
+    sensitivity_threshold_str = (
+        f"sensitivity_threshold = {sensitivity_threshold}"
+        if sensitivity_threshold
+        else "no sensitivity_threshold"
+    )
+    fraction_threshold_str = (
+        f"fraction_threshold = {fraction_threshold}"
+        if fraction_threshold
+        else "no fraction_threshold"
+    )
     data_type = "integral" if integrate_data else "per bin"
     normalization = "per unit lethargy" if normalize_lethargy else "raw"
     criteria_str = f"({sensitivity_threshold_str} ; {fraction_threshold_str})"
@@ -2885,7 +3391,9 @@ def plot_sensitivity_heatmap(
     )
 
     if user_energy_bins is None:
-        energy_bins = np.array([2e7, 1e6, 1e5, 1e4, 1e3, 1e2, 1e1, 1e0, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5])
+        energy_bins = np.array(
+            [2e7, 1e6, 1e5, 1e4, 1e3, 1e2, 1e1, 1e0, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5]
+        )
     else:
         energy_bins = user_energy_bins
 
@@ -2902,11 +3410,15 @@ def plot_sensitivity_heatmap(
         else:
             reactions_str.append(reaction)
 
-    iso_reac_list = [f"{isotope}-{reaction}" for isotope in isotopes for reaction in reactions_str]
+    iso_reac_list = [
+        f"{isotope}-{reaction}" for isotope in isotopes for reaction in reactions_str
+    ]
 
     dict_sensitive_cases = {}
     total_sensitive_cases = []
-    for i, (isotope, reaction) in enumerate([(iso, reac) for iso in isotopes for reac in reactions]):
+    for i, (isotope, reaction) in enumerate(
+        [(iso, reac) for iso in isotopes for reac in reactions]
+    ):
         write_and_print(f"- Treating {isotope}-{reaction}")
         dict_sensitive_cases[f"{isotope}-{reaction}"] = {}
         dict_sensitive_cases[f"{isotope}-{reaction}"]["total"] = []
@@ -2927,28 +3439,42 @@ def plot_sensitivity_heatmap(
             )
 
             sensitive_cases = sorted(
-                ((case, np.round(details["max_sensitivity"]["value"], 6)) for case, details in sensitivity["data"].items()),
+                (
+                    (case, np.round(details["max_sensitivity"]["value"], 6))
+                    for case, details in sensitivity["data"].items()
+                ),
                 key=lambda item: np.abs(item[1]),
                 reverse=True,
             )
 
-            dict_sensitive_cases[f"{isotope}-{reaction}"][f"{current_bin}"] = sensitive_cases
+            dict_sensitive_cases[f"{isotope}-{reaction}"][
+                f"{current_bin}"
+            ] = sensitive_cases
 
             for case in sensitive_cases:
-                if case[0] not in dict_sensitive_cases[f"{isotope}-{reaction}"]["total"]:
-                    dict_sensitive_cases[f"{isotope}-{reaction}"]["total"].append(case[0])
+                if (
+                    case[0]
+                    not in dict_sensitive_cases[f"{isotope}-{reaction}"]["total"]
+                ):
+                    dict_sensitive_cases[f"{isotope}-{reaction}"]["total"].append(
+                        case[0]
+                    )
 
             num_sensitive = len(list(sensitivity["data"].keys()))
 
             if num_sensitive > 0:
                 data[i, j] = num_sensitive
 
-        total_sensitive_cases.append(len(dict_sensitive_cases[f"{isotope}-{reaction}"]["total"]))
+        total_sensitive_cases.append(
+            len(dict_sensitive_cases[f"{isotope}-{reaction}"]["total"])
+        )
 
     log_energy_bins = np.log10(energy_bins)
 
     fig, ax1 = plt.subplots(figsize=(12, 6))
-    cax = ax1.pcolormesh(log_energy_bins, np.arange(len(iso_reac_list) + 1), data, cmap="jet")
+    cax = ax1.pcolormesh(
+        log_energy_bins, np.arange(len(iso_reac_list) + 1), data, cmap="jet"
+    )
 
     ax1.set_xlabel("Energy [eV]")
     ax1.set_ylabel("Isotope/Material and Interaction")
@@ -2965,7 +3491,8 @@ def plot_sensitivity_heatmap(
         for j in range(data.shape[1]):
             if not np.isnan(data[i, j]):
                 ax1.text(
-                    log_energy_bins[j] + (log_energy_bins[j + 1] - log_energy_bins[j]) / 2,
+                    log_energy_bins[j]
+                    + (log_energy_bins[j + 1] - log_energy_bins[j]) / 2,
                     i + 0.5,
                     int(data[i, j]),
                     ha="center",
@@ -2984,7 +3511,15 @@ def plot_sensitivity_heatmap(
 
     title = "" if title is None else title
 
-    namefig = "heatmap-" + "_".join(map(str, isotopes)) + "-" + "_".join(map(str, reactions)) + ".png" if namefig is None else namefig
+    namefig = (
+        "heatmap-"
+        + "_".join(map(str, isotopes))
+        + "-"
+        + "_".join(map(str, reactions))
+        + ".png"
+        if namefig is None
+        else namefig
+    )
 
     ax1.set_title(title)
 
@@ -3049,7 +3584,9 @@ def sort_case_sensitivities(
     if isinstance(case, (Path, str)):
         case = classes.Case(sdf_path=case)
     elif not isinstance(case, classes.Case):
-        raise TypeError(f"Invalid sensitivity type for {case} - Choose Case, Path, or string")
+        raise TypeError(
+            f"Invalid sensitivity type for {case} - Choose Case, Path, or string"
+        )
 
     if not isinstance(iso_list, (list, type(None))):
         raise TypeError("iso_list must be None or a list")
@@ -3083,17 +3620,28 @@ def sort_case_sensitivities(
                 dict_data["ISO"].append(isotope)
                 dict_data["REAC"].append(reaction)
 
-                sensi_values = case.get_filtered_sensitivity_by_energy_region(isotope, reaction, energy_region, normalize_lethargy=normalize_lethargy)
+                sensi_values = case.get_filtered_sensitivity_by_energy_region(
+                    isotope,
+                    reaction,
+                    energy_region,
+                    normalize_lethargy=normalize_lethargy,
+                )
 
                 if integrate_data and not normalize_lethargy:
                     sensi_values = [np.sum(sensi_values)]
                     energy_bins = [energy_bins[0], energy_bins[-1]]
                 elif integrate_data and normalize_lethargy:
-                    raise errors.UserInputError("The integrate_data option cannot be enabled with data normalized to lethargy")
+                    raise errors.UserInputError(
+                        "The integrate_data option cannot be enabled with data normalized to lethargy"
+                    )
 
-                max_index, max_value = max(enumerate(sensi_values), key=lambda x: np.abs(x[1]))
+                max_index, max_value = max(
+                    enumerate(sensi_values), key=lambda x: np.abs(x[1])
+                )
                 dict_data["MAX_SENSI_VALUE"].append(max_value)
-                dict_data["ENERGY_BINS"].append([energy_bins[max_index], energy_bins[max_index + 1]])
+                dict_data["ENERGY_BINS"].append(
+                    [energy_bins[max_index], energy_bins[max_index + 1]]
+                )
 
         except errors.MissingDataError:
             continue  # Skip missing data cases
