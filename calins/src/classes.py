@@ -877,6 +877,8 @@ class NDCovariances:
             self._cov_dataf, self._e_bins, self.group_nb, self.header = methods.format_gendf_to_dataframe(input_path)
         elif self.format == "xlsx":
             self._cov_dataf, self._e_bins, self.group_nb, self.header = methods.format_xlsx_to_dataframe(input_path)
+        elif self.format == "tendl":
+            raise errors.UserInputError("TENDL format is not yet implemented.")
         else:
             raise errors.UserInputError(
                 f"Format must be either 'coverx', 'coverx_old', 'coverx_txt', 'comac', 'gendf', or 'xlsx', but was provided as {format}"
