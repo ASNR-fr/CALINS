@@ -1,2 +1,2 @@
 """Version file - automatically generated."""
-__version__ = "1.0.0b0.dev0+b0f5dd7.20261021"
+__version__ = "1.0.0b0.dev0+a6617f7.20261021"

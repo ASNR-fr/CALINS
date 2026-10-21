@@ -1103,7 +1103,7 @@ def format_sensi_to_dataframe(
 
 
 # ----- Build the covariance matrix according to the 'iso_reac_list'
-def make_cov_matrix(cov_data: classes.NDCovariances, iso_reac_list: list):
+def make_cov_matrix(cov_data, iso_reac_list: list):
     """Create a covariance matrix from covariance data.
 
     Parameters
@@ -1118,6 +1118,10 @@ def make_cov_matrix(cov_data: classes.NDCovariances, iso_reac_list: list):
     tuple
         (cov_matrix, iso_reac_list_present) - Covariance matrix and list of isotope-reaction pairs actually present
     """
+
+    if not isinstance(cov_data, classes.NDCovariances):
+        raise TypeError(f"cov_data must be NDCovariances object. Got {type(cov_data)}")
+
     # Extract data from NDCovariances object
     cov_dataf = cov_data.cov_dataf
     iso_reac_cov = cov_data.iso_reac_list
@@ -2010,7 +2014,7 @@ def calcul_G(
 def calcul_Ck(
     case_1,
     case_2,
-    cov_data:classes.NDCovariances,
+    cov_data,
     return_iso_reac_list=False,
     return_partial=False,
     iso_reac_list=None,
