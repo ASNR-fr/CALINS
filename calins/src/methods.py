@@ -49,6 +49,9 @@ def format_comac_to_dataframe(input_path: str):
 
     cov_root = os.path.join(input_path)
 
+    if not os.path.isdir(cov_root):
+        raise errors.UserInputError(f"Path {cov_root} is not a folder. Select a folder containing .gendf files.")
+
     for file in os.listdir(cov_root):
 
         with open(os.path.join(cov_root, file), "r") as f:
@@ -131,14 +134,18 @@ def format_gendf_to_dataframe(input_path: Path):
 
     dikt_cov = {"ISO_H": [], "REAC_H": [], "ISO_V": [], "REAC_V": [], "STD": []}
     dikt_100 = {"ISO_H": [], "REAC_H": [], "ISO_V": [], "REAC_V": [], "STD": []}
-    COV_ROOT = os.path.join(input_path)
 
-    for file in os.listdir(COV_ROOT):
+    cov_root = os.path.join(input_path)
+
+    if not os.path.isdir(cov_root):
+        raise errors.UserInputError(f"Path {cov_root} is not a folder. Select a folder containing .gendf files.")
+
+    for file in os.listdir(cov_root):
 
         if not file.endswith(".gendf"):
             continue
 
-        with open(os.path.join(COV_ROOT, file), "r") as f:
+        with open(os.path.join(cov_root, file), "r") as f:
             lines = f.readlines()
 
         iMAT = lines[2][66:70]  # file.split('_')[0][:-1]
@@ -537,6 +544,9 @@ def format_scale_txt_to_dataframe(input_path: str):
     """
     cov_root = os.path.join(input_path)
 
+    if not os.path.isfile(cov_root):
+        raise errors.UserInputError(f"Path {cov_root} is not a file. Select a valid covariance matrix text file.")
+
     with open(cov_root, "r") as f:
         lines_cov = f.readlines()
 
@@ -589,6 +599,9 @@ def format_scale_txt_to_dataframe(input_path: str):
 def format_xlsx_to_dataframe(input_path: str):
     import ast
 
+    if not os.path.isfile(input_path):
+        raise errors.UserInputError(f"Path {input_path} is not a file. Select a valid covariance matrix xlsx file.")
+    
     cov_df = pd.read_excel(input_path, index_col=0)
 
     # Convert string representations of lists in STD column back to actual lists of floats
@@ -669,6 +682,10 @@ def condense_sdf(input_sdf_path: str, output_ebins: list, output_sdf_path: str):
     output_sdf_path : str
         Path to write the new SDF file.
     """
+
+    if not os.path.isfile(input_sdf_path):
+        raise errors.UserInputError(f"Path {input_sdf_path} is not a file. Select a valid SDF file.")
+    
     with open(input_sdf_path, "r") as f:
         lines_sensi = f.readlines()
         if output_sdf_path != None:
@@ -846,7 +863,10 @@ def format_sensi_to_dataframe(
     iso_reac_micro_region = []
 
     if occurrences_rule not in ["sum", "first", "last"]:
-        errors.UserInputError(f"The occurrence_rule argument to dictate how to parse mutliple iso-reac must be 'sum'/'first'/'last'.")
+        raise errors.UserInputError(f"The occurrence_rule argument to dictate how to parse mutliple iso-reac must be 'sum'/'first'/'last'.")
+
+    if not os.path.isfile(input_sdf_path):
+        raise errors.UserInputError(f"Path {input_sdf_path} is not a file. Select a valid SDF file.")
 
     with open(input_sdf_path, "r") as f:
         lines_sensi = f.readlines()
@@ -1083,7 +1103,7 @@ def format_sensi_to_dataframe(
 
 
 # ----- Build the covariance matrix according to the 'iso_reac_list'
-def make_cov_matrix(cov_data, iso_reac_list: list):
+def make_cov_matrix(cov_data: classes.NDCovariances, iso_reac_list: list):
     """Create a covariance matrix from covariance data.
 
     Parameters
@@ -1990,7 +2010,7 @@ def calcul_G(
 def calcul_Ck(
     case_1,
     case_2,
-    cov_data,
+    cov_data:classes.NDCovariances,
     return_iso_reac_list=False,
     return_partial=False,
     iso_reac_list=None,

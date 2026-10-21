@@ -1246,8 +1246,8 @@ class Assimilation:
     @log_exec()
     def __init__(
         self,
-        benchmarks_list,
-        cov_data,
+        benchmarks_list:list,
+        cov_data:NDCovariances,
         appl_case=None,
         iso_reac_list: list = None,
         reac_list: list = None,
