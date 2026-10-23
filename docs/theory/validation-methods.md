@@ -152,9 +152,90 @@ $$\text{USL} = 1 - \text{CM} - \text{MOS}$$
 
 ---
 
+## 3. Whisper Extreme-Value Method (Not verified yet ...)
+
+### Hypotheses
+
+- Each benchmark provides an **independent estimate** of the bias, modeled as a normal distribution $\mathcal{N}(\beta_i, \sigma_i^2)$.
+- Benchmarks are **weighted by their similarity** to the application case using the $C_k$ index. More similar benchmarks have higher weight; dissimilar benchmarks contribute less.
+- The **extreme-value distribution** (product of individual CDFs) models the worst-case bias across all benchmarks simultaneously.
+- If the benchmark suite does not provide sufficient coverage (sum of weights < required weight), a **noncoverage penalty** is applied.
+
+### Procedure
+
+**Step 1 — Compute benchmark weights from $C_k$ similarity:**
+
+The required total weight depends on how similar the best benchmark is:
+
+$$w_{\text{req}} = w_{\min} + w_{\text{penalty}} \times (1 - C_{k,\max})$$
+
+where $w_{\min} = 25$ and $w_{\text{penalty}} = 100$ by default. If the best benchmark has $C_k = 1$ (perfect similarity), $w_{\text{req}} = 25$. If $C_{k,\max} = 0.7$, then $w_{\text{req}} = 55$.
+
+A threshold $c_{k,\text{acc}}$ is found (by Brent's method) such that:
+
+$$w_i = \max\left(0, \;\frac{C_{k,i} - c_{k,\text{acc}}}{C_{k,\max} - c_{k,\text{acc}}}\right), \quad \sum_i w_i = w_{\text{req}}$$
+
+Benchmarks with $C_k < c_{k,\text{acc}}$ receive zero weight (excluded). The most similar benchmark always has $w_i = 1$.
+
+**Step 2 — Build the extreme-value CDF:**
+
+Each benchmark contributes a weighted CDF:
+
+$$F_i(x) = (1 - w_i) + \frac{w_i}{2}\left(1 + \text{erf}\left(\frac{x + \beta_i}{\sigma_i \sqrt{2}}\right)\right)$$
+
+When $w_i = 0$, $F_i(x) = 1$ (no contribution). When $w_i = 1$, it is a standard Gaussian CDF centered on $-\beta_i$.
+
+The total extreme-value CDF is the product:
+
+$$F(x) = \prod_i F_i(x)$$
+
+This represents the probability that **all** weighted benchmarks have a bias less extreme than $x$. It captures the worst-case behavior.
+
+**Step 3 — Unadjusted calculational margin $\tilde{m}$:**
+
+Find $\tilde{m}$ such that:
+
+$$F(\tilde{m}) = q$$
+
+where $q = 0.99$ by default. This is the value below which 99% of the extreme-value distribution lies. Solved numerically by root-finding.
+
+**Step 4 — Noncoverage penalty:**
+
+If the total weight $w_{\text{sum}} < w_{\text{req}}$ (not enough similar benchmarks), a more conservative margin is computed by interpolation:
+
+$$m = \tilde{m} \cdot \frac{w_{\text{sum}}}{w_{\text{req}}} + m_0 \cdot \left(1 - \frac{w_{\text{sum}}}{w_{\text{req}}}\right)$$
+
+where $m_0$ is the margin computed with all benchmarks at unit weight (worst-case bounding). If $w_{\text{sum}} \geq w_{\text{req}}$, then $m = \tilde{m}$ (no penalty).
+
+**Step 5 — Extreme-value bias $\beta_{ev}$ :**
+
+The mean of the extreme-value distribution is computed by numerical integration (trapezoid rule):
+
+$$\beta_{ev} = -\int x \, f(x) \, dx$$
+
+where $f(x) = \frac{dF}{dx}$ is the extreme-value PDF.
+
+**Step 6 — Final results:**
+
+| Quantity | Formula |
+|---|---|
+| Nonconservative bias adjustment | $\Delta_m = \max(0, \beta_{ev})$ |
+| Bias uncertainty | $\sigma_\beta = m + \beta_{ev}$ |
+| Calculational Margin | $\text{CM} = m + \Delta_m$ |
+| USL | $\text{USL} = 1 - \text{CM} - \text{MOS}$ |
+
+### Summary
+
+| Quantity | Description |
+|---|---|
+| Bias | $\beta_{ev}$: mean of extreme-value distribution |
+| Weighting | By $C_k$ similarity (linear, with threshold $c_{k,\text{acc}}$) |
+| CM | From extreme-value CDF quantile + noncoverage penalty |
+| Key hypothesis | **Independence** of benchmark biases; **$C_k$-based weighting** |
+
 ---
 
-## 3. Trending Method (Single-Sided Lower Tolerance Band)
+## 4. Trending Method (Single-Sided Lower Tolerance Band)
 
 ### Hypotheses
 
@@ -245,6 +326,7 @@ $$\text{USL} = 1 - \text{CM} - \text{MOS}$$
     - Use the **Nonparametric** method as a conservative fallback when normality is not satisfied.
     - Use the **Trending** method when a significant linear trend is detected (t-test rejects $H_0$). It accounts for the dependence of bias on similarity.
     - If the trend is **not significant**, the parametric or nonparametric methods are more appropriate.
+    - Use the **Whisper** method when benchmarks have varying similarity ($C_k$), to avoid penalizing the USL with very dissimilar benchmarks.
 
 ## References
 

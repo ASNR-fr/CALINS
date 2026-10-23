@@ -1452,6 +1452,9 @@ class Assimilation:
         Nonparametric rank-order USL results (distribution-free). Keys: ``'USL'``, ``'calculational_margin'``, ``'beta'``, ``'sigma_beta'``, ``'min_k_tilde'``,
         ``'Delta_m'``, ``'sigma_worst'``, ``'CNP'``, ``'m_NP'``, ``'N'``, ``'coverage'``, ``'n_sigma'``.
         ``'USL'`` and ``'calculational_margin'`` are ``None`` when CNP ≤ 0.4 (insufficient benchmarks).
+    USL_whisper : dict
+        Whisper extreme-value USL results (Ck-weighted). Keys: ``'USL'``, ``'calculational_margin'``, ``'beta_ev'``, ``'sigma_beta'``, ``'Delta_m'``,
+        ``'m'``, ``'m_tilde'``, ``'m0'``, ``'N'``, ``'coverage'``, ``'ck_max'``, ``'ck_acc'``, ``'w_req'``, ``'w_sum'``, ``'noncoverage_penalty'``.
     USL_trending : dict
         Linear trending USL results (single-sided lower tolerance band). Keys: ``'USL'``, ``'calculational_margin'``, ``'beta_0'``, ``'beta_1'``,
         ``'beta_x'``, ``'sigma_beta_x'``, ``'S_p'``, ``'sigma_fit'``, ``'sigma_bar'``, ``'S_xx'``, ``'x_bar'``, ``'k_bar'``, ``'x_eval'``,
@@ -1676,6 +1679,7 @@ class Assimilation:
         self.calcul_USL_gllsm()
         self.calcul_USL_parametric()
         self.calcul_USL_nonparametric()
+        self.calcul_USL_whisper()
         self.calcul_USL_trending()
         self.export_to_html(
             output_html_path=self.output_html_path,
@@ -2534,6 +2538,273 @@ class Assimilation:
         return self.USL_nonparametric
 
     # ============================================================
+    #  Whisper Extreme-Value Methodology
+    # ============================================================
+
+    def _whisper_benchmark_weights(self, w_min=25, w_penalty=100):
+        """Compute Whisper-style benchmark weights based on Ck similarity (Eqs. 34-35).
+
+        Parameters
+        ----------
+        w_min : float
+            Minimum required sample weight (default 25).
+        w_penalty : float
+            Penalty for not having a perfectly similar benchmark (default 100).
+
+        Returns
+        -------
+        weights : np.ndarray
+            Weight for each non-removed benchmark (scaled so max = 1).
+        ck_max : float
+            Maximum Ck among non-removed benchmarks.
+        ck_acc : float
+            Acceptance Ck threshold that was found.
+        w_req : float
+            Required sample weight.
+        w_sum : float
+            Actual sum of weights.
+        """
+        ck_values = []
+        for b in range(len(self.bench_list)):
+            if not self.bench_list["REMOVED"][b]:
+                ck_values.append(self.bench_list["Ck"][b])
+        ck_values = np.array(ck_values)
+
+        # Clip negative Ck to zero (as Whisper does)
+        ck_values = np.maximum(ck_values, 0.0)
+
+        ck_max = np.max(ck_values) if len(ck_values) > 0 else 0.0
+
+        # Required weight (Eq. 35)
+        w_req = w_min + w_penalty * (1.0 - ck_max)
+
+        # Iterative search for ck_acc so that sum(w_i) = w_req (Eqs. 33-34)
+        def weight_sum_for_ck_acc(ck_acc):
+            if ck_max <= ck_acc:
+                return 0.0
+            wi = np.maximum(0.0, (ck_values - ck_acc) / (ck_max - ck_acc))
+            return np.sum(wi)
+
+        # Total possible weight (all benchmarks included, ck_acc = 0 or below)
+        w_total = weight_sum_for_ck_acc(0.0)
+
+        if w_total <= w_req:
+            # Not enough weight even with all benchmarks -> use all, with noncoverage penalty later
+            ck_acc = 0.0
+            weights = (
+                np.maximum(0.0, (ck_values - ck_acc) / (ck_max - ck_acc))
+                if ck_max > 0
+                else np.zeros_like(ck_values)
+            )
+            w_sum = np.sum(weights)
+        else:
+            # Binary search for ck_acc that satisfies sum(w_i) = w_req
+            ck_acc = brentq(
+                lambda c: weight_sum_for_ck_acc(c) - w_req,
+                0.0,
+                ck_max - 1e-12,
+                xtol=1e-9,
+            )
+            weights = np.maximum(0.0, (ck_values - ck_acc) / (ck_max - ck_acc))
+            w_sum = np.sum(weights)
+
+        return weights, ck_max, ck_acc, w_req, w_sum
+
+    def _whisper_extreme_value_CDF(self, x, weights, betas, sigmas):
+        """Compute the extreme-value CDF F(x) = prod_i F_i(x) (Eq. 19) with weighted normal CDFs (Eq. 23).
+
+        Parameters
+        ----------
+        x : float
+            Value at which to evaluate the CDF (opposite-signed bias).
+        weights : np.ndarray
+            Weight factors w_i for each benchmark (max = 1).
+        betas : np.ndarray
+            Bias beta_i = k_calc - k_bench for each benchmark.
+        sigmas : np.ndarray
+            Combined uncertainty sigma_i for each benchmark.
+
+        Returns
+        -------
+        F : float
+            Product CDF value.
+        """
+        F = 1.0
+        for i in range(len(weights)):
+            wi = weights[i]
+            bi = betas[i]
+            si = sigmas[i]
+            # F_i(x) = (1 - w_i) + (w_i / 2) * (1 + erf((x + b_i) / sqrt(2 * sigma_i²)))   (Eq. 23)
+            Fi = (1.0 - wi) + (wi / 2.0) * (1.0 + math_erf((x + bi) / (si * sqrt(2.0))))
+            F *= Fi
+        return F
+
+    def _whisper_extreme_value_mean(
+        self, weights, betas, sigmas, eps_x=1e-6, eps_int=1e-9
+    ):
+        """Compute the mean of the extreme-value distribution (Eq. 25) using the trapezoid rule.
+
+        Returns
+        -------
+        beta_ev : float
+            Opposite-signed bias (mean of extreme-value PDF), returned as the bias (sign flipped).
+        """
+        # Find integration bounds where CDF is below eps_x and above 1 - eps_x
+        # Start with a wide range and narrow down
+        x_low = -0.2
+        while (
+            self._whisper_extreme_value_CDF(x_low, weights, betas, sigmas) > eps_x
+            and x_low > -2.0
+        ):
+            x_low -= 0.1
+        x_high = 0.2
+        while (
+            self._whisper_extreme_value_CDF(x_high, weights, betas, sigmas)
+            < 1.0 - eps_x
+            and x_high < 2.0
+        ):
+            x_high += 0.1
+
+        # Trapezoid rule integration: integral of x * f(x) dx = integral of x * dF(x)
+        # Use integration by parts: integral x*f(x)dx , approximate numerically
+        n_points = 1000
+        converged = False
+        integral_prev = None
+
+        while not converged and n_points <= 1000000:
+            xs = np.linspace(x_low, x_high, n_points)
+            Fs = np.array(
+                [
+                    self._whisper_extreme_value_CDF(xi, weights, betas, sigmas)
+                    for xi in xs
+                ]
+            )
+            # f(x) = dF/dx, approximate with finite differences
+            dF = np.diff(Fs)
+            x_mid = 0.5 * (xs[:-1] + xs[1:])
+            integral = np.sum(x_mid * dF)
+
+            if integral_prev is not None and abs(integral - integral_prev) < eps_int:
+                converged = True
+            integral_prev = integral
+            n_points *= 2
+
+        # beta = - integral (Eq. 25)
+        beta_ev = -integral
+        return beta_ev
+
+    @log_exec()
+    def calcul_USL_whisper(self, confidence=0.99, w_min=25, w_penalty=100):
+        """Whisper extreme-value methodology for USL.
+
+        Parameters
+        ----------
+        confidence : float
+            Confidence level for the extreme-value CDF (default 0.99).
+        w_min : float
+            Minimum required sample weight (default 25).
+        w_penalty : float
+            Penalty factor for non-similar benchmarks (default 100).
+        """
+        # Get benchmark data for non-removed benchmarks
+        k_tilde_all, sigma_all = self._get_scaled_k_and_sigma()
+        betas_all = np.array(
+            [k - 1.0 for k in k_tilde_all]
+        )  # bias = k_calc/k_bench - 1
+
+        # Compute Whisper weights based on Ck
+        weights, ck_max, ck_acc, w_req, w_sum = self._whisper_benchmark_weights(
+            w_min=w_min, w_penalty=w_penalty
+        )
+
+        N = len(weights)
+
+        # Compute the unadjusted calculational margin m such that F(m) = q
+        # F is the extreme-value CDF
+        def F_minus_q(x):
+            return (
+                self._whisper_extreme_value_CDF(x, weights, betas_all, sigma_all)
+                - confidence
+            )
+
+        # Find bounds for root finding
+        x_low = -0.5
+        while F_minus_q(x_low) > 0 and x_low > -2.0:
+            x_low -= 0.2
+        x_high = 0.5
+        while F_minus_q(x_high) < 0 and x_high < 2.0:
+            x_high += 0.2
+
+        m_tilde = brentq(F_minus_q, x_low, x_high, xtol=1e-12)
+
+        # Handle noncoverage penalty if sample weight is insufficient
+        if w_sum < w_req:
+            # Compute m0 : calculational margin with all benchmarks at unit weight
+            unit_weights = np.ones(N)
+
+            def F0_minus_q(x):
+                return (
+                    self._whisper_extreme_value_CDF(
+                        x, unit_weights, betas_all, sigma_all
+                    )
+                    - confidence
+                )
+
+            x_low0, x_high0 = -0.5, 0.5
+            while F0_minus_q(x_low0) > 0 and x_low0 > -2.0:
+                x_low0 -= 0.2
+            while F0_minus_q(x_high0) < 0 and x_high0 < 2.0:
+                x_high0 += 0.2
+            m0 = brentq(F0_minus_q, x_low0, x_high0, xtol=1e-12)
+
+            # Interpolation
+            m = m_tilde * (w_sum / w_req) + m0 * (1.0 - w_sum / w_req)
+            noncoverage_penalty = m - m_tilde
+        else:
+            m = m_tilde
+            m0 = m_tilde
+            noncoverage_penalty = 0.0
+
+        # Compute bias as mean of extreme-value distribution
+        beta_ev = self._whisper_extreme_value_mean(weights, betas_all, sigma_all)
+
+        # Nonconservative bias adjustment
+        Delta_m = max(0.0, beta_ev)
+
+        # Final calculational margin
+        CM = m + Delta_m
+
+        # Bias uncertainty
+        sigma_beta = m + beta_ev
+
+        # USL = 1 - CM - MOS
+        USL_whisper = 1.0 - CM - self.MOS
+
+        self.USL_whisper = {
+            "beta_ev": beta_ev,
+            "Delta_m": Delta_m,
+            "sigma_beta": sigma_beta,
+            "m": m,
+            "m_tilde": m_tilde,
+            "m0": m0,
+            "calculational_margin": CM,
+            "USL": USL_whisper,
+            "N": N,
+            "confidence": confidence,
+            "ck_max": ck_max,
+            "ck_acc": ck_acc,
+            "w_req": w_req,
+            "w_sum": w_sum,
+            "noncoverage_penalty": noncoverage_penalty,
+        }
+
+        write_and_print(
+            f"{2*'    '}Whisper USL = {USL_whisper:.5f}  (Calculational margin = {CM:.5f}, β_ev = {beta_ev:.5f}, ck_max = {ck_max:.4f}, N = {N})"
+        )
+
+        return self.USL_whisper
+
+    # ============================================================
     #  Trending Method (Single-Sided Lower Tolerance Band)
     #  Linear regression of k_norm vs Ck, with t-test for trend
     #  significance.
@@ -2975,6 +3246,7 @@ class Assimilation:
         gllsm = self.USL_gllsm
         pr = self.USL_parametric
         npr = self.USL_nonparametric
+        wr = self.USL_whisper
         tr = self.USL_trending
 
         # --- Summary comparison table ---
@@ -3008,6 +3280,12 @@ class Assimilation:
             summary_values.append(
                 "<span style='color:red'>Additional data needed</span>"
             )
+
+        summary_labels.append(
+            f"{tip('Extreme-value method. Uses Ck-weighted benchmark contributions and the product of individual CDFs to bound the worst-case bias.')}Whisper"
+        )
+        summary_values.append(f"{wr['calculational_margin']*1E5:.0f} pcm")
+
         if tr["USL"] is not None:
             summary_labels.append(
                 f"{tip('Linear regression of C/E vs Ck. Tests for a statistically significant trend and applies a single-sided lower tolerance band at the evaluation point.')}Trending"
@@ -3151,6 +3429,77 @@ class Assimilation:
             config={"displayModeBar": False},
         )
 
+        # --- Figure 3: Whisper (Ck vs bias, 2D) ---
+        fig_whisper = go.Figure()
+        ck_plot = []
+        bias_plot = []
+        for b in range(len(self.bench_list)):
+            if not self.bench_list["REMOVED"][b]:
+                ck_plot.append(self.bench_list["Ck"][b])
+                bias_plot.append(k_tilde_fig[len(ck_plot) - 1] - 1.0)
+        ck_plot = np.array(ck_plot)
+        bias_plot = np.array(bias_plot)
+        fig_whisper.add_trace(
+            go.Scatter(
+                x=ck_plot,
+                y=bias_plot,
+                mode="markers",
+                marker=dict(size=6, color="#4C78A8", opacity=0.7),
+                name="Benchmarks",
+            )
+        )
+        fig_whisper.add_hline(
+            y=wr["beta_ev"],
+            line=dict(color="#E45756", width=2, dash="solid"),
+            annotation_text="β<sub>ev</sub>",
+            annotation_position="bottom right",
+            annotation=dict(font_size=9),
+        )
+        fig_whisper.add_hline(
+            y=-wr["calculational_margin"],
+            line=dict(color="#54A24B", width=2, dash="dash"),
+            annotation_text="−CM",
+            annotation_position="top right",
+            annotation=dict(font_size=9),
+        )
+        fig_whisper.add_hrect(
+            y0=wr["beta_ev"] - wr["sigma_beta"],
+            y1=wr["beta_ev"] + wr["sigma_beta"],
+            fillcolor="#E45756",
+            opacity=0.1,
+            line_width=0,
+            annotation_text="σ<sub>β</sub>",
+            annotation_position="top left",
+            annotation=dict(font_size=9),
+        )
+        fig_whisper.add_vline(
+            x=wr["ck_acc"],
+            line=dict(color="#F58518", width=1.5, dash="dot"),
+            annotation_text="c<sub>k,acc</sub>",
+            annotation_position="top left",
+            annotation=dict(font_size=9),
+        )
+        fig_whisper.add_hline(y=0, line=dict(color="grey", width=0.5, dash="solid"))
+        fig_whisper.update_layout(
+            width=300,
+            height=200,
+            margin=dict(l=40, r=5, t=20, b=30),
+            showlegend=False,
+            template="plotly_white",
+            xaxis=dict(
+                title=dict(text="C<sub>k</sub>", font=dict(size=9)),
+                tickfont=dict(size=8),
+            ),
+            yaxis=dict(
+                title=dict(text="Bias (k̃-1)", font=dict(size=9)), tickfont=dict(size=8)
+            ),
+        )
+        html_fig_whisper = fig_whisper.to_html(
+            full_html=False,
+            include_plotlyjs=plotlyjs_fig_include,
+            config={"displayModeBar": False},
+        )
+
         # ========== Build HTML: 3-column flex layout, each column = table then graph ==========
         vm_table_attrs = "border='1' cellpadding='3' cellspacing='0' style='border-collapse:collapse; font-size:11px; width:100%;'"
 
@@ -3238,7 +3587,54 @@ class Assimilation:
             nparam_values.append(
                 "<span style='color:red'>Additional data needed</span>"
             )
-        # --- Column 3: Trending data ---
+
+        # --- Column 3: Whisper data ---
+        whisper_labels = [
+            f"{tip('Number of non-removed benchmark cases used in the analysis.')}N benchmarks",
+            f"{tip('Maximum Ck similarity coefficient between the application case and any benchmark. Higher values indicate better coverage.')}Max c<sub>k</sub>",
+            f"{tip('Acceptance Ck threshold: only benchmarks with Ck > c_k,acc receive nonzero weight. Determined so that the sum of weights equals w_req.')}c<sub>k,acc</sub>",
+            f"{tip('Required total sample weight: w_req = w_min + w_penalty × (1 − ck_max). Increases when the most similar benchmark is not perfectly similar.')}w<sub>req</sub>",
+            f"{tip('Actual sum of benchmark weights. If w_sum < w_req, a noncoverage penalty is applied because the benchmark suite does not provide sufficient coverage.')}w<sub>sum</sub>",
+            f"{tip('Bias from the extreme-value distribution mean. Computed as the expectation of the product-CDF, accounting for the Ck-weighted contribution of each benchmark.')}β<sub>ev</sub>",
+            f"{tip('Non-conservative bias adjustment: Δm = max(0, β_ev). Penalty when the extreme-value mean bias is positive.')}Noncons. bias adj. Δ<sub>m</sub>",
+            f"{tip('Unadjusted calculational margin: value m̃ such that the extreme-value CDF F(m̃) = q. This is the raw margin before noncoverage penalty.')}Unadj. Calc. Margin (m̃, q={wr['confidence']})",
+        ]
+        whisper_values = [
+            f"{wr['N']}",
+            f"{wr['ck_max']:.4f}",
+            f"{wr['ck_acc']:.4f}",
+            f"{wr['w_req']:.2f}",
+            f"{wr['w_sum']:.2f}",
+            f"{wr['beta_ev']:.6f}",
+            f"{wr['Delta_m']:.6f}",
+            f"{wr['m_tilde']:.5f}",
+        ]
+        if wr["noncoverage_penalty"] > 0:
+            whisper_labels.extend(
+                [
+                    f"{tip('Noncoverage penalty applied when w_sum < w_req. The margin is interpolated between m̃ (partial-weight) and m₀ (unit-weight): m = m̃·(w_sum/w_req) + m₀·(1 − w_sum/w_req).')}Noncov. penalty",
+                    f"{tip('Bounding margin computed with all benchmarks at unit weight (worst-case assumption). Used in the noncoverage penalty interpolation.')}Bounding Calc. Margin m<sub>0</sub>",
+                ]
+            )
+            whisper_values.extend(
+                [f"{wr['noncoverage_penalty']:.5f}", f"{wr['m0']:.5f}"]
+            )
+        whisper_labels.extend(
+            [
+                f"{tip('Bias uncertainty for the extreme-value method: σ_β = m + β_ev. Measures the spread between the margin and the mean bias.')}σ<sub>β</sub>",
+                f"{tip('Final calculational margin: CM = m + Δm, where m is the (possibly penalty-adjusted) extreme-value margin.')}<b>Calc. Margin = m + Δ<sub>m</sub></b>",
+                f"{tip('Upper Subcritical Limit = 1 − MOS − CM.')}<b>USL = 1 - {self.MOS} - CM</b>",
+            ]
+        )
+        whisper_values.extend(
+            [
+                f"{wr['sigma_beta']:.6f}",
+                f"<b>{wr['calculational_margin']:.5f}</b>",
+                f"<b>{wr['USL']:.5f}</b>",
+            ]
+        )
+
+        # --- Column 4: Trending data ---
         trend_labels = [
             f"{tip('Number of non-removed benchmark cases used in the analysis.')}N benchmarks",
         ]
@@ -3444,12 +3840,22 @@ class Assimilation:
         validation_str += "<div style='margin-top:6px;'>" + html_fig_nparam + "</div>"
         validation_str += "</div>"
 
-        # Close outer flex row (parametric + nonparametric)
+        validation_str += "<div style='flex:1; min-width:280px; display:flex; flex-direction:column; align-items:flex-start; padding:0 8px;'>"
+        validation_str += "<h4 style='font-size:13px;'>3. Whisper Extreme-Value</h4>"
+        validation_str += plots.create_html_table(
+            lines=[whisper_labels, whisper_values],
+            table_attrs=vm_table_attrs,
+            centered=False,
+        )
+        validation_str += "<div style='margin-top:6px;'>" + html_fig_whisper + "</div>"
+        validation_str += "</div>"
+
+        # Close outer flex row (parametric + nonparametric + Whisper)
         validation_str += "</div>"
 
         # --- Trending section: full-width below, table + large figure side by side ---
         validation_str += (
-            "<h4 style='font-size:13px; margin-top:18px;'>3. Linear Trending</h4>"
+            "<h4 style='font-size:13px; margin-top:18px;'>4. Linear Trending</h4>"
         )
         validation_str += "<div style='display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start;'>"
         validation_str += "<div style='min-width:240px; max-width:300px;'>"

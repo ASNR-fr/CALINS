@@ -55,6 +55,11 @@ print(f"  Normality test passed: {assimilation.USL_parametric['normality_passed'
 print(f"Nonparametric USL: {assimilation.USL_nonparametric['USL']}")
 print(f"  CNP: {assimilation.USL_nonparametric['CNP']:.4f}")
 
+# Whisper USL (extreme-value method using Ck-weighted benchmarks)
+print(f"Whisper USL: {assimilation.USL_whisper['USL']:.5f}")
+print(f"  Beta (extreme-value): {assimilation.USL_whisper['beta_ev']:.6f}")
+print(f"  Max Ck: {assimilation.USL_whisper['ck_max']:.4f}")
+
 # Trending USL (NUREG/CR-6698 single-sided lower tolerance band, linear regression on Ck)
 print(f"Trending USL: {assimilation.USL_trending['USL']:.5f}")
 print(f"  Slope (beta_1): {assimilation.USL_trending['beta_1']:.6f}")
