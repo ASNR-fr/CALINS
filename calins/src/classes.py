@@ -3326,6 +3326,8 @@ class Assimilation:
                 )
                 summary_values.append(
                     f"{gllsm['calculational_margin']*1E5:.0f} pcm"
+                    if gllsm["calculational_margin"] is not None
+                    else "<span style='color:red'>N/A (N&lt;2)</span>"
                 )
             
             summary_labels.append(
