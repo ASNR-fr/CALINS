@@ -1454,7 +1454,7 @@ class Assimilation:
         ``'USL'`` and ``'calculational_margin'`` are ``None`` when CNP ≤ 0.4 (insufficient benchmarks).
     USL_whisper : dict
         Whisper extreme-value USL results (Ck-weighted). Keys: ``'USL'``, ``'calculational_margin'``, ``'beta_ev'``, ``'sigma_beta'``, ``'Delta_m'``,
-        ``'m'``, ``'m_tilde'``, ``'m0'``, ``'N'``, ``'coverage'``, ``'ck_max'``, ``'ck_acc'``, ``'w_req'``, ``'w_sum'``, ``'noncoverage_penalty'``.
+        ``'m'``, ``'m_tilde'``, ``'m0'``, ``'N'``, ``'confidence'``, ``'ck_max'``, ``'ck_acc'``, ``'w_req'``, ``'w_sum'``, ``'noncoverage_penalty'``.
     USL_trending : dict
         Linear trending USL results (single-sided lower tolerance band). Keys: ``'USL'``, ``'calculational_margin'``, ``'beta_0'``, ``'beta_1'``,
         ``'beta_x'``, ``'sigma_beta_x'``, ``'S_p'``, ``'sigma_fit'``, ``'sigma_bar'``, ``'S_xx'``, ``'x_bar'``, ``'k_bar'``, ``'x_eval'``,
@@ -1486,14 +1486,16 @@ class Assimilation:
         iso_list: list = None,
         exclude_iso: list = None,
         exclude_reac: list = None,
-        Ck_threshold=None,
-        targetted_chi2=None,
-        filtering_chi2_method="delta",
+        Ck_threshold: float = None,
+        targetted_chi2: float = None,
+        filtering_chi2_method: str = "delta",
         expe_correlations=None,
         output_html_path=None,
-        plotting_unit="pcm",
+        plotting_unit: str = "pcm",
         isotopes_to_detail=[],
-        MOS=0.05,
+        MOS: float = 0.05,
+        gllsm: bool = True,
+        validation_methods: bool = True
     ) -> None:
         """
         Initializes the Assimilation object.
@@ -1534,12 +1536,19 @@ class Assimilation:
             Values must be between 0 and 1 (inclusive). Diagonal is ignored (overwritten to 1).
         MOS : float, optional
             Margin of Subcriticality (default 0.05). Used in USL calculations: USL = 1 - CM - MOS.
+        gllsm : bool, optional
+            Flag to indicate whether to compute the GLLS method.
+        validation_methods : bool, optional
+            Flag to indicate whether to perform validation methods.
         """
 
         self.bench_cases = benchmarks_list[:]
 
         # Store the original covariance data object
         self.cov_data = cov_data
+
+        if not validation_methods and not gllsm :
+            raise errors.UserInputError("Either validation_methods or gllsm must be True.")
 
         for i, bench_data in enumerate(self.bench_cases):
             if isinstance(bench_data, (Path, str)):
@@ -1636,12 +1645,20 @@ class Assimilation:
             self.bench_list["RESP CALC"],
             self.bench_list["SIGMA RESP CALC"],
             self.bench_list["C_PRIOR - E (pcm)"],
+            self.bench_list["INDIVIDUAL CHI2"],
+            self.bench_list["REMOVED"],
         ) = (
             bench_resp_expe,
             bench_sigma_expe,
             bench_resp_calc,
             bench_sigma_calc,
             bench_CE_prior,
+            [
+                None for i in range(len(self.bench_cases))
+            ],
+            [
+                False for i in range(len(self.bench_cases))
+            ],
         )
 
         self.appl_case = appl_case
@@ -1669,18 +1686,25 @@ class Assimilation:
             self.e_bins = self.bench_cases[0].e_bins
 
         self.MOS = MOS
+        self.gllsm = gllsm
+        self.validation_methods = validation_methods
 
+        self.calcul_SexpW0SexpT()
         self.calcul_prior_uncertainty()
-        self.calcul_matrix_assimilation()
-        self.calcul_bias()
-        self.calcul_post_chi2()
-        self.calcul_post_uncertainty()
-        self.calcul_bias_std()
-        self.calcul_USL_gllsm()
-        self.calcul_USL_parametric()
-        self.calcul_USL_nonparametric()
-        self.calcul_USL_whisper()
-        self.calcul_USL_trending()
+        self.calcul_bench_Ck()
+        if self.gllsm:
+            self.calcul_matrix_assimilation()
+            self.calcul_SexpW1SexpT()
+            self.calcul_bias()
+            self.calcul_post_chi2()
+            self.calcul_post_uncertainty()
+            self.calcul_bias_std()
+            self.calcul_USL_gllsm()
+        if self.validation_methods:
+            self.calcul_USL_parametric()
+            self.calcul_USL_nonparametric()
+            self.calcul_USL_whisper()
+            self.calcul_USL_trending()
         self.export_to_html(
             output_html_path=self.output_html_path,
             plotting_unit=plotting_unit,
@@ -1834,6 +1858,56 @@ class Assimilation:
             self.group_nb = self.appl_case.group_nb
         else:
             self.group_nb = self.bench_cases[0].group_nb
+
+    def calcul_SexpW0SexpT(self):
+        self._W0SexpT = self.cov_mat @ self.bench_sensi_mat.T
+        self._SexpW0SexpT = self.bench_sensi_mat @ self._W0SexpT
+
+    @log_exec()
+    def calcul_prior_uncertainty(self):
+
+        SexpW0SexpT = self._SexpW0SexpT
+
+        self.bench_list["UNC_PRIOR (pcm)"] = [
+            (bench.resp_calc * sqrt(unc)) * 1e5
+            for bench, unc in zip(self.bench_cases, np.diag(SexpW0SexpT))
+        ]
+
+        if self.appl_case != None:
+            self.prior_uncertainty = Uncertainty(
+                appl_case=self.appl_case,
+                cov_data=self.cov_data,
+                sensi_vec=self.case_vec,
+                resp_calc=self.appl_case.resp_calc,
+                cov_mat=self.cov_mat,
+                iso_reac_list=self.iso_reac_list,
+            )
+            return self.prior_uncertainty
+
+    def calcul_bench_Ck(self):
+        # Compute Ck similarity coefficients between the application case and the benchmark cases
+        SexpW0SexpT = self._SexpW0SexpT
+        
+        norm_sensi_case = self.case_vec @ self.cov_mat @ self.case_vec
+        norm_sensi_bench_vector = np.diag(SexpW0SexpT)
+        # Compute dot products for all benchmark cases at once
+        case_cov_products = np.array(
+            [
+                self.case_vec @ self.cov_mat @ self.bench_sensi_mat[i, :]
+                for i in range(len(self.bench_cases))
+            ]
+        )
+        Ck_bench = np.where(
+            (norm_sensi_case == 0) | (norm_sensi_bench_vector == 0),
+            0,
+            np.sqrt(
+                np.abs(
+                    case_cov_products**2 / (norm_sensi_case * norm_sensi_bench_vector)
+                )
+            ),
+        ).tolist()
+
+        self.bench_list["Ck"] = Ck_bench
 
     def calcul_matrix_assimilation(self):
 
@@ -2032,13 +2106,8 @@ class Assimilation:
             )
 
         # Beginning of the assimilation process
-        W0SexpT = self.cov_mat @ self.bench_sensi_mat.T
-
-        SexpW0SexpT = self.bench_sensi_mat @ W0SexpT
-        self.bench_list["UNC_PRIOR (pcm)"] = [
-            (bench.resp_calc * sqrt(unc)) * 1e5
-            for bench, unc in zip(self.bench_cases, np.diag(SexpW0SexpT))
-        ]
+        W0SexpT = self._W0SexpT
+        SexpW0SexpT = self._SexpW0SexpT
 
         C_SexpW0SexpT = np.add(self.expe_mat, SexpW0SexpT)
 
@@ -2064,33 +2133,6 @@ class Assimilation:
         write_and_print(f"{2*'    '}Assimilation - initial Chi2:")
         write_and_print(f"{2*'    '}    -> {self.prior_chi2}")
 
-        self.bench_list["INDIVIDUAL CHI2"] = [
-            None for i in range(len(self.bench_cases))
-        ]
-        self.bench_list["REMOVED"] = [False for i in range(len(self.bench_cases))]
-
-        # Compute Ck similarity coefficients between the application case and the benchmark cases
-        norm_sensi_case = self.case_vec @ self.cov_mat @ self.case_vec
-        norm_sensi_bench_vector = np.diag(SexpW0SexpT)
-        # Compute dot products for all benchmark cases at once
-        case_cov_products = np.array(
-            [
-                self.case_vec @ self.cov_mat @ self.bench_sensi_mat[i, :]
-                for i in range(len(self.bench_cases))
-            ]
-        )
-        Ck_bench = np.where(
-            (norm_sensi_case == 0) | (norm_sensi_bench_vector == 0),
-            0,
-            np.sqrt(
-                np.abs(
-                    case_cov_products**2 / (norm_sensi_case * norm_sensi_bench_vector)
-                )
-            ),
-        ).tolist()
-
-        self.bench_list["Ck"] = Ck_bench
-
         # Filtering on chi2 and Ck if needed
         # Filter on chi2 before filter on Ck because Ck changes W0SexpT and C_SexpW0SexpT_inv
         if self.targetted_chi2 != None:
@@ -2113,6 +2155,39 @@ class Assimilation:
 
         self.cov_mat_post = np.subtract(self.cov_mat, self.cov_mat_delta)
 
+    def calcul_SexpW1SexpT(self):
+        self._SexpW1SexpT = self.bench_sensi_mat @ (self.cov_mat_post @ self.bench_sensi_mat.T)
+
+    @log_exec()
+    def calcul_post_uncertainty(self):
+
+        SexpW1SexpT = self._SexpW1SexpT
+
+        bench_unc_post = []
+        idx_present = 0
+        for b in range(len(self.bench_list)):
+            bench = self.bench_cases[b]
+            if self.bench_list["REMOVED"][b] == False:
+                bench_unc_post.append(
+                    (bench.resp_calc * sqrt(SexpW1SexpT[idx_present, idx_present]))
+                    * 1e5
+                )
+                idx_present += 1
+            else:
+                bench_unc_post.append("Not calculated")
+        self.bench_list["UNC_POST (pcm)"] = bench_unc_post
+
+        if self.appl_case != None:
+            self.post_uncertainty = Uncertainty(
+                appl_case=self.appl_case,
+                cov_data=self.cov_data,
+                sensi_vec=self.case_vec,
+                resp_calc=self.appl_case.resp_calc,
+                cov_mat=self.cov_mat_post,
+                iso_reac_list=self.iso_reac_list,
+            )
+            return self.post_uncertainty
+
     @log_exec()
     def calcul_post_chi2(self):
         # Compute a posteriori global chi2
@@ -2134,19 +2209,17 @@ class Assimilation:
                 ) / resp_calc_post
                 b_present += 1
 
-        W0SexpT = self.cov_mat_post @ self.bench_sensi_mat.T
+        SexpW1SexpT = self._SexpW1SexpT
 
-        SexpW0SexpT = self.bench_sensi_mat @ W0SexpT
-
-        C_SexpW0SexpT = np.add(expe_mat_post, SexpW0SexpT)
+        C_SexpW1SexpT = np.add(expe_mat_post, SexpW1SexpT)
 
         # Inversion
         try:
-            cholesky = np.linalg.inv(np.linalg.cholesky(C_SexpW0SexpT))
-            C_SexpW0SexpT_inv = cholesky.T @ cholesky
+            cholesky = np.linalg.inv(np.linalg.cholesky(C_SexpW1SexpT))
+            C_SexpW1SexpT_inv = cholesky.T @ cholesky
 
         except:
-            # C_SexpW0SexpT_inv = np.linalg.pinv(C_SexpW0SexpT)
+            # C_SexpW1SexpT_inv = np.linalg.pinv(C_SexpW1SexpT)
             write_and_print(
                 "ERROR : The covariances data you choose leads to an non-invertible matrix (singular matrix). The assimimlation process is not possible."
             )
@@ -2155,7 +2228,7 @@ class Assimilation:
             )
 
         # Calcul initial Chi2
-        chi2 = delta_CE_vec_post @ C_SexpW0SexpT_inv @ delta_CE_vec_post.T
+        chi2 = delta_CE_vec_post @ C_SexpW1SexpT_inv @ delta_CE_vec_post.T
         chi2 = chi2 / len_bench_cases
         self.post_chi2 = chi2
 
@@ -2201,50 +2274,6 @@ class Assimilation:
             )
 
         return self.bias
-
-    @log_exec()
-    def calcul_post_uncertainty(self):
-
-        W1SexpT = self.cov_mat_post @ self.bench_sensi_mat.T
-        SexpW1SexpT = self.bench_sensi_mat @ W1SexpT
-
-        bench_unc_post = []
-        idx_present = 0
-        for b in range(len(self.bench_list)):
-            bench = self.bench_cases[b]
-            if self.bench_list["REMOVED"][b] == False:
-                bench_unc_post.append(
-                    (bench.resp_calc * sqrt(SexpW1SexpT[idx_present, idx_present]))
-                    * 1e5
-                )
-                idx_present += 1
-            else:
-                bench_unc_post.append("Not calculated")
-        self.bench_list["UNC_POST (pcm)"] = bench_unc_post
-
-        if self.appl_case != None:
-            self.post_uncertainty = Uncertainty(
-                appl_case=self.appl_case,
-                cov_data=self.cov_data,
-                sensi_vec=self.case_vec,
-                resp_calc=self.appl_case.resp_calc,
-                cov_mat=self.cov_mat_post,
-                iso_reac_list=self.iso_reac_list,
-            )
-            return self.post_uncertainty
-
-    @log_exec()
-    def calcul_prior_uncertainty(self):
-        if self.appl_case != None:
-            self.prior_uncertainty = Uncertainty(
-                appl_case=self.appl_case,
-                cov_data=self.cov_data,
-                sensi_vec=self.case_vec,
-                resp_calc=self.appl_case.resp_calc,
-                cov_mat=self.cov_mat,
-                iso_reac_list=self.iso_reac_list,
-            )
-            return self.prior_uncertainty
 
     @log_exec()
     def calcul_bias_std(self):
@@ -3141,770 +3170,855 @@ class Assimilation:
         text_intro = ""
         text_intro += f'<div style="display:flex; align-items:center; justify-content:center; gap:20px;"><img src="{logo_path}" width="110" height="110"></div>'
         text_intro += f"<h3><center>{pkg_fullname}</center></h3>"
-        text_intro += f"<h2><center><u>Generalized Linear Least-squares method results</u></center></h2>"
+        if self.validation_methods and self.gllsm :
+            text_intro += f"<h2><center><u>Generalized Linear Least-squares and Validation methods results</u></center></h2>"
+        elif self.validation_methods :
+            text_intro += f"<h2><center><u>Validation methods results</u></center></h2>"
+        elif self.gllsm :
+            text_intro += f"<h2><center><u>Generalized Linear Least-squares method results</u></center></h2>"
         if self.appl_case != None:
             text_intro += f"<h3>Application case : {self.appl_case.casename}</h3>"
         else:
             text_intro += f"<h3>No application case</h3>"
 
         # --------------------------------
-        headers = [
-            "Calculated response of application case",
-            "ND Uncertainty a priori",
-            "ND Uncertainty a posteriori",
-            "Application bias population std",
-            "Estimated application bias (C<sub>prior</sub> - C<sub>post</sub>)",
-            "Calc. Margin (-Bias<sub>appl.</sub> + K x sigma<sub>bias</sub><sup>appl, pop</sup>)",
-            "Chi2 a priori ",
-            "Chi2 a posteriori",
-            "Nb of benchmark cases removed",
-            "Energy groups number",
-        ]
-        headers_b = [
-            "<b>" + h.replace("Chi2", "Χ²").replace("sigma", "σ") + ":</b>"
-            for h in headers
-        ]
-
-        headers_b[3] = (
-            f"<b>{plots.create_html_tip('Standard deviation of the bias population across all assimilated benchmarks. Reflects the dispersion of individual benchmark biases around the mean GLLSM bias estimate.')}"
-            f"Application bias population std:</b>"
-        )
-
-        if self.appl_case != None:
-            results = [
-                f"{self.appl_case.resp_calc} +/- {self.appl_case.sigma_resp_calc}",
-                f"{int(round(self.prior_uncertainty.value))} pcm",
-                f"{int(round(self.post_uncertainty.value))} pcm",
-                f"{int(round(self.bias_std*self.appl_case.resp_calc*1e5))} pcm",
-                f"{int(round(self.bias.value))} pcm ",
-                (
-                    f"{int(round(self.USL_gllsm['calculational_margin']*1e5))} pcm"
-                    if self.USL_gllsm["calculational_margin"] is not None
-                    else "N/A (N<2)"
-                ),
-                round(self.prior_chi2, 5),
-                round(self.post_chi2, 5),
-                list(self.bench_list["REMOVED"]).count(True),
-                self.group_nb,
-            ]
-        else:
-            results = [
-                "None",
-                "None",
-                "None",
-                "None",
-                "None",
-                "None",
-                round(self.prior_chi2, 5),
-                round(self.post_chi2, 5),
-                list(self.bench_list["REMOVED"]).count(True),
-                self.group_nb,
-            ]
-
-        table_res = plots.create_html_table(headers=[], lines=[headers_b, results])
-        write_and_print(
-            "\n"
-            + tabulate(
-                np.array(
-                    [["Casename", *headers], [self.appl_case.casename, *results]]
-                ).T
-            )
-        )
-
-        resp_threshold_2 = (
-            self.appl_case.resp_calc + (self.bias.value / 1e5) + (2 * self.bias_std)
-        )
         validation_str = '<hr width="60%" /><div style="display: block; font-size:14px; padding-left: 80px; padding-right: 80px;">'
-        usl_gllsm_CM = self.USL_gllsm["calculational_margin"]
-        usl_gllsm_K = self.USL_gllsm["K"]
-        usl_gllsm_p = self.USL_gllsm["coverage"]
-        usl_gllsm_q = self.USL_gllsm["confidence"]
-        if self.post_chi2 < 1.2:
+        if self.gllsm :
+            headers = [
+                "Calculated response of application case",
+                "ND Uncertainty a priori",
+                "ND Uncertainty a posteriori",
+                "Application bias population std",
+                "Estimated application bias (C<sub>prior</sub> - C<sub>post</sub>)",
+                "Calc. Margin (-Bias<sub>appl.</sub> + K x sigma<sub>bias</sub><sup>appl, pop</sup>)",
+                "Chi2 a priori ",
+                "Chi2 a posteriori",
+                "Nb of benchmark cases removed",
+                "Energy groups number",
+            ]
+            headers_b = [
+                "<b>" + h.replace("Chi2", "Χ²").replace("sigma", "σ") + ":</b>"
+                for h in headers
+            ]
 
-            validation_str += f"The adjustment shows an <u>acceptable consistency</u> among the benchmark biases (Χ² a priori : {self.prior_chi2:.2f} < 1.2).<br>"
-            if usl_gllsm_CM is not None and usl_gllsm_K is not None:
-                validation_str += f"With a coverage parameter K<sub>{usl_gllsm_p*1E2:.0f}/{usl_gllsm_q*1E2:.0f}</sub> of {usl_gllsm_K:.2f} ({usl_gllsm_q*1E2:.0f}% quantile of noncentral t-distribution), there is <u>{usl_gllsm_p*1E2:.0f}% confidence that at least {usl_gllsm_q*1E2:.0f}% of the population of the application responses satisfy:</u><br>\n<b>RESPONSE < Resp<sup>calc</sup> + CM = {self.appl_case.resp_calc + usl_gllsm_CM:.5f} </b><br>\n\
-                For a conservative coverage parameter K of 2: RESPONSE < {resp_threshold_2:.5f}\n"
+            headers_b[3] = (
+                f"<b>{plots.create_html_tip('Standard deviation of the bias population across all assimilated benchmarks. Reflects the dispersion of individual benchmark biases around the mean GLLSM bias estimate.')}"
+                f"Application bias population std:</b>"
+            )
+
+            if self.appl_case != None:
+                results = [
+                    f"{self.appl_case.resp_calc} +/- {self.appl_case.sigma_resp_calc}",
+                    f"{int(round(self.prior_uncertainty.value))} pcm",
+                    f"{int(round(self.post_uncertainty.value))} pcm",
+                    f"{int(round(self.bias_std*self.appl_case.resp_calc*1e5))} pcm",
+                    f"{int(round(self.bias.value))} pcm ",
+                    (
+                        f"{int(round(self.USL_gllsm['calculational_margin']*1e5))} pcm"
+                        if self.USL_gllsm["calculational_margin"] is not None
+                        else "N/A (N<2)"
+                    ),
+                    round(self.prior_chi2, 5),
+                    round(self.post_chi2, 5),
+                    list(self.bench_list["REMOVED"]).count(True),
+                    self.group_nb,
+                ]
             else:
-                validation_str += (
-                    "GLLSM USL not calculable (insufficient benchmarks N < 2).<br>\n"
-                )
-        else:
-            validation_str += f"The adjustment shows a poor consistency among the benchmark biases (Χ² a priori : {self.prior_chi2:.2f} > 1.2).<br>Consider checking your covariance data, or increasing your targetted chi2 threshold to remove more inconsistent benchmarks from the assimilation process.\n"
-        validation_str += "</div><hr width='60%' />"
+                results = [
+                    "None",
+                    "None",
+                    "None",
+                    "None",
+                    "None",
+                    "None",
+                    round(self.prior_chi2, 5),
+                    round(self.post_chi2, 5),
+                    list(self.bench_list["REMOVED"]).count(True),
+                    self.group_nb,
+                ]
 
+            table_res = plots.create_html_table(headers=[], lines=[headers_b, results])
+            write_and_print(
+                "\n"
+                + tabulate(
+                    np.array(
+                        [["Casename", *headers], [self.appl_case.casename, *results]]
+                    ).T
+                )
+            )
+
+            resp_threshold_2 = (
+                self.appl_case.resp_calc + (self.bias.value / 1e5) + (2 * self.bias_std)
+            )
+            usl_gllsm_CM = self.USL_gllsm["calculational_margin"]
+            usl_gllsm_K = self.USL_gllsm["K"]
+            usl_gllsm_p = self.USL_gllsm["coverage"]
+            usl_gllsm_q = self.USL_gllsm["confidence"]
+            if self.post_chi2 < 1.2:
+
+                validation_str += f"The adjustment shows an <u>acceptable consistency</u> among the benchmark biases (Χ² a priori : {self.prior_chi2:.2f} < 1.2).<br>"
+                if usl_gllsm_CM is not None and usl_gllsm_K is not None:
+                    validation_str += f"With a coverage parameter K<sub>{usl_gllsm_p*1E2:.0f}/{usl_gllsm_q*1E2:.0f}</sub> of {usl_gllsm_K:.2f} ({usl_gllsm_q*1E2:.0f}% quantile of noncentral t-distribution), there is <u>{usl_gllsm_p*1E2:.0f}% confidence that at least {usl_gllsm_q*1E2:.0f}% of the population of the application responses satisfy:</u><br>\n<b>RESPONSE < Resp<sup>calc</sup> + CM = {self.appl_case.resp_calc + usl_gllsm_CM:.5f} </b><br>\n\
+                    For a conservative coverage parameter K of 2: RESPONSE < {resp_threshold_2:.5f}\n"
+                else:
+                    validation_str += (
+                        "GLLSM USL not calculable (insufficient benchmarks N < 2).<br>\n"
+                    )
+            else:
+                validation_str += f"The adjustment shows a poor consistency among the benchmark biases (Χ² a priori : {self.prior_chi2:.2f} > 1.2).<br>Consider checking your covariance data, or increasing your targetted chi2 threshold to remove more inconsistent benchmarks from the assimilation process.\n"
+            validation_str += "</div><hr width='60%' />"
+        else :
+            headers = [
+                "Calculated response of application case",
+                "ND Uncertainty a priori",
+                "Energy groups number",
+            ]           
+            if self.appl_case != None:
+                results = [
+                    f"{self.appl_case.resp_calc} +/- {self.appl_case.sigma_resp_calc}",
+                    f"{int(round(self.prior_uncertainty.value))} pcm",
+                    self.group_nb,
+                ]
+            else:
+                results = [
+                    "None",
+                    "None",
+                    self.group_nb,
+                ]
+            table_res = plots.create_html_table(headers=[], lines=[headers, results])
+            write_and_print(
+                "\n"
+                + tabulate(
+                    np.array(
+                        [["Casename", *headers], [self.appl_case.casename, *results]]
+                    ).T
+                )
+            )
         # --------------------------------
-        # Validation methods results (Parametric, Nonparametric, Trending)
+        # Validation methods results (Parametric, Nonparametric, Trending, Whisper)
         # --------------------------------
         tip = plots.create_html_tip
         validation_str += '<div class="calins-vm" style="display: block; font-size:14px; padding-left: 40px; padding-right: 40px;">'
         validation_str += "<h3>Validation methods</h3>"
+        if self.validation_methods :
 
-        # --- Get k_tilde data for figures ---
-        k_tilde_fig, sigma_fig = self._get_scaled_k_and_sigma()
+            # --- Get k_tilde data for figures ---
+            k_tilde_fig, sigma_fig = self._get_scaled_k_and_sigma()
 
-        gllsm = self.USL_gllsm
-        pr = self.USL_parametric
-        npr = self.USL_nonparametric
-        wr = self.USL_whisper
-        tr = self.USL_trending
+            if self.gllsm :
+                gllsm = self.USL_gllsm
+            else :
+                gllsm = None
+            pr = self.USL_parametric
+            npr = self.USL_nonparametric
+            wr = self.USL_whisper
+            tr = self.USL_trending
 
-        # --- Summary comparison table ---
-        p_pct = f"{usl_gllsm_p*1E2:.0f}"
-        q_pct = f"{usl_gllsm_q*1E2:.0f}"
-        summary_labels = [
-            f"{tip('Bias and uncertainty from the GLLS adjustment. The coverage factor K<sub>' + p_pct + '/' + q_pct + '</sub> ensures with ' + q_pct + '%% confidence that ' + p_pct + '%% of the population is bounded.')}GLLSM (K<sub>{usl_gllsm_p*1E2:.0f}/{usl_gllsm_q*1E2:.0f}</sub>)",
-            f"{tip('Assumes C/E values follow a normal distribution. Uses a weighted mean bias and a tolerance factor κ from the noncentral t-distribution.')}Parametric",
-        ]
-        summary_values = [
-            (
-                f"{gllsm['calculational_margin']*1E5:.0f} pcm"
-                if gllsm["calculational_margin"] is not None
-                else "<span style='color:red'>N/A (N&lt;2)</span>"
-            ),
-            (
-                f"{pr['calculational_margin']*1E5:.0f} pcm"
-                if pr["calculational_margin"] is not None
-                else "<span style='color:red'>N/A (N&lt;2)</span>"
-            ),
-        ]
-        if npr["USL"] is not None:
+
+            summary_labels = []
+            summary_values = []
+            # --- Summary comparison table ---
+            if self.gllsm :
+                p_pct = f"{usl_gllsm_p*1E2:.0f}"
+                q_pct = f"{usl_gllsm_q*1E2:.0f}"
+                summary_labels.append(
+                    f"{tip('Bias and uncertainty from the GLLS adjustment. The coverage factor K<sub>' + p_pct + '/' + q_pct + '</sub> ensures with ' + q_pct + '%% confidence that ' + p_pct + '%% of the population is bounded.')}GLLSM (K<sub>{usl_gllsm_p*1E2:.0f}/{usl_gllsm_q*1E2:.0f}</sub>)"
+                )
+                summary_values.append(
+                    f"{gllsm['calculational_margin']*1E5:.0f} pcm"
+                )
+            
             summary_labels.append(
-                f"{tip('Distribution-free method based on the worst-case (minimum) C/E. No normality assumption required. Requires enough benchmarks for statistical confidence.')}Nonparametric"
-            )
-            summary_values.append(f"{npr['calculational_margin']*1E5:.0f} pcm")
-        else:
-            summary_labels.append(
-                f"{tip('Distribution-free method. Cannot compute: insufficient benchmarks (CNP ≤ 0.4).')}Nonparametric"
+                f"{tip('Assumes C/E values follow a normal distribution. Uses a weighted mean bias and a tolerance factor κ from the noncentral t-distribution.')}Parametric"
             )
             summary_values.append(
-                "<span style='color:red'>Additional data needed</span>"
-            )
+                (
+                    f"{pr['calculational_margin']*1E5:.0f} pcm"
+                    if pr["calculational_margin"] is not None
+                    else "<span style='color:red'>N/A (N&lt;2)</span>"
+                ))
+            
+            if npr["USL"] is not None:
+                summary_labels.append(
+                    f"{tip('Distribution-free method based on the worst-case (minimum) C/E. No normality assumption required. Requires enough benchmarks for statistical confidence.')}Nonparametric"
+                )
+                summary_values.append(f"{npr['calculational_margin']*1E5:.0f} pcm")
+            else:
+                summary_labels.append(
+                    f"{tip('Distribution-free method. Cannot compute: insufficient benchmarks (CNP ≤ 0.4).')}Nonparametric"
+                )
+                summary_values.append(
+                    "<span style='color:red'>Additional data needed</span>"
+                )
 
-        summary_labels.append(
-            f"{tip('Extreme-value method. Uses Ck-weighted benchmark contributions and the product of individual CDFs to bound the worst-case bias.')}Whisper"
-        )
-        summary_values.append(f"{wr['calculational_margin']*1E5:.0f} pcm")
-
-        if tr["USL"] is not None:
             summary_labels.append(
-                f"{tip('Linear regression of C/E vs Ck. Tests for a statistically significant trend and applies a single-sided lower tolerance band at the evaluation point.')}Trending"
+                f"{tip('Extreme-value method. Uses Ck-weighted benchmark contributions and the product of individual CDFs to bound the worst-case bias.')}Whisper"
             )
-            summary_values.append(f"{tr['calculational_margin']*1E5:.0f} pcm")
-        else:
-            summary_labels.append(
-                f"{tip('Linear trending method. Cannot compute: insufficient benchmarks (N < 3).')}Trending"
-            )
-            summary_values.append(
-                "<span style='color:red'>Additional data needed</span>"
+            summary_values.append(f"{wr['calculational_margin']*1E5:.0f} pcm")
+
+            if tr["USL"] is not None:
+                summary_labels.append(
+                    f"{tip('Linear regression of C/E vs Ck. Tests for a statistically significant trend and applies a single-sided lower tolerance band at the evaluation point.')}Trending"
+                )
+                summary_values.append(f"{tr['calculational_margin']*1E5:.0f} pcm")
+            else:
+                summary_labels.append(
+                    f"{tip('Linear trending method. Cannot compute: insufficient benchmarks (N < 3).')}Trending"
+                )
+                summary_values.append(
+                    "<span style='color:red'>Additional data needed</span>"
+                )
+
+            validation_str += "<h4>Summary comparison</h4>"
+            validation_str += plots.create_html_table(
+                headers=[
+                    "Method",
+                    f"{tip('Calculational Margin (CM) is a penalty applied to keff=1 to define the USL. It accounts for the computational bias, its uncertainty, and any additional margins. USL = 1 − CM − MOS.')}Calculational Margin",
+                ],
+                lines=[summary_labels, summary_values],
+                table_attrs="border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse; font-size:14px; text-align:center;'",
+                header_style="background:#809684; color:white;",
+                centered=False,
             )
 
-        validation_str += "<h4>Summary comparison</h4>"
-        validation_str += plots.create_html_table(
-            headers=[
-                "Method",
-                f"{tip('Calculational Margin (CM) is a penalty applied to keff=1 to define the USL. It accounts for the computational bias, its uncertainty, and any additional margins. USL = 1 − CM − MOS.')}Calculational Margin",
-            ],
-            lines=[summary_labels, summary_values],
-            table_attrs="border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse; font-size:14px; text-align:center;'",
-            header_style="background:#809684; color:white;",
-            centered=False,
-        )
+            biases_all = k_tilde_fig - 1.0
 
-        biases_all = k_tilde_fig - 1.0
-
-        # --- Figure 1: Parametric (1D strip, compact) ---
-        fig_param = go.Figure()
-        fig_param.add_trace(
-            go.Scatter(
-                x=biases_all,
-                y=[0] * len(biases_all),
-                mode="markers",
-                marker=dict(size=6, color="#4C78A8", opacity=0.7),
-                name="Benchmark biases",
+            # --- Figure 1: Parametric (1D strip, compact) ---
+            fig_param = go.Figure()
+            fig_param.add_trace(
+                go.Scatter(
+                    x=biases_all,
+                    y=[0] * len(biases_all),
+                    mode="markers",
+                    marker=dict(size=6, color="#4C78A8", opacity=0.7),
+                    name="Benchmark biases",
+                )
             )
-        )
-        if pr["beta"] is not None:
-            fig_param.add_vline(
-                x=pr["beta"],
+            if pr["beta"] is not None:
+                fig_param.add_vline(
+                    x=pr["beta"],
+                    line=dict(color="#E45756", width=2, dash="solid"),
+                    annotation_text="β̄",
+                    annotation_position="top left",
+                    annotation=dict(font_size=10),
+                )
+            if pr["calculational_margin"] is not None:
+                fig_param.add_vline(
+                    x=-pr["calculational_margin"],
+                    line=dict(color="#54A24B", width=2, dash="dash"),
+                    annotation_text="−CM",
+                    annotation_position="top right",
+                    annotation=dict(font_size=10),
+                )
+            if pr["kappa"] is not None and pr["sigma_beta"] is not None:
+                fig_param.add_vrect(
+                    x0=pr["beta"] - pr["kappa"] * pr["sigma_beta"],
+                    x1=pr["beta"] + pr["kappa"] * pr["sigma_beta"],
+                    fillcolor="#E45756",
+                    opacity=0.1,
+                    line_width=0,
+                    annotation_text="κσ<sub>β</sub>",
+                    annotation_position="top left",
+                    annotation=dict(font_size=9),
+                )
+            fig_param.update_layout(
+                width=300,
+                height=100,
+                margin=dict(l=5, r=5, t=20, b=25),
+                showlegend=False,
+                template="plotly_white",
+                xaxis=dict(
+                    title=dict(text="Bias (k̃-1)", font=dict(size=9)),
+                    tickfont=dict(size=8),
+                    zeroline=True,
+                    zerolinecolor="grey",
+                    zerolinewidth=1,
+                ),
+                yaxis=dict(visible=False, range=[-0.5, 0.5]),
+            )
+            html_fig_param = fig_param.to_html(
+                full_html=False,
+                include_plotlyjs=plotlyjs_fig_include,
+                config={"displayModeBar": False},
+            )
+
+            # --- Figure 2: Nonparametric (1D strip, compact) ---
+            fig_nparam = go.Figure()
+            fig_nparam.add_trace(
+                go.Scatter(
+                    x=biases_all,
+                    y=[0] * len(biases_all),
+                    mode="markers",
+                    marker=dict(size=6, color="#4C78A8", opacity=0.7),
+                    name="Benchmark biases",
+                )
+            )
+            fig_nparam.add_vline(
+                x=npr["beta"],
                 line=dict(color="#E45756", width=2, dash="solid"),
-                annotation_text="β̄",
+                annotation_text="β (min)",
                 annotation_position="top left",
                 annotation=dict(font_size=10),
             )
-        if pr["calculational_margin"] is not None:
-            fig_param.add_vline(
-                x=-pr["calculational_margin"],
-                line=dict(color="#54A24B", width=2, dash="dash"),
-                annotation_text="−CM",
-                annotation_position="top right",
-                annotation=dict(font_size=10),
-            )
-        if pr["kappa"] is not None and pr["sigma_beta"] is not None:
-            fig_param.add_vrect(
-                x0=pr["beta"] - pr["kappa"] * pr["sigma_beta"],
-                x1=pr["beta"] + pr["kappa"] * pr["sigma_beta"],
+            if npr["calculational_margin"] is not None:
+                fig_nparam.add_vline(
+                    x=-npr["calculational_margin"],
+                    line=dict(color="#54A24B", width=2, dash="dash"),
+                    annotation_text="−CM",
+                    annotation_position="top right",
+                    annotation=dict(font_size=10),
+                )
+            fig_nparam.add_vrect(
+                x0=npr["beta"] - npr["sigma_beta"],
+                x1=npr["beta"] + npr["sigma_beta"],
                 fillcolor="#E45756",
                 opacity=0.1,
                 line_width=0,
-                annotation_text="κσ<sub>β</sub>",
+                annotation_text=f"n<sub>σ</sub>·σ",
                 annotation_position="top left",
                 annotation=dict(font_size=9),
             )
-        fig_param.update_layout(
-            width=300,
-            height=100,
-            margin=dict(l=5, r=5, t=20, b=25),
-            showlegend=False,
-            template="plotly_white",
-            xaxis=dict(
-                title=dict(text="Bias (k̃-1)", font=dict(size=9)),
-                tickfont=dict(size=8),
-                zeroline=True,
-                zerolinecolor="grey",
-                zerolinewidth=1,
-            ),
-            yaxis=dict(visible=False, range=[-0.5, 0.5]),
-        )
-        html_fig_param = fig_param.to_html(
-            full_html=False,
-            include_plotlyjs=plotlyjs_fig_include,
-            config={"displayModeBar": False},
-        )
-
-        # --- Figure 2: Nonparametric (1D strip, compact) ---
-        fig_nparam = go.Figure()
-        fig_nparam.add_trace(
-            go.Scatter(
-                x=biases_all,
-                y=[0] * len(biases_all),
-                mode="markers",
-                marker=dict(size=6, color="#4C78A8", opacity=0.7),
-                name="Benchmark biases",
+            fig_nparam.update_layout(
+                width=300,
+                height=100,
+                margin=dict(l=5, r=5, t=20, b=25),
+                showlegend=False,
+                template="plotly_white",
+                xaxis=dict(
+                    title=dict(text="Bias (k̃-1)", font=dict(size=9)),
+                    tickfont=dict(size=8),
+                    zeroline=True,
+                    zerolinecolor="grey",
+                    zerolinewidth=1,
+                ),
+                yaxis=dict(visible=False, range=[-0.5, 0.5]),
             )
-        )
-        fig_nparam.add_vline(
-            x=npr["beta"],
-            line=dict(color="#E45756", width=2, dash="solid"),
-            annotation_text="β (min)",
-            annotation_position="top left",
-            annotation=dict(font_size=10),
-        )
-        if npr["calculational_margin"] is not None:
-            fig_nparam.add_vline(
-                x=-npr["calculational_margin"],
+            html_fig_nparam = fig_nparam.to_html(
+                full_html=False,
+                include_plotlyjs=plotlyjs_fig_include,
+                config={"displayModeBar": False},
+            )
+
+            # --- Figure 3: Whisper (Ck vs bias, 2D) ---
+            fig_whisper = go.Figure()
+            ck_plot = []
+            bias_plot = []
+            for b in range(len(self.bench_list)):
+                if not self.bench_list["REMOVED"][b]:
+                    ck_plot.append(self.bench_list["Ck"][b])
+                    bias_plot.append(k_tilde_fig[len(ck_plot) - 1] - 1.0)
+            ck_plot = np.array(ck_plot)
+            bias_plot = np.array(bias_plot)
+            fig_whisper.add_trace(
+                go.Scatter(
+                    x=ck_plot,
+                    y=bias_plot,
+                    mode="markers",
+                    marker=dict(size=6, color="#4C78A8", opacity=0.7),
+                    name="Benchmarks",
+                )
+            )
+            fig_whisper.add_hline(
+                y=wr["beta_ev"],
+                line=dict(color="#E45756", width=2, dash="solid"),
+                annotation_text="β<sub>ev</sub>",
+                annotation_position="bottom right",
+                annotation=dict(font_size=9),
+            )
+            fig_whisper.add_hline(
+                y=-wr["calculational_margin"],
                 line=dict(color="#54A24B", width=2, dash="dash"),
                 annotation_text="−CM",
                 annotation_position="top right",
-                annotation=dict(font_size=10),
+                annotation=dict(font_size=9),
             )
-        fig_nparam.add_vrect(
-            x0=npr["beta"] - npr["sigma_beta"],
-            x1=npr["beta"] + npr["sigma_beta"],
-            fillcolor="#E45756",
-            opacity=0.1,
-            line_width=0,
-            annotation_text=f"n<sub>σ</sub>·σ",
-            annotation_position="top left",
-            annotation=dict(font_size=9),
-        )
-        fig_nparam.update_layout(
-            width=300,
-            height=100,
-            margin=dict(l=5, r=5, t=20, b=25),
-            showlegend=False,
-            template="plotly_white",
-            xaxis=dict(
-                title=dict(text="Bias (k̃-1)", font=dict(size=9)),
-                tickfont=dict(size=8),
-                zeroline=True,
-                zerolinecolor="grey",
-                zerolinewidth=1,
-            ),
-            yaxis=dict(visible=False, range=[-0.5, 0.5]),
-        )
-        html_fig_nparam = fig_nparam.to_html(
-            full_html=False,
-            include_plotlyjs=plotlyjs_fig_include,
-            config={"displayModeBar": False},
-        )
-
-        # --- Figure 3: Whisper (Ck vs bias, 2D) ---
-        fig_whisper = go.Figure()
-        ck_plot = []
-        bias_plot = []
-        for b in range(len(self.bench_list)):
-            if not self.bench_list["REMOVED"][b]:
-                ck_plot.append(self.bench_list["Ck"][b])
-                bias_plot.append(k_tilde_fig[len(ck_plot) - 1] - 1.0)
-        ck_plot = np.array(ck_plot)
-        bias_plot = np.array(bias_plot)
-        fig_whisper.add_trace(
-            go.Scatter(
-                x=ck_plot,
-                y=bias_plot,
-                mode="markers",
-                marker=dict(size=6, color="#4C78A8", opacity=0.7),
-                name="Benchmarks",
+            fig_whisper.add_hrect(
+                y0=wr["beta_ev"] - wr["sigma_beta"],
+                y1=wr["beta_ev"] + wr["sigma_beta"],
+                fillcolor="#E45756",
+                opacity=0.1,
+                line_width=0,
+                annotation_text="σ<sub>β</sub>",
+                annotation_position="top left",
+                annotation=dict(font_size=9),
             )
-        )
-        fig_whisper.add_hline(
-            y=wr["beta_ev"],
-            line=dict(color="#E45756", width=2, dash="solid"),
-            annotation_text="β<sub>ev</sub>",
-            annotation_position="bottom right",
-            annotation=dict(font_size=9),
-        )
-        fig_whisper.add_hline(
-            y=-wr["calculational_margin"],
-            line=dict(color="#54A24B", width=2, dash="dash"),
-            annotation_text="−CM",
-            annotation_position="top right",
-            annotation=dict(font_size=9),
-        )
-        fig_whisper.add_hrect(
-            y0=wr["beta_ev"] - wr["sigma_beta"],
-            y1=wr["beta_ev"] + wr["sigma_beta"],
-            fillcolor="#E45756",
-            opacity=0.1,
-            line_width=0,
-            annotation_text="σ<sub>β</sub>",
-            annotation_position="top left",
-            annotation=dict(font_size=9),
-        )
-        fig_whisper.add_vline(
-            x=wr["ck_acc"],
-            line=dict(color="#F58518", width=1.5, dash="dot"),
-            annotation_text="c<sub>k,acc</sub>",
-            annotation_position="top left",
-            annotation=dict(font_size=9),
-        )
-        fig_whisper.add_hline(y=0, line=dict(color="grey", width=0.5, dash="solid"))
-        fig_whisper.update_layout(
-            width=300,
-            height=200,
-            margin=dict(l=40, r=5, t=20, b=30),
-            showlegend=False,
-            template="plotly_white",
-            xaxis=dict(
-                title=dict(text="C<sub>k</sub>", font=dict(size=9)),
-                tickfont=dict(size=8),
-            ),
-            yaxis=dict(
-                title=dict(text="Bias (k̃-1)", font=dict(size=9)), tickfont=dict(size=8)
-            ),
-        )
-        html_fig_whisper = fig_whisper.to_html(
-            full_html=False,
-            include_plotlyjs=plotlyjs_fig_include,
-            config={"displayModeBar": False},
-        )
-
-        # ========== Build HTML: 3-column flex layout, each column = table then graph ==========
-        vm_table_attrs = "border='1' cellpadding='3' cellspacing='0' style='border-collapse:collapse; font-size:11px; width:100%;'"
-
-        # --- Column 1: Parametric data ---
-        param_labels = [
-            f"{tip('Number of non-removed benchmark cases used in the analysis.')}N benchmarks",
-            f"{tip('Inverse-variance weighted mean of k̃ᵢ = Cᵢ/Eᵢ across all benchmarks. Weights are wᵢ = 1/σᵢ².')}Weighted mean k̄",
-            f"{tip('Average computational bias: β = k̄ − 1. Negative means calculations underpredict experiments on average.')}Bias β",
-            f"{tip('Non-conservative bias adjustment: Δm = max(0, β). Adds a penalty when the average bias is positive (non-conservative).')}Noncons. bias adj. Δ<sub>m</sub>",
-            f"{tip('Pooled standard deviation combining the scatter of k̃ values (s_k) and the average individual uncertainty (σ̄_k): σ_β = √(s_k² + σ̄_k²).')}Pooled std σ<sub>β</sub>",
-            f"{tip('Single-sided tolerance factor from the noncentral t-distribution. Ensures that the coverage fraction of the population is bounded at the given confidence level. κ = t_q(ν, δ) / √N.')}Tolerance factor κ ({pr['coverage']}/{pr['confidence']})",
-            f"{tip('Total calculational margin: CM = −β + κ·σ_β + Δm. Represents the penalty to apply to keff = 1.')}<b>Calc. Margin = -β + κσ<sub>β</sub> + Δ<sub>m</sub> </b>",
-            f"{tip('Upper Subcritical Limit: the maximum acceptable keff. USL = 1 − MOS − CM, where MOS is the administrative Margin of Subcriticality.')}<b>USL = 1 - {self.MOS} - CM</b>",
-        ]
-        param_values = [
-            f"{pr['N']}",
-            f"{pr['k_bar']:.6f}" if pr["k_bar"] is not None else "N/A",
-            f"{pr['beta']:.6f}" if pr["beta"] is not None else "N/A",
-            f"{pr['Delta_m']:.6f}" if pr["Delta_m"] is not None else "N/A",
-            (
-                f"{pr['sigma_beta']:.6f}"
-                if pr["sigma_beta"] is not None
-                else "N/A (N&lt;2)"
-            ),
-            f"{pr['kappa']:.4f}" if pr["kappa"] is not None else "N/A (N&lt;2)",
-            (
-                f"<b>{pr['calculational_margin']:.5f}</b>"
-                if pr["calculational_margin"] is not None
-                else "<b>N/A (N&lt;2)</b>"
-            ),
-            (
-                f"<b>{pr['USL']:.5f}</b>"
-                if pr["USL"] is not None
-                else "<b>N/A (N&lt;2)</b>"
-            ),
-        ]
-        if pr["normality_passed"] is not None:
-            sw_color = "green" if pr["normality_passed"] else "red"
-            sw_text = "PASSED" if pr["normality_passed"] else "FAILED"
-            param_labels.append(
-                f"{tip('The parametric method assumes the k̃ values are normally distributed. The Shapiro-Wilk test checks this hypothesis. FAILED (p < 0.05) means the normality assumption may not hold and results should be used with caution.')}Shapiro-Wilk"
+            fig_whisper.add_vline(
+                x=wr["ck_acc"],
+                line=dict(color="#F58518", width=1.5, dash="dot"),
+                annotation_text="c<sub>k,acc</sub>",
+                annotation_position="top left",
+                annotation=dict(font_size=9),
             )
-            param_values.append(
-                f"<span style='color:{sw_color}'>{sw_text} (p={pr['shapiro_pvalue']:.4f})</span>"
+            fig_whisper.add_hline(y=0, line=dict(color="grey", width=0.5, dash="solid"))
+            fig_whisper.update_layout(
+                width=300,
+                height=200,
+                margin=dict(l=40, r=5, t=20, b=30),
+                showlegend=False,
+                template="plotly_white",
+                xaxis=dict(
+                    title=dict(text="C<sub>k</sub>", font=dict(size=9)),
+                    tickfont=dict(size=8),
+                ),
+                yaxis=dict(
+                    title=dict(text="Bias (k̃-1)", font=dict(size=9)), tickfont=dict(size=8)
+                ),
+            )
+            html_fig_whisper = fig_whisper.to_html(
+                full_html=False,
+                include_plotlyjs=plotlyjs_fig_include,
+                config={"displayModeBar": False},
             )
 
-        # --- Column 2: Nonparametric data ---
-        nparam_labels = [
-            f"{tip('Number of non-removed benchmark cases used in the analysis.')}N benchmarks",
-            f"{tip('The minimum scaled multiplication factor k̃ = C/E among all benchmarks. This worst-case benchmark drives the nonparametric bias estimate.')}Min k̃ (worst case)",
-            f"{tip('Bias from the worst-case benchmark: β = k̃_min − 1. Uses the most conservative single data point.')}Bias β = k̃<sub>min</sub> - 1",
-            f"{tip('Non-conservative bias adjustment: Δm = max(0, β). Adds a penalty when the worst-case bias is positive.')}Noncons. bias adj. Δ<sub>m</sub>",
-            f"{tip('Combined experimental + calculational uncertainty of the worst-case benchmark: σ = √(σ_exp² + σ_calc²).')}σ worst-case",
-            f"{tip('Bias uncertainty = n_σ × σ_worst. The multiplier n_σ (default 2.6 ≈ 99%% confidence) expands the worst-case uncertainty.')}Bias unc. = {npr['n_sigma']}×σ",
-            f"{tip('Nonparametric confidence level: C_NP = 1 − coverage^N. Probability that the minimum of N samples bounds at least the coverage fraction of the population.')}Confidence level C<sub>NP</sub> (coverage={npr['coverage']})",
-        ]
-        nparam_values = [
-            f"{npr['N']}",
-            f"{npr['min_k_tilde']:.6f}",
-            f"{npr['beta']:.6f}",
-            f"{npr['Delta_m']:.6f}",
-            f"{npr['sigma_worst']:.6f}",
-            f"{npr['sigma_beta']:.6f}",
-            f"{npr['CNP']:.6f}",
-        ]
-        if npr["m_NP"] is not None:
-            nparam_labels.extend(
-                [
-                    f"{tip('Additional margin based on C_NP. Compensates for limited confidence when few benchmarks are available. Ranges from 0 (C_NP > 0.9) to 0.05 (C_NP > 0.4).')}Additional nonparam. margin m<sub>NP</sub>",
-                    f"{tip('Total calculational margin combining the worst-case bias, its expanded uncertainty, and the nonparametric penalty.')}<b>Calc. Margin = -β + {npr['n_sigma']}×σ + m<sub>NP</sub> </b>",
-                    f"{tip('Upper Subcritical Limit = 1 − MOS − CM.')}<b>USL = 1 - {self.MOS} - CM</b>",
-                ]
-            )
-            nparam_values.extend(
-                [
-                    f"{npr['m_NP']:.3f}",
-                    f"<b>{npr['calculational_margin']:.5f}</b>",
-                    f"<b>{npr['USL']:.5f}</b>",
-                ]
-            )
-        else:
-            nparam_labels.append(
-                f"<span style='color:red'>{tip('When C_NP ≤ 0.4, there are too few benchmarks for the nonparametric method to provide meaningful confidence bounds. Add more benchmarks.')}C<sub>NP</sub> ≤ 0.4</span>"
-            )
-            nparam_values.append(
-                "<span style='color:red'>Additional data needed</span>"
-            )
+            # ========== Build HTML: 3-column flex layout, each column = table then graph ==========
+            vm_table_attrs = "border='1' cellpadding='3' cellspacing='0' style='border-collapse:collapse; font-size:11px; width:100%;'"
 
-        # --- Column 3: Whisper data ---
-        whisper_labels = [
-            f"{tip('Number of non-removed benchmark cases used in the analysis.')}N benchmarks",
-            f"{tip('Maximum Ck similarity coefficient between the application case and any benchmark. Higher values indicate better coverage.')}Max c<sub>k</sub>",
-            f"{tip('Acceptance Ck threshold: only benchmarks with Ck > c_k,acc receive nonzero weight. Determined so that the sum of weights equals w_req.')}c<sub>k,acc</sub>",
-            f"{tip('Required total sample weight: w_req = w_min + w_penalty × (1 − ck_max). Increases when the most similar benchmark is not perfectly similar.')}w<sub>req</sub>",
-            f"{tip('Actual sum of benchmark weights. If w_sum < w_req, a noncoverage penalty is applied because the benchmark suite does not provide sufficient coverage.')}w<sub>sum</sub>",
-            f"{tip('Bias from the extreme-value distribution mean. Computed as the expectation of the product-CDF, accounting for the Ck-weighted contribution of each benchmark.')}β<sub>ev</sub>",
-            f"{tip('Non-conservative bias adjustment: Δm = max(0, β_ev). Penalty when the extreme-value mean bias is positive.')}Noncons. bias adj. Δ<sub>m</sub>",
-            f"{tip('Unadjusted calculational margin: value m̃ such that the extreme-value CDF F(m̃) = q. This is the raw margin before noncoverage penalty.')}Unadj. Calc. Margin (m̃, q={wr['confidence']})",
-        ]
-        whisper_values = [
-            f"{wr['N']}",
-            f"{wr['ck_max']:.4f}",
-            f"{wr['ck_acc']:.4f}",
-            f"{wr['w_req']:.2f}",
-            f"{wr['w_sum']:.2f}",
-            f"{wr['beta_ev']:.6f}",
-            f"{wr['Delta_m']:.6f}",
-            f"{wr['m_tilde']:.5f}",
-        ]
-        if wr["noncoverage_penalty"] > 0:
+            # --- Column 1: Parametric data ---
+            param_labels = [
+                f"{tip('Number of non-removed benchmark cases used in the analysis.')}N benchmarks",
+                f"{tip('Inverse-variance weighted mean of k̃ᵢ = Cᵢ/Eᵢ across all benchmarks. Weights are wᵢ = 1/σᵢ².')}Weighted mean k̄",
+                f"{tip('Average computational bias: β = k̄ − 1. Negative means calculations underpredict experiments on average.')}Bias β",
+                f"{tip('Non-conservative bias adjustment: Δm = max(0, β). Adds a penalty when the average bias is positive (non-conservative).')}Noncons. bias adj. Δ<sub>m</sub>",
+                f"{tip('Pooled standard deviation combining the scatter of k̃ values (s_k) and the average individual uncertainty (σ̄_k): σ_β = √(s_k² + σ̄_k²).')}Pooled std σ<sub>β</sub>",
+                f"{tip('Single-sided tolerance factor from the noncentral t-distribution. Ensures that the coverage fraction of the population is bounded at the given confidence level. κ = t_q(ν, δ) / √N.')}Tolerance factor κ ({pr['coverage']}/{pr['confidence']})",
+                f"{tip('Total calculational margin: CM = −β + κ·σ_β + Δm. Represents the penalty to apply to keff = 1.')}<b>Calc. Margin = -β + κσ<sub>β</sub> + Δ<sub>m</sub> </b>",
+                f"{tip('Upper Subcritical Limit: the maximum acceptable keff. USL = 1 − MOS − CM, where MOS is the administrative Margin of Subcriticality.')}<b>USL = 1 - {self.MOS} - CM</b>",
+            ]
+            param_values = [
+                f"{pr['N']}",
+                f"{pr['k_bar']:.6f}" if pr["k_bar"] is not None else "N/A",
+                f"{pr['beta']:.6f}" if pr["beta"] is not None else "N/A",
+                f"{pr['Delta_m']:.6f}" if pr["Delta_m"] is not None else "N/A",
+                (
+                    f"{pr['sigma_beta']:.6f}"
+                    if pr["sigma_beta"] is not None
+                    else "N/A (N&lt;2)"
+                ),
+                f"{pr['kappa']:.4f}" if pr["kappa"] is not None else "N/A (N&lt;2)",
+                (
+                    f"<b>{pr['calculational_margin']:.5f}</b>"
+                    if pr["calculational_margin"] is not None
+                    else "<b>N/A (N&lt;2)</b>"
+                ),
+                (
+                    f"<b>{pr['USL']:.5f}</b>"
+                    if pr["USL"] is not None
+                    else "<b>N/A (N&lt;2)</b>"
+                ),
+            ]
+            if pr["normality_passed"] is not None:
+                sw_color = "green" if pr["normality_passed"] else "red"
+                sw_text = "PASSED" if pr["normality_passed"] else "FAILED"
+                param_labels.append(
+                    f"{tip('The parametric method assumes the k̃ values are normally distributed. The Shapiro-Wilk test checks this hypothesis. FAILED (p < 0.05) means the normality assumption may not hold and results should be used with caution.')}Shapiro-Wilk"
+                )
+                param_values.append(
+                    f"<span style='color:{sw_color}'>{sw_text} (p={pr['shapiro_pvalue']:.4f})</span>"
+                )
+
+            # --- Column 2: Nonparametric data ---
+            nparam_labels = [
+                f"{tip('Number of non-removed benchmark cases used in the analysis.')}N benchmarks",
+                f"{tip('The minimum scaled multiplication factor k̃ = C/E among all benchmarks. This worst-case benchmark drives the nonparametric bias estimate.')}Min k̃ (worst case)",
+                f"{tip('Bias from the worst-case benchmark: β = k̃_min − 1. Uses the most conservative single data point.')}Bias β = k̃<sub>min</sub> - 1",
+                f"{tip('Non-conservative bias adjustment: Δm = max(0, β). Adds a penalty when the worst-case bias is positive.')}Noncons. bias adj. Δ<sub>m</sub>",
+                f"{tip('Combined experimental + calculational uncertainty of the worst-case benchmark: σ = √(σ_exp² + σ_calc²).')}σ worst-case",
+                f"{tip('Bias uncertainty = n_σ × σ_worst. The multiplier n_σ (default 2.6 ≈ 99%% confidence) expands the worst-case uncertainty.')}Bias unc. = {npr['n_sigma']}×σ",
+                f"{tip('Nonparametric confidence level: C_NP = 1 − coverage^N. Probability that the minimum of N samples bounds at least the coverage fraction of the population.')}Confidence level C<sub>NP</sub> (coverage={npr['coverage']})",
+            ]
+            nparam_values = [
+                f"{npr['N']}",
+                f"{npr['min_k_tilde']:.6f}",
+                f"{npr['beta']:.6f}",
+                f"{npr['Delta_m']:.6f}",
+                f"{npr['sigma_worst']:.6f}",
+                f"{npr['sigma_beta']:.6f}",
+                f"{npr['CNP']:.6f}",
+            ]
+            if npr["m_NP"] is not None:
+                nparam_labels.extend(
+                    [
+                        f"{tip('Additional margin based on C_NP. Compensates for limited confidence when few benchmarks are available. Ranges from 0 (C_NP > 0.9) to 0.05 (C_NP > 0.4).')}Additional nonparam. margin m<sub>NP</sub>",
+                        f"{tip('Total calculational margin combining the worst-case bias, its expanded uncertainty, and the nonparametric penalty.')}<b>Calc. Margin = -β + {npr['n_sigma']}×σ + m<sub>NP</sub> </b>",
+                        f"{tip('Upper Subcritical Limit = 1 − MOS − CM.')}<b>USL = 1 - {self.MOS} - CM</b>",
+                    ]
+                )
+                nparam_values.extend(
+                    [
+                        f"{npr['m_NP']:.3f}",
+                        f"<b>{npr['calculational_margin']:.5f}</b>",
+                        f"<b>{npr['USL']:.5f}</b>",
+                    ]
+                )
+            else:
+                nparam_labels.append(
+                    f"<span style='color:red'>{tip('When C_NP ≤ 0.4, there are too few benchmarks for the nonparametric method to provide meaningful confidence bounds. Add more benchmarks.')}C<sub>NP</sub> ≤ 0.4</span>"
+                )
+                nparam_values.append(
+                    "<span style='color:red'>Additional data needed</span>"
+                )
+
+            # --- Column 3: Whisper data ---
+            whisper_labels = [
+                f"{tip('Number of non-removed benchmark cases used in the analysis.')}N benchmarks",
+                f"{tip('Maximum Ck similarity coefficient between the application case and any benchmark. Higher values indicate better coverage.')}Max c<sub>k</sub>",
+                f"{tip('Acceptance Ck threshold: only benchmarks with Ck > c_k,acc receive nonzero weight. Determined so that the sum of weights equals w_req.')}c<sub>k,acc</sub>",
+                f"{tip('Required total sample weight: w_req = w_min + w_penalty × (1 − ck_max). Increases when the most similar benchmark is not perfectly similar.')}w<sub>req</sub>",
+                f"{tip('Actual sum of benchmark weights. If w_sum < w_req, a noncoverage penalty is applied because the benchmark suite does not provide sufficient coverage.')}w<sub>sum</sub>",
+                f"{tip('Bias from the extreme-value distribution mean. Computed as the expectation of the product-CDF, accounting for the Ck-weighted contribution of each benchmark.')}β<sub>ev</sub>",
+                f"{tip('Non-conservative bias adjustment: Δm = max(0, β_ev). Penalty when the extreme-value mean bias is positive.')}Noncons. bias adj. Δ<sub>m</sub>",
+                f"{tip('Unadjusted calculational margin: value m̃ such that the extreme-value CDF F(m̃) = q. This is the raw margin before noncoverage penalty.')}Unadj. Calc. Margin (m̃, q={wr['confidence']})",
+            ]
+            whisper_values = [
+                f"{wr['N']}",
+                f"{wr['ck_max']:.4f}",
+                f"{wr['ck_acc']:.4f}",
+                f"{wr['w_req']:.2f}",
+                f"{wr['w_sum']:.2f}",
+                f"{wr['beta_ev']:.6f}",
+                f"{wr['Delta_m']:.6f}",
+                f"{wr['m_tilde']:.5f}",
+            ]
+            if wr["noncoverage_penalty"] > 0:
+                whisper_labels.extend(
+                    [
+                        f"{tip('Noncoverage penalty applied when w_sum < w_req. The margin is interpolated between m̃ (partial-weight) and m₀ (unit-weight): m = m̃·(w_sum/w_req) + m₀·(1 − w_sum/w_req).')}Noncov. penalty",
+                        f"{tip('Bounding margin computed with all benchmarks at unit weight (worst-case assumption). Used in the noncoverage penalty interpolation.')}Bounding Calc. Margin m<sub>0</sub>",
+                    ]
+                )
+                whisper_values.extend(
+                    [f"{wr['noncoverage_penalty']:.5f}", f"{wr['m0']:.5f}"]
+                )
             whisper_labels.extend(
                 [
-                    f"{tip('Noncoverage penalty applied when w_sum < w_req. The margin is interpolated between m̃ (partial-weight) and m₀ (unit-weight): m = m̃·(w_sum/w_req) + m₀·(1 − w_sum/w_req).')}Noncov. penalty",
-                    f"{tip('Bounding margin computed with all benchmarks at unit weight (worst-case assumption). Used in the noncoverage penalty interpolation.')}Bounding Calc. Margin m<sub>0</sub>",
+                    f"{tip('Bias uncertainty for the extreme-value method: σ_β = m + β_ev. Measures the spread between the margin and the mean bias.')}σ<sub>β</sub>",
+                    f"{tip('Final calculational margin: CM = m + Δm, where m is the (possibly penalty-adjusted) extreme-value margin.')}<b>Calc. Margin = m + Δ<sub>m</sub></b>",
+                    f"{tip('Upper Subcritical Limit = 1 − MOS − CM.')}<b>USL = 1 - {self.MOS} - CM</b>",
                 ]
             )
             whisper_values.extend(
-                [f"{wr['noncoverage_penalty']:.5f}", f"{wr['m0']:.5f}"]
-            )
-        whisper_labels.extend(
-            [
-                f"{tip('Bias uncertainty for the extreme-value method: σ_β = m + β_ev. Measures the spread between the margin and the mean bias.')}σ<sub>β</sub>",
-                f"{tip('Final calculational margin: CM = m + Δm, where m is the (possibly penalty-adjusted) extreme-value margin.')}<b>Calc. Margin = m + Δ<sub>m</sub></b>",
-                f"{tip('Upper Subcritical Limit = 1 − MOS − CM.')}<b>USL = 1 - {self.MOS} - CM</b>",
-            ]
-        )
-        whisper_values.extend(
-            [
-                f"{wr['sigma_beta']:.6f}",
-                f"<b>{wr['calculational_margin']:.5f}</b>",
-                f"<b>{wr['USL']:.5f}</b>",
-            ]
-        )
-
-        # --- Column 4: Trending data ---
-        trend_labels = [
-            f"{tip('Number of non-removed benchmark cases used in the analysis.')}N benchmarks",
-        ]
-        trend_values = [
-            f"{tr['N']}",
-        ]
-        if tr["USL"] is not None:
-            trend_labels.extend(
                 [
-                    f"{tip('Evaluation point: the Ck value at which bias and uncertainty are evaluated. Defaults to the maximum Ck (most similar benchmark).')}Evaluation C<sub>k</sub>",
-                    f"{tip('Intercept of the linear regression fit: k̃ = β₀ + β₁·Ck.')}Intercept β<sub>0</sub>",
-                    f"{tip('Slope of the linear regression fit. Indicates the rate of change of k̃ with Ck.')}Slope β<sub>1</sub>",
-                    f"{tip('Bias at the evaluation point: β(x) = k_fit(x) − 1.')}Bias β(x<sub>eval</sub>)",
-                    f"{tip('Non-conservative bias adjustment: Δm = max(0, β). Adds a penalty when the bias at the evaluation point is positive.')}Noncons. bias adj. Δ<sub>m</sub>",
-                    f"{tip('Pooled standard deviation combining the regression fit scatter (σ_fit) and the average individual uncertainty (σ̄): S_p = √(σ_fit² + σ̄²).')}Pooled std S<sub>p</sub>",
-                    f"{tip('Bias uncertainty from the single-sided lower tolerance band evaluated at x_eval. Accounts for regression uncertainty and population coverage.')}Bias unc. σ<sub>β</sub>(x<sub>eval</sub>)",
-                    f"{tip('Total calculational margin: CM = −β(x) + σ_β(x) + Δm.')}<b>Calc. Margin</b>",
-                    f"{tip('Upper Subcritical Limit = 1 − MOS − CM.')}<b>USL = 1 - {self.MOS} - CM</b>",
+                    f"{wr['sigma_beta']:.6f}",
+                    f"<b>{wr['calculational_margin']:.5f}</b>",
+                    f"<b>{wr['USL']:.5f}</b>",
                 ]
             )
-            trend_values.extend(
+
+            # --- Column 4: Trending data ---
+            trend_labels = [
+                f"{tip('Number of non-removed benchmark cases used in the analysis.')}N benchmarks",
+            ]
+            trend_values = [
+                f"{tr['N']}",
+            ]
+            if tr["USL"] is not None:
+                trend_labels.extend(
+                    [
+                        f"{tip('Evaluation point: the Ck value at which bias and uncertainty are evaluated. Defaults to the maximum Ck (most similar benchmark).')}Evaluation C<sub>k</sub>",
+                        f"{tip('Intercept of the linear regression fit: k̃ = β₀ + β₁·Ck.')}Intercept β<sub>0</sub>",
+                        f"{tip('Slope of the linear regression fit. Indicates the rate of change of k̃ with Ck.')}Slope β<sub>1</sub>",
+                        f"{tip('Bias at the evaluation point: β(x) = k_fit(x) − 1.')}Bias β(x<sub>eval</sub>)",
+                        f"{tip('Non-conservative bias adjustment: Δm = max(0, β). Adds a penalty when the bias at the evaluation point is positive.')}Noncons. bias adj. Δ<sub>m</sub>",
+                        f"{tip('Pooled standard deviation combining the regression fit scatter (σ_fit) and the average individual uncertainty (σ̄): S_p = √(σ_fit² + σ̄²).')}Pooled std S<sub>p</sub>",
+                        f"{tip('Bias uncertainty from the single-sided lower tolerance band evaluated at x_eval. Accounts for regression uncertainty and population coverage.')}Bias unc. σ<sub>β</sub>(x<sub>eval</sub>)",
+                        f"{tip('Total calculational margin: CM = −β(x) + σ_β(x) + Δm.')}<b>Calc. Margin</b>",
+                        f"{tip('Upper Subcritical Limit = 1 − MOS − CM.')}<b>USL = 1 - {self.MOS} - CM</b>",
+                    ]
+                )
+                trend_values.extend(
+                    [
+                        f"{tr['x_eval']:.4f}",
+                        f"{tr['beta_0']:.6f}",
+                        f"{tr['beta_1']:.6f}",
+                        f"{tr['beta_x']:.6f}",
+                        f"{tr['Delta_m']:.6f}",
+                        f"{tr['S_p']:.6f}",
+                        f"{tr['sigma_beta_x']:.6f}",
+                        f"<b>{tr['calculational_margin']:.5f}</b>",
+                        f"<b>{tr['USL']:.5f}</b>",
+                    ]
+                )
+                # t-test for trend significance
+                t_color = "green" if tr["trend_significant"] else "orange"
+                t_text = "SIGNIFICANT" if tr["trend_significant"] else "NOT SIGNIFICANT"
+                trend_labels.append(
+                    f"{tip('Student t-test for trend significance. Tests if the linear slope β₁ is statistically different from zero. NOT SIGNIFICANT means no detectable linear trend in the data vs Ck.')}Trend t-test"
+                )
+                trend_values.append(
+                    f"<span style='color:{t_color}'>{t_text} (t={tr['t_fit']:.3f}, t<sub>crit</sub>={tr['t_critical']:.3f})</span>"
+                )
+            else:
+                trend_labels.append(
+                    f"<span style='color:red'>{tip('Linear regression requires at least 3 data points.')}N < 3</span>"
+                )
+                trend_values.append("<span style='color:red'>Additional data needed</span>")
+
+            # Trending figure: large scatter of k̃ vs Ck + regression line + tolerance band + USL
+            ck_fig = np.array(
                 [
-                    f"{tr['x_eval']:.4f}",
-                    f"{tr['beta_0']:.6f}",
-                    f"{tr['beta_1']:.6f}",
-                    f"{tr['beta_x']:.6f}",
-                    f"{tr['Delta_m']:.6f}",
-                    f"{tr['S_p']:.6f}",
-                    f"{tr['sigma_beta_x']:.6f}",
-                    f"<b>{tr['calculational_margin']:.5f}</b>",
-                    f"<b>{tr['USL']:.5f}</b>",
+                    self.bench_list["Ck"][b]
+                    for b in range(len(self.bench_list))
+                    if not self.bench_list["REMOVED"][b]
                 ]
             )
-            # t-test for trend significance
-            t_color = "green" if tr["trend_significant"] else "orange"
-            t_text = "SIGNIFICANT" if tr["trend_significant"] else "NOT SIGNIFICANT"
-            trend_labels.append(
-                f"{tip('Student t-test for trend significance. Tests if the linear slope β₁ is statistically different from zero. NOT SIGNIFICANT means no detectable linear trend in the data vs Ck.')}Trend t-test"
-            )
-            trend_values.append(
-                f"<span style='color:{t_color}'>{t_text} (t={tr['t_fit']:.3f}, t<sub>crit</sub>={tr['t_critical']:.3f})</span>"
-            )
-        else:
-            trend_labels.append(
-                f"<span style='color:red'>{tip('Linear regression requires at least 3 data points.')}N < 3</span>"
-            )
-            trend_values.append("<span style='color:red'>Additional data needed</span>")
-
-        # Trending figure: large scatter of k̃ vs Ck + regression line + tolerance band + USL
-        ck_fig = np.array(
-            [
-                self.bench_list["Ck"][b]
-                for b in range(len(self.bench_list))
-                if not self.bench_list["REMOVED"][b]
-            ]
-        )
-        fig_trend = go.Figure()
-        # Data points with error bars (±σ)
-        fig_trend.add_trace(
-            go.Scatter(
-                x=ck_fig,
-                y=k_tilde_fig,
-                mode="markers",
-                error_y=dict(
-                    type="data",
-                    array=sigma_fig,
-                    visible=True,
-                    thickness=1,
-                    width=3,
-                    color="rgba(76,120,168,0.5)",
-                ),
-                marker=dict(size=5, color="#4C78A8"),
-                name="k̃ values",
-            )
-        )
-        if tr["USL"] is not None:
-            # Regression line k(x)
-            x_line = np.linspace(np.min(ck_fig), np.max(ck_fig), 100)
-            y_kfit = tr["beta_0"] + tr["beta_1"] * x_line
+            fig_trend = go.Figure()
+            # Data points with error bars (±σ)
             fig_trend.add_trace(
                 go.Scatter(
-                    x=x_line,
-                    y=y_kfit,
-                    mode="lines",
-                    line=dict(color="#4C78A8", width=2),
-                    name="k(x)",
+                    x=ck_fig,
+                    y=k_tilde_fig,
+                    mode="markers",
+                    error_y=dict(
+                        type="data",
+                        array=sigma_fig,
+                        visible=True,
+                        thickness=1,
+                        width=3,
+                        color="rgba(76,120,168,0.5)",
+                    ),
+                    marker=dict(size=5, color="#4C78A8"),
+                    name="k̃ values",
                 )
             )
-
-            # Position-dependent tolerance band: k(x) - w(x)
-            # w(x) = S_p * sqrt( 2*F * [1/N + (x-x_bar)²/S_xx] + z_p * sqrt((N-2)/chi²) )
-            F_val = f_dist.ppf(tr["confidence"], dfn=2, dfd=tr["N"] - 2)
-            z_p = norm.ppf(tr["coverage"])
-            chi2_val = chi2_dist.ppf(1.0 - tr["confidence"], df=tr["N"] - 2)
-            chi2_val = max(chi2_val, 1e-12)
-            population_term = z_p * sqrt((tr["N"] - 2) / chi2_val)
-
-            w_x = np.array(
-                [
-                    (
-                        tr["S_p"]
-                        * sqrt(
-                            2.0
-                            * F_val
-                            * (1.0 / tr["N"] + (xi - tr["x_bar"]) ** 2 / tr["S_xx"])
-                            + population_term
-                        )
-                        if tr["S_xx"] > 0
-                        else tr["sigma_beta_x"]
+            if tr["USL"] is not None:
+                # Regression line k(x)
+                x_line = np.linspace(np.min(ck_fig), np.max(ck_fig), 100)
+                y_kfit = tr["beta_0"] + tr["beta_1"] * x_line
+                fig_trend.add_trace(
+                    go.Scatter(
+                        x=x_line,
+                        y=y_kfit,
+                        mode="lines",
+                        line=dict(color="#4C78A8", width=2),
+                        name="k(x)",
                     )
-                    for xi in x_line
-                ]
-            )
-            y_lower_band = y_kfit - w_x
-            fig_trend.add_trace(
-                go.Scatter(
-                    x=x_line,
-                    y=y_lower_band,
-                    mode="lines",
-                    line=dict(color="#F58518", width=2),
-                    name="k(x) − w(x)",
                 )
-            )
 
-            # Constant W = max(w) over the data range (USL1 approach)
-            W_const = np.max(w_x)
-            y_usl1 = y_kfit - W_const
-            fig_trend.add_trace(
-                go.Scatter(
-                    x=x_line,
-                    y=y_usl1,
-                    mode="lines",
-                    line=dict(color="#E45756", width=2, dash="dash"),
-                    name="k(x) − W",
+                # Position-dependent tolerance band: k(x) - w(x)
+                # w(x) = S_p * sqrt( 2*F * [1/N + (x-x_bar)²/S_xx] + z_p * sqrt((N-2)/chi²) )
+                F_val = f_dist.ppf(tr["confidence"], dfn=2, dfd=tr["N"] - 2)
+                z_p = norm.ppf(tr["coverage"])
+                chi2_val = chi2_dist.ppf(1.0 - tr["confidence"], df=tr["N"] - 2)
+                chi2_val = max(chi2_val, 1e-12)
+                population_term = z_p * sqrt((tr["N"] - 2) / chi2_val)
+
+                w_x = np.array(
+                    [
+                        (
+                            tr["S_p"]
+                            * sqrt(
+                                2.0
+                                * F_val
+                                * (1.0 / tr["N"] + (xi - tr["x_bar"]) ** 2 / tr["S_xx"])
+                                + population_term
+                            )
+                            if tr["S_xx"] > 0
+                            else tr["sigma_beta_x"]
+                        )
+                        for xi in x_line
+                    ]
                 )
-            )
-
-            # USL = k(x) - W - admin_margin (final USL line)
-            y_usl_final = y_kfit - W_const - self.MOS
-            fig_trend.add_trace(
-                go.Scatter(
-                    x=x_line,
-                    y=y_usl_final,
-                    mode="lines",
-                    line=dict(color="#54A24B", width=2.5),
-                    name=f"USL (MOS={self.MOS})",
+                y_lower_band = y_kfit - w_x
+                fig_trend.add_trace(
+                    go.Scatter(
+                        x=x_line,
+                        y=y_lower_band,
+                        mode="lines",
+                        line=dict(color="#F58518", width=2),
+                        name="k(x) − w(x)",
+                    )
                 )
-            )
 
-            # Horizontal reference line at k̃ = 1
-            fig_trend.add_hline(y=1.0, line=dict(color="grey", width=0.8, dash="solid"))
+                # Constant W = max(w) over the data range (USL1 approach)
+                W_const = np.max(w_x)
+                y_usl1 = y_kfit - W_const
+                fig_trend.add_trace(
+                    go.Scatter(
+                        x=x_line,
+                        y=y_usl1,
+                        mode="lines",
+                        line=dict(color="#E45756", width=2, dash="dash"),
+                        name="k(x) − W",
+                    )
+                )
 
-        fig_trend.update_layout(
-            width=650,
-            height=350,
-            margin=dict(l=50, r=20, t=30, b=45),
-            showlegend=True,
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.01,
-                xanchor="left",
-                x=0,
-                font=dict(size=10),
-            ),
-            template="plotly_white",
-            xaxis=dict(
-                title=dict(
-                    text="Trending Parameter, C<sub>k</sub>", font=dict(size=11)
+                # USL = k(x) - W - admin_margin (final USL line)
+                y_usl_final = y_kfit - W_const - self.MOS
+                fig_trend.add_trace(
+                    go.Scatter(
+                        x=x_line,
+                        y=y_usl_final,
+                        mode="lines",
+                        line=dict(color="#54A24B", width=2.5),
+                        name=f"USL (MOS={self.MOS})",
+                    )
+                )
+
+                # Horizontal reference line at k̃ = 1
+                fig_trend.add_hline(y=1.0, line=dict(color="grey", width=0.8, dash="solid"))
+
+            fig_trend.update_layout(
+                width=650,
+                height=350,
+                margin=dict(l=50, r=20, t=30, b=45),
+                showlegend=True,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.01,
+                    xanchor="left",
+                    x=0,
+                    font=dict(size=10),
                 ),
-                tickfont=dict(size=10),
-            ),
-            yaxis=dict(
-                title=dict(text="k̃ = C/E", font=dict(size=11)), tickfont=dict(size=10)
-            ),
-        )
-        html_fig_trend = fig_trend.to_html(
-            full_html=False,
-            include_plotlyjs=plotlyjs_fig_include,
-            config={"displayModeBar": False},
-        )
+                template="plotly_white",
+                xaxis=dict(
+                    title=dict(
+                        text="Trending Parameter, C<sub>k</sub>", font=dict(size=11)
+                    ),
+                    tickfont=dict(size=10),
+                ),
+                yaxis=dict(
+                    title=dict(text="k̃ = C/E", font=dict(size=11)), tickfont=dict(size=10)
+                ),
+            )
+            html_fig_trend = fig_trend.to_html(
+                full_html=False,
+                include_plotlyjs=plotlyjs_fig_include,
+                config={"displayModeBar": False},
+            )
 
-        # Outer flex row
-        validation_str += "<div style='display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;'>"
+            # Outer flex row
+            validation_str += "<div style='display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;'>"
 
-        validation_str += "<div style='flex:1; min-width:280px; display:flex; flex-direction:column; align-items:flex-start; padding:0 8px;'>"
-        validation_str += "<h4 style='font-size:13px;'>1. Parametric Method</h4>"
-        validation_str += plots.create_html_table(
-            lines=[param_labels, param_values],
-            table_attrs=vm_table_attrs,
-            centered=False,
-        )
-        validation_str += "<div style='margin-top:6px;'>" + html_fig_param + "</div>"
-        validation_str += "</div>"
+            validation_str += "<div style='flex:1; min-width:280px; display:flex; flex-direction:column; align-items:flex-start; padding:0 8px;'>"
+            validation_str += "<h4 style='font-size:13px;'>1. Parametric Method</h4>"
+            validation_str += plots.create_html_table(
+                lines=[param_labels, param_values],
+                table_attrs=vm_table_attrs,
+                centered=False,
+            )
+            validation_str += "<div style='margin-top:6px;'>" + html_fig_param + "</div>"
+            validation_str += "</div>"
 
-        validation_str += "<div style='flex:1; min-width:280px; display:flex; flex-direction:column; align-items:flex-start; padding:0 8px;'>"
-        validation_str += "<h4 style='font-size:13px;'>2. Nonparametric Rank-Order</h4>"
-        validation_str += plots.create_html_table(
-            lines=[nparam_labels, nparam_values],
-            table_attrs=vm_table_attrs,
-            centered=False,
-        )
-        validation_str += "<div style='margin-top:6px;'>" + html_fig_nparam + "</div>"
-        validation_str += "</div>"
+            validation_str += "<div style='flex:1; min-width:280px; display:flex; flex-direction:column; align-items:flex-start; padding:0 8px;'>"
+            validation_str += "<h4 style='font-size:13px;'>2. Nonparametric Rank-Order</h4>"
+            validation_str += plots.create_html_table(
+                lines=[nparam_labels, nparam_values],
+                table_attrs=vm_table_attrs,
+                centered=False,
+            )
+            validation_str += "<div style='margin-top:6px;'>" + html_fig_nparam + "</div>"
+            validation_str += "</div>"
 
-        validation_str += "<div style='flex:1; min-width:280px; display:flex; flex-direction:column; align-items:flex-start; padding:0 8px;'>"
-        validation_str += "<h4 style='font-size:13px;'>3. Whisper Extreme-Value</h4>"
-        validation_str += plots.create_html_table(
-            lines=[whisper_labels, whisper_values],
-            table_attrs=vm_table_attrs,
-            centered=False,
-        )
-        validation_str += "<div style='margin-top:6px;'>" + html_fig_whisper + "</div>"
-        validation_str += "</div>"
+            validation_str += "<div style='flex:1; min-width:280px; display:flex; flex-direction:column; align-items:flex-start; padding:0 8px;'>"
+            validation_str += "<h4 style='font-size:13px;'>3. Whisper Extreme-Value</h4>"
+            validation_str += plots.create_html_table(
+                lines=[whisper_labels, whisper_values],
+                table_attrs=vm_table_attrs,
+                centered=False,
+            )
+            validation_str += "<div style='margin-top:6px;'>" + html_fig_whisper + "</div>"
+            validation_str += "</div>"
 
-        # Close outer flex row (parametric + nonparametric + Whisper)
-        validation_str += "</div>"
+            # Close outer flex row (parametric + nonparametric + Whisper)
+            validation_str += "</div>"
 
-        # --- Trending section: full-width below, table + large figure side by side ---
-        validation_str += (
-            "<h4 style='font-size:13px; margin-top:18px;'>4. Linear Trending</h4>"
-        )
-        validation_str += "<div style='display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start;'>"
-        validation_str += "<div style='min-width:240px; max-width:300px;'>"
-        validation_str += plots.create_html_table(
-            lines=[trend_labels, trend_values],
-            table_attrs=vm_table_attrs,
-            centered=False,
-        )
-        validation_str += "</div>"
-        validation_str += (
-            "<div style='flex:1; min-width:400px;'>" + html_fig_trend + "</div>"
-        )
-        validation_str += "</div>"
+            # --- Trending section: full-width below, table + large figure side by side ---
+            validation_str += (
+                "<h4 style='font-size:13px; margin-top:18px;'>4. Linear Trending</h4>"
+            )
+            validation_str += "<div style='display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start;'>"
+            validation_str += "<div style='min-width:240px; max-width:300px;'>"
+            validation_str += plots.create_html_table(
+                lines=[trend_labels, trend_values],
+                table_attrs=vm_table_attrs,
+                centered=False,
+            )
+            validation_str += "</div>"
+            validation_str += (
+                "<div style='flex:1; min-width:400px;'>" + html_fig_trend + "</div>"
+            )
+            validation_str += "</div>"
+
+        elif self.gllsm :
+            gllsm = self.USL_gllsm
+
+
+            summary_labels = []
+            summary_values = []
+            # --- Summary comparison table ---
+            p_pct = f"{usl_gllsm_p*1E2:.0f}"
+            q_pct = f"{usl_gllsm_q*1E2:.0f}"
+            summary_labels.append(
+                f"{tip('Bias and uncertainty from the GLLS adjustment. The coverage factor K<sub>' + p_pct + '/' + q_pct + '</sub> ensures with ' + q_pct + '%% confidence that ' + p_pct + '%% of the population is bounded.')}GLLSM (K<sub>{usl_gllsm_p*1E2:.0f}/{usl_gllsm_q*1E2:.0f}</sub>)"
+            )
+            summary_values.append(
+                f"{gllsm['calculational_margin']*1E5:.0f} pcm"
+            )
+            
+
+            validation_str += "<h4>Summary comparison</h4>"
+            validation_str += plots.create_html_table(
+                headers=[
+                    "Method",
+                    f"{tip('Calculational Margin (CM) is a penalty applied to keff=1 to define the USL. It accounts for the computational bias, its uncertainty, and any additional margins. USL = 1 − CM − MOS.')}Calculational Margin",
+                ],
+                lines=[summary_labels, summary_values],
+                table_attrs="border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse; font-size:14px; text-align:center;'",
+                header_style="background:#809684; color:white;",
+                centered=False,
+            )
 
         validation_str += "</div><hr width='60%' />"
 
         # --------------------------------
         bench_list_included = self.bench_list[self.bench_list["REMOVED"] == False]
-        bench_list_custom = pd.concat(
-            [
-                pd.DataFrame(
-                    {
-                        "PATH": bench_list_included["PATH"],
-                        "C - E (pcm)": bench_list_included["C_PRIOR - E (pcm)"],
-                        "PRIOR/POST": "PRIOR",
-                        "3SIGMA EXPE+ND (pcm)": 3
-                        * np.sqrt(
-                            (bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5)
-                            ** 2
-                            + bench_list_included["UNC_PRIOR (pcm)"].astype(float) ** 2
-                        ),
-                    }
-                ),
-                pd.DataFrame(
-                    {
-                        "PATH": bench_list_included["PATH"],
-                        "C - E (pcm)": bench_list_included["C_POST - E (pcm)"],
-                        "PRIOR/POST": "POST",
-                        "3SIGMA EXPE+ND (pcm)": 3
-                        * np.sqrt(
-                            (bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5)
-                            ** 2
-                            + bench_list_included["UNC_POST (pcm)"].astype(float) ** 2
-                        ),
-                    }
-                ),
-            ],
-            ignore_index=True,
-        )
+        if self.gllsm :
+            bench_list_custom = pd.concat(
+                [
+                    pd.DataFrame(
+                        {
+                            "PATH": bench_list_included["PATH"],
+                            "C - E (pcm)": bench_list_included["C_PRIOR - E (pcm)"],
+                            "PRIOR/POST": "PRIOR",
+                            "3SIGMA EXPE+ND (pcm)": 3
+                            * np.sqrt(
+                                (bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5)
+                                ** 2
+                                + bench_list_included["UNC_PRIOR (pcm)"].astype(float) ** 2
+                            ),
+                        }
+                    ),
+                    pd.DataFrame(
+                        {
+                            "PATH": bench_list_included["PATH"],
+                            "C - E (pcm)": bench_list_included["C_POST - E (pcm)"],
+                            "PRIOR/POST": "POST",
+                            "3SIGMA EXPE+ND (pcm)": 3
+                            * np.sqrt(
+                                (bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5)
+                                ** 2
+                                + bench_list_included["UNC_POST (pcm)"].astype(float) ** 2
+                            ),
+                        }
+                    ),
+                ],
+                ignore_index=True,
+            )
+        else :
+            bench_list_custom = pd.DataFrame(
+                                {
+                                    "PATH": bench_list_included["PATH"],
+                                    "C - E (pcm)": bench_list_included["C_PRIOR - E (pcm)"],
+                                    "PRIOR/POST": "PRIOR",
+                                    "3SIGMA EXPE+ND (pcm)": 3
+                                    * np.sqrt(
+                                        (bench_list_included["SIGMA RESP EXPE"].astype(float) * 1e5)
+                                        ** 2
+                                        + bench_list_included["UNC_PRIOR (pcm)"].astype(float) ** 2
+                                    ),
+                                }
+                            )
 
         trace_bias = px.scatter(
             bench_list_custom,
@@ -3914,7 +4028,7 @@ class Assimilation:
             color="PRIOR/POST",
             symbol="PRIOR/POST",
             hover_name="PATH",
-            title="Benchmark cases bias progression",
+            title="Benchmark cases bias progression" if self.gllsm else "Benchmark cases bias",
         )
         trace_bias.update_yaxes(title_text="C - E (pcm) (3 sigma=sqrt(expe²+ND²))")
         trace_bias.update_traces(marker_size=8, error_y_thickness=0.5)
@@ -3983,17 +4097,17 @@ class Assimilation:
                 for x_case, CE_post in zip(
                     self.bench_cases, self.bench_list["C_POST - E (pcm)"]
                 )
-            ],
+            ] if self.gllsm else [None] * len(self.bench_cases),
             [int(round(x)) for x in self.bench_list["UNC_PRIOR (pcm)"]],
             [
                 int(round(x)) if type(x) is not str else None
                 for x in self.bench_list["UNC_POST (pcm)"]
-            ],
+            ] if self.gllsm else [None] * len(self.bench_cases),
             [int(round(x)) for x in self.bench_list["C_PRIOR - E (pcm)"]],
             [
                 int(round(x)) if type(x) is not str else None
                 for x in self.bench_list["C_POST - E (pcm)"]
-            ],
+            ] if self.gllsm else [None] * len(self.bench_cases),
             [
                 round(chi2, 5) if chi2 != None else None
                 for chi2 in self.bench_list["INDIVIDUAL CHI2"]
@@ -4053,7 +4167,7 @@ class Assimilation:
             )
 
             # --------------------------------
-            dec_post_trace_integ, dec_post_trace = (
+            (dec_post_trace_integ, dec_post_trace) = (
                 cph.build_interactive_integral_profile_figures(
                     vector=self.post_uncertainty.decomp_vec,
                     iso_reac_list=self.iso_reac_list,
@@ -4065,10 +4179,10 @@ class Assimilation:
                     integral_yaxis_title=f"Unc² ({unit_str}²)",
                     profile_yaxis_title=f"Unc² ({unit_str}²)",
                 )
-            )
+            ) if self.gllsm else (None, None)
 
             # --------------------------------
-            dec_bias_trace_integ, dec_bias_trace = (
+            (dec_bias_trace_integ, dec_bias_trace) = (
                 cph.build_interactive_integral_profile_figures(
                     vector=self.bias.decomp_vec,
                     iso_reac_list=self.iso_reac_list,
@@ -4080,7 +4194,7 @@ class Assimilation:
                     integral_yaxis_title=f"Bias ({unit_str})",
                     profile_yaxis_title=f"Bias ({unit_str})",
                 )
-            )
+            ) if self.gllsm else (None, None)
 
         # --------------------------------
         trace_cov_prior_integrals, trace_matrix_profiles, trace_matrix_profiles_cov = (
@@ -4113,9 +4227,9 @@ class Assimilation:
             integral_yaxis_title="Variance & Covariance (group-wise integral - covariances included)",
             profile_yaxis_title="Unc(%)²",
             covariance_profile_yaxis_title="Unc(%)² (covariances included)",
-        )
+        ) if self.gllsm else (None, None, None)
 
-        delta_mu_integrals, delta_mu_profiles = (
+        (delta_mu_integrals, delta_mu_profiles) = (
             cph.build_interactive_integral_profile_figures(
                 vector=self.delta_mu,
                 iso_reac_list=self.iso_reac_list,
@@ -4127,7 +4241,7 @@ class Assimilation:
                 integral_yaxis_title="Integral of (ND post - ND prior) / ND prior",
                 profile_yaxis_title="(ND post - ND prior) / ND prior",
             )
-        )
+        ) if self.gllsm else (None, None)
         # --------------------------------
         case_iso_reac = []
         if self.appl_case != None:
@@ -4376,30 +4490,31 @@ class Assimilation:
                     )
                     + "<br>\n"
                 )
-                f.write(
-                    dec_post_trace_integ.to_html(
-                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                if self.gllsm : 
+                    f.write(
+                        dec_post_trace_integ.to_html(
+                            full_html=False, include_plotlyjs=plotlyjs_fig_include
+                        )
+                        + "<br>\n"
                     )
-                    + "<br>\n"
-                )
-                f.write(
-                    dec_post_trace.to_html(
-                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    f.write(
+                        dec_post_trace.to_html(
+                            full_html=False, include_plotlyjs=plotlyjs_fig_include
+                        )
+                        + "<br>\n"
                     )
-                    + "<br>\n"
-                )
-                f.write(
-                    dec_bias_trace_integ.to_html(
-                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    f.write(
+                        dec_bias_trace_integ.to_html(
+                            full_html=False, include_plotlyjs=plotlyjs_fig_include
+                        )
+                        + "<br>\n"
                     )
-                    + "<br>\n"
-                )
-                f.write(
-                    dec_bias_trace.to_html(
-                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    f.write(
+                        dec_bias_trace.to_html(
+                            full_html=False, include_plotlyjs=plotlyjs_fig_include
+                        )
+                        + "<br>\n"
                     )
-                    + "<br>\n"
-                )
                 f.write("</section>\n")
                 f.write("</div>\n")
 
@@ -4426,36 +4541,37 @@ class Assimilation:
                 )
                 + "<br>\n"
             )
-            f.write(
-                trace_cov_delta_integrals.to_html(
-                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+            if self.gllsm : 
+                f.write(
+                    trace_cov_delta_integrals.to_html(
+                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    )
+                    + "<br>\n"
                 )
-                + "<br>\n"
-            )
-            f.write(
-                trace_matrix_delta_profiles.to_html(
-                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                f.write(
+                    trace_matrix_delta_profiles.to_html(
+                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    )
+                    + "<br>\n"
                 )
-                + "<br>\n"
-            )
-            f.write(
-                trace_matrix_delta_profiles_cov.to_html(
-                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                f.write(
+                    trace_matrix_delta_profiles_cov.to_html(
+                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    )
+                    + "<br>\n"
                 )
-                + "<br>\n"
-            )
-            f.write(
-                delta_mu_integrals.to_html(
-                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                f.write(
+                    delta_mu_integrals.to_html(
+                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    )
+                    + "<br>\n"
                 )
-                + "<br>\n"
-            )
-            f.write(
-                delta_mu_profiles.to_html(
-                    full_html=False, include_plotlyjs=plotlyjs_fig_include
+                f.write(
+                    delta_mu_profiles.to_html(
+                        full_html=False, include_plotlyjs=plotlyjs_fig_include
+                    )
+                    + "<br>\n"
                 )
-                + "<br>\n"
-            )
 
             iso_reac_to_plot = []
             for isotope in isotopes_to_detail:
@@ -4488,14 +4604,14 @@ class Assimilation:
                         title="Prior var-covar submatrix",
                     )
 
-                    trace_cov_delta_submat, color_scale = plots.plot_submatrix(
+                    (trace_cov_delta_submat, color_scale) = plots.plot_submatrix(
                         cov_mat=self.cov_mat_delta,
                         iso_reac_list=self.iso_reac_list,
                         iso_reac_pair_to_plot=(iso_reac_1, iso_reac_2),
                         group_nb=self.group_nb,
                         color_scale=color_scale,
                         title="Var-covar delta submatrix",
-                    )
+                    ) if self.gllsm else (None, None)
 
                     if trace_cov_prior_submat != None:
                         write_div = True

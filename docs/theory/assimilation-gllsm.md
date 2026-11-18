@@ -17,6 +17,15 @@ The validity domain of this method is defined by several hypotheses:
 - The response variation caused by small variations in nuclear data is reasonably linear
 - The application case is similar in sensitivity to the assimilated benchmarks (similarity is discussed below)
 
+You can deactivate the calcul of the GLLS method with the following flag:
+```python
+assimilation = cl.Assimilation(
+    ...,
+    gllsm=False,
+    ...,
+)
+```
+
 ## Pre-sorting of benchmark cases to assimilate
 
 The impact of benchmarks on posterior uncertainty σ<sub>resp</sub><sup>ND post</sup> depends on similarity to the application case (fissile material, moderator, spectrum).

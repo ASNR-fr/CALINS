@@ -2,6 +2,15 @@
 
 After performing data assimilation via GLLSM and obtaining a bias estimate, CALINS provides four independent methods to compute an **Upper Safety Limit (USL)** for the application case response. The USL are determined based on the assumption that the responses are the multiplication factor $k_{eff}$. The parametric and nonparametric methods are based on the formalism described by Kiedrowski et al. (NSE 181, 2015). The trending method implements the NUREG/CR-6698 single-sided lower tolerance band (also available in SCALE/VADER).
 
+You can deactivate the calcul of those validation methods with the following flag:
+```python
+assimilation = cl.Assimilation(
+    ...,
+    validation_methods=False,
+    ...,
+)
+```
+
 All three methods share the same general framework:
 
 $$\text{USL} = 1 - \text{CM} - \text{MOS}$$

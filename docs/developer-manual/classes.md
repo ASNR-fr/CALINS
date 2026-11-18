@@ -108,30 +108,36 @@ Finally, the *Bias* object is only invoked as a property of the *Assimilation* o
 ## Assimilation
 The *Assimilation* object performs GLLSM based on a list of benchmark cases, an application case, and a covariance matrix. Benchmark cases and the application case can be either paths to *SDF* files or *Case* objects. The covariance data must be provided as an *NDCovariances* object or an *Assimilation* object. This class uses functions from *methods*, *plots*, and *errors* to format the data, build vector/matrix objects, performs assimilation through GLLSM, and display useful data as plots.
 
+The GLLSM assimilation and the validation methods can be enabled or disabled independently with the constructor flags:
+- *gllsm=True* (by default) computes the GLLSM adjustment and the GLLSM-based USL. 
+- *validation_methods=True* (by default) computes the parametric, nonparametric, Whisper, and trending USL methods;
+- at least one of the two flags must remain *True*.
+
 Initialization of an *Assimilation* object consists of several main steps:
 1. Formatting sensitivity data (benchmarks and application case) into a DataFrame;
 2. Constructing the benchmark sensitivity matrix, the application case sensitivity vector, and the covariance matrix, following the same isotope-reaction order;
 3. Constructing the benchmark response uncertainty matrix and the benchmark C/E vector, following the same benchmark case order;
 4. *self.check_dimensions()* & *check_correspondences()*: verifying consistency of all vector/matrix dimensions and generating warnings for high sensitivities lacking variance-covariance data;
 5. *self.calcul_prior_uncertainty()*: calculation and creation of an *Uncertainty* object;
-6. *self.calcul_matrix_assimilation()*: calculation of \(\Delta \mu_{XS}\), \(\Delta Cov_{assim}\), application of a \(\chi^2\) filter if a target value is provided, and filter application on Ck if a target is provided;
-7. *self.calcul_bias()*: calculation and creation of a *Bias* object;
-8. *self.calcul_post_uncertainty()*: calculation and creation of an *Uncertainty* object;
-9. *self.calcul_USL_gllsm()*, *self.calcul_USL_parametric()*, *self.calcul_USL_nonparametric()*: computation of three independent Upper Safety Limits (see section below).
+6. *self.calcul_bench_Ck()*: calculation of application case to benchmark cases similarity indice Ck (for trending and Whisper validation methods, and Ck filtering of GLLSM);
+7. If *gllsm=True*, *self.calcul_matrix_assimilation()*: calculation of $\Delta \mu_{XS}$, $\Delta Cov_{assim}$, application of a $\chi^2$ filter if a target value is provided, and application of a Ck filter if a target is provided;
+8. If *gllsm=True*, calculation and creation of the bias and posterior *Uncertainty* objects, with *self.calcul_bias()* and *self.calcul_post_uncertainty()*;
+9. If *gllsm=True*, *self.calcul_USL_gllsm()*: computation of the GLLSM-based Upper Safety Limit;
+10. If *validation_methods=True*, computation of *self.calcul_USL_parametric()*, *self.calcul_USL_nonparametric()*, *self.calcul_USL_whisper()*, and *self.calcul_USL_trending()*.
 
 The *Assimilation* object exposes two HTML exports:
 - *Assimilation.export_appl_case_sensi_to_html()* exports an interactive sensitivity report for the application case only;
-- an output file including all assimilation parameters:
+- an output file including all enabled assimilation parameters:
   - prior and posterior uncertainties, as well as bias;
-  - initial and final \(\chi^2\) values;
+  - initial and final $\chi^2$ values;
   - number of removed benchmark cases;
   - number of energy groups;
-  - list of benchmark cases with paths, calculated and experimental response values, ND prior and posterior uncertainty and bias, individual \(\chi^2\), similarity coefficients Ck with the application case, and a red background for excluded cases;
+  - list of benchmark cases with paths, calculated and experimental response values, ND prior and posterior uncertainty and bias, individual $\chi^2$, similarity coefficients Ck with the application case, and a red background for excluded cases;
   - sensitivity vector of the application case;
   - decomposition by isotope-reaction pair for the two uncertainties and bias;
-  - histograms of covariance matrix integrals per isotope-reaction pair, and of \(\Delta Cov_{assim}\) for comparison;
-  - sub-matrices of covariances and \(\Delta Cov_{assim}\) for user-selected isotope-reaction pairs.
-  - list of isotope-reaction pair included in benchmark cases, in covariances-data and in calculation for verification;
+  - histograms of covariance matrix integrals per isotope-reaction pair, and of $\Delta Cov_{assim}$ for comparison;
+  - sub-matrices of covariances and $\Delta Cov_{assim}$ for user-selected isotope-reaction pairs;
+  - list of isotope-reaction pair included in benchmark cases, in covariances-data and in calculation for verification.
 
 It also exposes two static plotting methods for the relative nuclear-data adjustment inferred by assimilation:
 - *Assimilation.plot_delta_mu_profiles()* exports energy profiles for selected isotope-reaction pairs;
@@ -139,14 +145,18 @@ It also exposes two static plotting methods for the relative nuclear-data adjust
 
 ### USL Validation Methods
 
-The *Assimilation* object also computes three **Upper Safety Limit (USL)** values automatically upon initialization. Results are stored as dictionary attributes:
+The *Assimilation* object can automatically compute the GLLSM USL and four independent validation-method USLs upon initialization. Results are stored as dictionary attributes:
 
-- **`calcul_USL_gllsm(coverage=0.95, confidence=0.95)`** — Uses the GLLSM bias and a coverage factor approach based on the noncentral t-distribution. Returns `self.USL_gllsm` with keys: `'USL'`, `'calculational_margin'`, `'bias'`, `'std'`, `'K'`, `'N'`, `'coverage'`, `'confidence'`.
+- **`calcul_USL_gllsm(coverage=0.95, confidence=0.95)`** — Uses the GLLSM bias and a coverage factor approach based on the noncentral t-distribution. Returns `self.USL_gllsm` with keys: `'USL'`, `'calculational_margin'`, `'bias'`, `'std'`, `'K'`, `'N'`, `'coverage'`, `'confidence'`. This method is disabled when `gllsm=False`.
 
 - **`calcul_USL_parametric(coverage=0.95, confidence=0.95)`** — Assumes normally-distributed scaled multiplication factors $\tilde{k}_i = k_{\text{calc},i} / k_{\text{bench},i}$ (validated by a Shapiro-Wilk test). Uses inverse-variance weighting and a tolerance factor $\kappa$ from the noncentral $t$-distribution. Returns `self.USL_parametric` with keys: `'USL'`, `'calculational_margin'`, `'beta'`, `'sigma_beta'`, `'kappa'`, `'k_bar'`, `'Delta_m'`, `'s_k'`, `'sigma_bar_k'`, `'N'`, `'coverage'`, `'confidence'`, `'shapiro_stat'`, `'shapiro_pvalue'`, `'normality_passed'`.
 
-- **`calcul_USL_nonparametric(coverage=0.95, n_sigma=1.645)`** — Distribution-free method based on worst-case bias (min $\tilde{k}_i$). Uses a nonparametric confidence level $C_{NP} = 1 - p_{\text{coverage}}^N$ and a lookup-table margin $m_{NP}$. Returns `self.USL_nonparametric` with keys: `'USL'`, `'calculational_margin'`, `'beta'`, `'sigma_beta'`, `'min_k_tilde'`, `'Delta_m'`, `'sigma_worst'`, `'CNP'`, `'m_NP'`, `'N'`, `'coverage'`, `'n_sigma'`. Note: `'USL'` and `'calculational_margin'` are `None` when $C_{NP} \leq 0.4$ (insufficient benchmarks).
+- **`calcul_USL_nonparametric(coverage=0.95, n_sigma=1.645)`** — Distribution-free method based on the worst-case bias (min $\tilde{k}_i$). Uses a nonparametric confidence level $C_{NP} = 1 - p_{\text{coverage}}^N$ and a lookup-table margin $m_{NP}$. Returns `self.USL_nonparametric` with keys: `'USL'`, `'calculational_margin'`, `'beta'`, `'sigma_beta'`, `'min_k_tilde'`, `'Delta_m'`, `'sigma_worst'`, `'CNP'`, `'m_NP'`, `'N'`, `'coverage'`, `'n_sigma'`. `'USL'` and `'calculational_margin'` are `None` when $C_{NP} \leq 0.4$ (insufficient benchmarks).
 
-All methods use the common USL formula: $\text{USL} = 1 - \text{CM} - \text{MOS}$, where MOS (Margin of Subcriticality) defaults to 0.05.
+- **`calcul_USL_whisper(confidence=0.99, w_min=25, w_penalty=100)`** — Uses the benchmark $C_k$ similarity coefficients to weight the benchmarks and compute an extreme-value distribution of the bias. Benchmarks below an acceptance threshold receive zero or reduced weight, and an insufficient total benchmark weight produces a noncoverage penalty. Returns `self.USL_whisper` with keys: `'USL'`, `'calculational_margin'`, `'beta_ev'`, `'sigma_beta'`, `'Delta_m'`, `'m'`, `'m_tilde'`, `'m0'`, `'N'`, `'confidence'`, `'ck_max'`, `'ck_acc'`, `'w_req'`, `'w_sum'`, `'noncoverage_penalty'`.
+
+- **`calcul_USL_trending(coverage=0.95, confidence=0.95)`** — Performs a weighted linear regression of $\tilde{k}_i$ as a function of $C_k$, evaluates the bias at the maximum $C_k$, and applies the NUREG/CR-6698 single-sided lower tolerance band. A t-test determines whether the fitted trend is statistically significant. Returns `self.USL_trending` with keys: `'USL'`, `'calculational_margin'`, `'beta_0'`, `'beta_1'`, `'beta_x'`, `'sigma_beta_x'`, `'S_p'`, `'sigma_fit'`, `'sigma_bar'`, `'S_xx'`, `'x_bar'`, `'k_bar'`, `'x_eval'`, `'Delta_m'`, `'N'`, `'confidence'`, `'coverage'`, `'t_fit'`, `'t_critical'`, `'trend_significant'`. `'USL'` and `'calculational_margin'` are `None` when fewer than three non-removed benchmarks are available.
+
+The four independent validation methods are disabled when `validation_methods=False`. All enabled methods use the common USL formula: $\text{USL} = 1 - \text{CM} - \text{MOS}$, where MOS (Margin of Subcriticality) defaults to 0.05.
 
 For theoretical details, see the [Validation Methods](../theory/validation-methods.md) page.

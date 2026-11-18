@@ -19,6 +19,7 @@ benchmarks = [
 cov_data = cl.NDCovariances(input_path='path/to/covariance', format='auto')  # auto-detect format
 
 # Perform assimilation
+# Includes the GLLSM AND the other validation methods (parametric, nonparametric, whisper, trending) - Set gllsm=False or validation_methods=False to choose which one to compute
 assimilation = cl.Assimilation(
     appl_case=appl_case,
     benchmarks_list=benchmarks,
